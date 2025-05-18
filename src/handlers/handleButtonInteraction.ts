@@ -1,15 +1,17 @@
-import { ActionRowBuilder, ButtonInteraction, ModalBuilder, TextInputBuilder, TextInputStyle, TextChannel } from 'discord.js'; // Added TextChannel
+import { ActionRowBuilder, ButtonInteraction, ModalBuilder, TextInputBuilder, TextInputStyle, TextChannel } from 'discord.js';
 import { promotionService } from '../services/promotionService';
 import { config } from '../config';
 import { createBaseEmbed } from '../utils/embedUtils';
-import { robloxClient, robloxGroup, discordClient } from '../main'; // Added discordClient
+import { robloxClient, robloxGroup, discordClient } from '../main';
 import { provider } from '../database';
-import { logAction, logSystemAction } from './handleLogging'; // Added logSystemAction
+import { logAction, logSystemAction } from './handleLogging';
 import { processInChunks, ProcessingOptions } from '../utils/processingUtils';
 import { CommandContext } from '../structures/addons/CommandAddons';
-import { findHighestEligibleRole } from '../commands/ranking/xprankup'; // Import eligibility checker
-import { getLinkedRobloxUser } from './accountLinks'; // To verify the clicker
-
+import { findHighestEligibleRole } from '../commands/ranking/xprankup';
+import { getLinkedRobloxUser } from './accountLinks';
+import { checkVerification } from '../commands/verification/verify';
+import { updateUserRoles } from './roleBindHandler';
+import { updateNickname } from './nicknameHandler';
 
 // Define the global type for TypeScript
 declare global {
@@ -19,6 +21,18 @@ declare global {
     var matchedDiscordCache: {
         [key: string]: string[]
     };
+    // Add this to support verification cache
+    var pendingVerifications: Map<string, {
+        robloxId: string;
+        robloxUsername: string;
+        code: string;
+        expires: number;
+    }>;
+}
+
+// Initialize pendingVerifications if it doesn't exist
+if (!global.pendingVerifications) {
+    global.pendingVerifications = new Map();
 }
 
 export async function handleButtonInteraction(interaction: ButtonInteraction): Promise<void> {
@@ -37,7 +51,74 @@ export async function handleButtonInteraction(interaction: ButtonInteraction): P
         await handleDmMatchedMembersButton(interaction);
     } else if (customId.startsWith('request_promotion:')) {
         await handleRequestPromotionButton(interaction);
+    } else if (customId.startsWith('verify_')) {
+        await handleVerifyButton(interaction);
+    } else if (customId.startsWith('cancel_verify_')) {
+        await handleCancelVerifyButton(interaction);
     }
+}
+
+// Add these new handler functions for verification
+
+async function handleVerifyButton(interaction: ButtonInteraction): Promise<void> {
+    await interaction.deferUpdate();
+    const userId = interaction.customId.replace('verify_', '');
+
+    // Only the user who started verification can verify
+    if (userId !== interaction.user.id) {
+        return interaction.followUp({
+            content: 'This verification is for someone else.',
+            ephemeral: true
+        });
+    }
+
+    const result = await checkVerification(userId);
+
+    if (result.success) {
+        const embed = createBaseEmbed()
+            .setTitle('Verification Successful')
+            .setDescription(`Your Discord account has been successfully linked to your Roblox account.\n\n**Username:** ${result.robloxUsername}\n**User ID:** ${result.robloxId}`);
+
+        // Update roles and nickname
+        const robloxUser = await robloxClient.getUser(Number(result.robloxId));
+        if (robloxUser) {
+            await updateUserRoles(interaction.guild!, interaction.member!, robloxUser.id);
+            await updateNickname(interaction.member!, robloxUser);
+        }
+
+        return interaction.followUp({
+            embeds: [embed],
+            components: [],
+            ephemeral: true
+        });
+    } else {
+        return interaction.followUp({
+            content: result.message,
+            ephemeral: true
+        });
+    }
+}
+
+async function handleCancelVerifyButton(interaction: ButtonInteraction): Promise<void> {
+    await interaction.deferUpdate();
+    const userId = interaction.customId.replace('cancel_verify_', '');
+
+    // Only the user who started verification can cancel
+    if (userId !== interaction.user.id) {
+        return interaction.followUp({
+            content: 'This verification is for someone else.',
+            ephemeral: true
+        });
+    }
+
+    // Remove from pending verifications
+    global.pendingVerifications.delete(userId);
+
+    return interaction.update({
+        content: 'Verification cancelled.',
+        embeds: [],
+        components: []
+    });
 }
 
 async function handleRequestPromotionButton(interaction: ButtonInteraction): Promise<void> {

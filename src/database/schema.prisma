@@ -35,3 +35,29 @@ model XpLog {
   timestamp DateTime @default(now())
   user      User     @relation(fields: [robloxId], references: [robloxId])
 }
+
+model UserLink {
+  id            String   @id @default(uuid())
+  discordId     String   @unique
+  robloxId      String
+  verifiedAt    DateTime @default(now())
+}
+
+model RoleBind {
+  id            String   @id @default(uuid())
+  guildId       String
+  discordRoleId String
+  robloxRankId  Int
+  robloxRankName String?
+  
+  @@unique([guildId, discordRoleId])
+  @@unique([guildId, robloxRankId])
+}
+
+model GuildConfig {
+  id                 String   @id
+  guildId            String   @unique
+  nicknameFormat     String   @default("{robloxUsername}")
+  verifiedRoleId     String?
+  autoUpdateEnabled  Boolean  @default(true)
+}

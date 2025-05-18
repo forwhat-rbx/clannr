@@ -66,16 +66,30 @@ class UpdateCommand extends Command {
             }
 
             // Update roles
-            await updateUserRoles(ctx.guild, targetUser, robloxUser.id);
+            const roleResult = await updateUserRoles(ctx.guild, targetUser, robloxUser.id);
 
             // Update nickname
-            await updateNickname(targetUser, robloxUser);
+            const nicknameResult = await updateNickname(targetUser, robloxUser);
 
             return ctx.reply({
                 embeds: [
                     createBaseEmbed()
                         .setTitle('Update Successful')
                         .setDescription(`Updated ${targetUser.id === ctx.user.id ? 'your' : targetUser.user.username + "'s"} roles and nickname based on Roblox profile.`)
+                        .addFields([
+                            {
+                                name: 'Role Changes',
+                                value: roleResult.success
+                                    ? `Added: ${roleResult.added || 0}, Removed: ${roleResult.removed || 0}`
+                                    : 'Failed to update roles',
+                                inline: true
+                            },
+                            {
+                                name: 'Nickname',
+                                value: nicknameResult ? 'Updated' : 'No change needed or failed',
+                                inline: true
+                            }
+                        ])
                 ],
                 ephemeral: true
             });

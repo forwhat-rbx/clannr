@@ -146,12 +146,11 @@ export async function checkVerification(userId: string) {
         const robloxUser = await robloxClient.getUser(Number(verification.robloxId));
 
         // Fetch the user's profile description directly
-        // Since getProfile may not exist, use a direct API call or alternative method
+        // Using the correct method from Bloxy API
         let description = '';
         try {
-            // Try to get profile information using available methods
-            // For Bloxy, we might need to use a different approach
-            const userInfo = await robloxClient.apis.usersAPI.getUserDetails(robloxUser.id);
+            // Use getUserById instead of getUserDetails
+            const userInfo = await robloxClient.apis.usersAPI.getUserById(robloxUser.id);
             description = userInfo.description || '';
         } catch (err) {
             console.error('Error fetching profile description:', err);

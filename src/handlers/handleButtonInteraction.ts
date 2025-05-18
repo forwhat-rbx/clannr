@@ -66,10 +66,12 @@ async function handleVerifyButton(interaction: ButtonInteraction): Promise<void>
 
     // Only the user who started verification can verify
     if (userId !== interaction.user.id) {
-        return interaction.followUp({
+        // Use void to ignore the return value
+        void interaction.followUp({
             content: 'This verification is for someone else.',
             ephemeral: true
         });
+        return;
     }
 
     const result = await checkVerification(userId);
@@ -82,39 +84,50 @@ async function handleVerifyButton(interaction: ButtonInteraction): Promise<void>
         // Update roles and nickname
         const robloxUser = await robloxClient.getUser(Number(result.robloxId));
         if (robloxUser) {
-            await updateUserRoles(interaction.guild!, interaction.member!, robloxUser.id);
-            await updateNickname(interaction.member!, robloxUser);
+            // Need to ensure member is definitely a GuildMember
+            if (interaction.member && 'roles' in interaction.member) {
+                await updateUserRoles(interaction.guild!, interaction.member, robloxUser.id);
+                await updateNickname(interaction.member, robloxUser);
+            }
         }
 
-        return interaction.followUp({
+        // Use void to ignore the return value
+        void interaction.followUp({
             embeds: [embed],
             components: [],
             ephemeral: true
         });
+        return;
     } else {
-        return interaction.followUp({
+        // Use void to ignore the return value
+        void interaction.followUp({
             content: result.message,
             ephemeral: true
         });
+        return;
     }
 }
 
+// Similarly for the handleCancelVerifyButton function:
 async function handleCancelVerifyButton(interaction: ButtonInteraction): Promise<void> {
     await interaction.deferUpdate();
     const userId = interaction.customId.replace('cancel_verify_', '');
 
     // Only the user who started verification can cancel
     if (userId !== interaction.user.id) {
-        return interaction.followUp({
+        // Use void to ignore the return value
+        void interaction.followUp({
             content: 'This verification is for someone else.',
             ephemeral: true
         });
+        return;
     }
 
     // Remove from pending verifications
     global.pendingVerifications.delete(userId);
 
-    return interaction.update({
+    // Use void to ignore the return value
+    void interaction.update({
         content: 'Verification cancelled.',
         embeds: [],
         components: []

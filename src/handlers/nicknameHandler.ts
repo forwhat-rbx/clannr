@@ -1,99 +1,88 @@
-import { Guild, GuildMember } from 'discord.js';
+import { GuildMember } from 'discord.js';
+import { User } from 'bloxy/dist/structures';
 import { prisma } from '../database/prisma';
 import { robloxGroup } from '../main';
 
 /**
- * Get all role bindings for a guild
+ * Get the nickname format for a guild, creating default if none exists
  */
-export const getRoleBindings = async (guildId: string) => {
-    return await prisma.roleBind.findMany({
+export const getNicknameFormat = async (guildId: string): Promise<string> => {
+    const guildConfig = await prisma.guildConfig.findUnique({
         where: { guildId }
     });
+
+    if (!guildConfig) {
+        // Create default config if none exists
+        const newConfig = await prisma.guildConfig.create({
+            data: {
+                id: guildId,
+                guildId,
+                nicknameFormat: '{robloxUsername}'
+            }
+        });
+        return newConfig.nicknameFormat;
+    }
+
+    return guildConfig.nicknameFormat;
 };
 
 /**
- * Add a role binding
+ * Set the nickname format for a guild
  */
-export const addRoleBinding = async (guildId: string, discordRoleId: string, robloxRankId: number, robloxRankName: string) => {
-    return await prisma.roleBind.upsert({
-        where: {
-            guildId_discordRoleId: {
-                guildId,
-                discordRoleId
-            }
-        },
-        update: {
-            robloxRankId,
-            robloxRankName
-        },
+export const setNicknameFormat = async (guildId: string, format: string): Promise<string> => {
+    const guildConfig = await prisma.guildConfig.upsert({
+        where: { guildId },
+        update: { nicknameFormat: format },
         create: {
+            id: guildId,
             guildId,
-            discordRoleId,
-            robloxRankId,
-            robloxRankName
+            nicknameFormat: format
         }
     });
+
+    return guildConfig.nicknameFormat;
 };
 
 /**
- * Remove a role binding
+ * Update a user's nickname based on their Roblox profile
  */
-export const removeRoleBinding = async (guildId: string, discordRoleId: string) => {
-    return await prisma.roleBind.delete({
-        where: {
-            guildId_discordRoleId: {
-                guildId,
-                discordRoleId
-            }
-        }
-    });
-};
-
-/**
- * Update a user's roles based on their Roblox rank
- */
-export const updateUserRoles = async (guild: Guild, member: GuildMember, robloxUserId: number) => {
+export const updateNickname = async (member: GuildMember, robloxUser: User): Promise<boolean> => {
     try {
-        // Get all role bindings for this guild
-        const roleBindings = await getRoleBindings(guild.id);
-        if (roleBindings.length === 0) {
-            return { success: true, message: 'No role bindings configured for this server' };
+        // Skip for server owner as they can't be renamed
+        if (member.guild.ownerId === member.id) {
+            return false;
         }
 
-        // Get the user's rank in the group
-        const groupMember = await robloxGroup.getMember(robloxUserId);
-        if (!groupMember) {
-            return { success: false, message: 'User is not in the group' };
+        // Get the nickname format
+        const format = await getNicknameFormat(member.guild.id);
+
+        // Get the user's group role
+        let rankName = "Guest";
+        try {
+            const groupMember = await robloxGroup.getMember(robloxUser.id);
+            if (groupMember) {
+                rankName = groupMember.role.name;
+            }
+        } catch (err) {
+            console.error('Error getting group member:', err);
         }
 
-        // Get the user's rank ID
-        const userRankId = groupMember.role.rank;
+        // Format the nickname
+        let nickname = format
+            .replace('{robloxUsername}', robloxUser.name)
+            .replace('{robloxDisplayName}', robloxUser.displayName || robloxUser.name)
+            .replace('{rankName}', rankName);
 
-        // Find all roles that should be assigned
-        const rolesToAdd = roleBindings
-            .filter(binding => binding.robloxRankId <= userRankId)
-            .map(binding => binding.discordRoleId);
-
-        // Get all bound role IDs to properly remove roles that shouldn't be assigned
-        const allBoundRoleIds = roleBindings.map(binding => binding.discordRoleId);
-
-        // Add and remove roles
-        const rolesToRemove = member.roles.cache
-            .filter(role => allBoundRoleIds.includes(role.id) && !rolesToAdd.includes(role.id))
-            .map(role => role.id);
-
-        // Update the roles
-        if (rolesToRemove.length > 0) {
-            await member.roles.remove(rolesToRemove, 'Automatic role update from bot');
+        // Discord nickname has 32 character limit
+        if (nickname.length > 32) {
+            nickname = nickname.substring(0, 32);
         }
 
-        if (rolesToAdd.length > 0) {
-            await member.roles.add(rolesToAdd, 'Automatic role update from bot');
-        }
-
-        return { success: true, added: rolesToAdd.length, removed: rolesToRemove.length };
+        // Update nickname
+        await member.setNickname(nickname, 'Automatic nickname update from bot');
+        return true;
     } catch (err) {
-        console.error('Error updating user roles:', err);
-        return { success: false, message: 'An error occurred while updating roles' };
+        console.error('Error updating nickname:', err);
+        return false;
     }
 };

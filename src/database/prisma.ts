@@ -7,12 +7,14 @@ import { discordClient } from '../main';
 
 require('dotenv').config();
 
+export const prisma = new PrismaClient();
+
 class PrismaProvider extends DatabaseProvider {
     db: PrismaClient;
 
     constructor() {
         super();
-        this.db = new PrismaClient();
+        this.db = prisma;
     }
 
     async findUser(robloxId: string): Promise<DatabaseUser> {

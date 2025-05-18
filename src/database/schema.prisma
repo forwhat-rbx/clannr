@@ -1,0 +1,37 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:qbotdata.db"
+}
+
+model User {
+  id             String    @id @default(uuid())
+  robloxId       String    @unique
+  xp             Int       @default(0)
+  raids          Int       @default(0)
+  defenses       Int       @default(0)
+  scrims         Int       @default(0)
+  trainings      Int       @default(0)
+  suspendedUntil DateTime?
+  unsuspendRank  Int?
+  isBanned       Boolean   @default(false)
+  xpLogs         XpLog[]
+
+  lastRaid       DateTime?
+  lastDefense    DateTime?
+  lastScrim      DateTime?
+  lastTraining   DateTime?
+  lastActivity   DateTime?
+}
+
+model XpLog {
+  id        String   @id @default(uuid())
+  robloxId  String   
+  amount    Int
+  reason    String?
+  timestamp DateTime @default(now())
+  user      User     @relation(fields: [robloxId], references: [robloxId])
+}

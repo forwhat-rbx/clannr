@@ -1,7 +1,3 @@
 node_modules
 .env
 dist
-discordbot/src/database/
-src/database/
-database
-~/src/database/

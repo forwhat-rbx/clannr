@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN "lastActivity" DATETIME;
+ALTER TABLE "User" ADD COLUMN "lastDefense" DATETIME;
+ALTER TABLE "User" ADD COLUMN "lastRaid" DATETIME;
+ALTER TABLE "User" ADD COLUMN "lastScrim" DATETIME;
+ALTER TABLE "User" ADD COLUMN "lastTraining" DATETIME;

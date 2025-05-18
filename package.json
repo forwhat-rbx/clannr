@@ -15,15 +15,13 @@
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^22.14.1",
-    "nodemon": "^2.0.15",
-    "prisma": "^5.0.0"
+    "nodemon": "^2.0.15"
   },
   "dependencies": {
-    "@prisma/client": "^5.0.0",
     "@types/express": "^4.17.13",
     "@types/lodash": "^4.14.178",
     "@types/ms": "^0.7.31",
-    "axios": "^0.24.0",
+    "axios": "^1.9.0",
     "bloxy": "github:LengoLabs/bloxy",
     "canvas": "^2.11.2",
     "chart.js": "^4.4.8",

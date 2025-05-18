@@ -1,3 +1,4 @@
+import { GuildMember } from 'discord.js';
 import { ActionRowBuilder, ButtonInteraction, ModalBuilder, TextInputBuilder, TextInputStyle, TextChannel } from 'discord.js';
 import { promotionService } from '../services/promotionService';
 import { config } from '../config';

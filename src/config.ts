@@ -18,9 +18,9 @@ export const config: BotConfig = {
         admin: ['1248472145676210237', '1252315853844779099'], // (HICOM) (ENGINEER)
     },
     logChannels: {
-        actions: '1254463404136206407',
-        shout: '1254463404136206407',
-        rankup: '1254463404136206407',
+        actions: '1117017221873537085',
+        shout: '1117017221873537085',
+        rankup: '1117017221873537085',
     },
     api: true,
     maximumRank: 255,
@@ -31,7 +31,7 @@ export const config: BotConfig = {
     recordManualActions: true,
     memberCount: {
         enabled: true,
-        channelId: '1254463404136206407',
+        channelId: '1117017221873537085',
         milestone: 1000,
         onlyMilestones: false,
     },

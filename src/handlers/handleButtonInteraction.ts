@@ -11,7 +11,7 @@ import { CommandContext } from '../structures/addons/CommandAddons';
 import { findHighestEligibleRole } from '../commands/ranking/xprankup';
 import { getLinkedRobloxUser } from './accountLinks';
 import { checkVerification } from '../commands/verification/verify';
-import { updateUserRoles } from './roleBindHandler';
+import { addRoleBinding, updateUserRoles } from './roleBindHandler';
 import { updateNickname } from './nicknameHandler';
 
 // Define the global type for TypeScript
@@ -56,6 +56,119 @@ export async function handleButtonInteraction(interaction: ButtonInteraction): P
         await handleVerifyButton(interaction);
     } else if (customId.startsWith('cancel_verify_')) {
         await handleCancelVerifyButton(interaction);
+    }
+}
+
+export async function handleModalSubmit(interaction) {
+    const customId = interaction.customId;
+
+    // Handle the binds modal submission
+    if (customId.startsWith('binds_add_')) {
+        const discordRoleId = customId.replace('binds_add_', '');
+        const rankRange = interaction.fields.getTextInputValue('rank_range');
+
+        try {
+            // Parse the rank range (e.g. "5" or "1-255")
+            let minRankId, maxRankId;
+
+            if (rankRange.includes('-')) {
+                const [min, max] = rankRange.split('-').map(num => parseInt(num.trim(), 10));
+                minRankId = min;
+                maxRankId = max;
+            } else {
+                minRankId = parseInt(rankRange.trim(), 10);
+                maxRankId = minRankId;
+            }
+
+            // Validate the range
+            if (isNaN(minRankId) || isNaN(maxRankId)) {
+                return interaction.reply({
+                    embeds: [
+                        createBaseEmbed()
+                            .setTitle('Invalid Input')
+                            .setDescription('Please enter a valid rank number or range (e.g. "5" or "1-255").')
+                            .setColor(0xff0000)
+                    ],
+                    ephemeral: true
+                });
+            }
+
+            if (minRankId > maxRankId) {
+                return interaction.reply({
+                    embeds: [
+                        createBaseEmbed()
+                            .setTitle('Invalid Range')
+                            .setDescription('Minimum rank cannot be higher than maximum rank.')
+                            .setColor(0xff0000)
+                    ],
+                    ephemeral: true
+                });
+            }
+
+            // Get the Roblox rank names
+            const groupRoles = await robloxGroup.getRoles();
+            const minRole = groupRoles.find(r => r.rank === minRankId);
+            const maxRole = groupRoles.find(r => r.rank === maxRankId);
+
+            if (!minRole) {
+                return interaction.reply({
+                    embeds: [
+                        createBaseEmbed()
+                            .setTitle('Invalid Rank')
+                            .setDescription(`Could not find minimum rank with ID ${minRankId} in the group.`)
+                            .setColor(0xff0000)
+                    ],
+                    ephemeral: true
+                });
+            }
+
+            if (!maxRole) {
+                return interaction.reply({
+                    embeds: [
+                        createBaseEmbed()
+                            .setTitle('Invalid Rank')
+                            .setDescription(`Could not find maximum rank with ID ${maxRankId} in the group.`)
+                            .setColor(0xff0000)
+                    ],
+                    ephemeral: true
+                });
+            }
+
+            // Get the Discord role
+            const discordRole = interaction.guild.roles.cache.get(discordRoleId);
+
+            // For the name, we'll use a range or single name based on whether min and max are the same
+            const rankName = minRankId === maxRankId
+                ? minRole.name
+                : `${minRole.name} to ${maxRole.name}`;
+
+            await addRoleBinding(interaction.guild.id, discordRoleId, minRankId, maxRankId, rankName);
+
+            const rangeText = minRankId === maxRankId
+                ? `rank "${minRole.name}" (${minRankId})`
+                : `rank range "${minRole.name}" (${minRankId}) to "${maxRole.name}" (${maxRankId})`;
+
+            return interaction.reply({
+                embeds: [
+                    createBaseEmbed()
+                        .setTitle('Role Binding Added')
+                        .setDescription(`Bound Discord role <@&${discordRoleId}> (${discordRole.name}) to Roblox ${rangeText}`)
+                ],
+                ephemeral: false
+            });
+
+        } catch (err) {
+            console.error('Error processing role binding modal:', err);
+            return interaction.reply({
+                embeds: [
+                    createBaseEmbed()
+                        .setTitle('Error')
+                        .setDescription('An error occurred while adding the role binding.')
+                        .setColor(0xff0000)
+                ],
+                ephemeral: true
+            });
+        }
     }
 }
 

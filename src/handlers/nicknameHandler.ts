@@ -7,40 +7,51 @@ import { robloxGroup } from '../main';
  * Get the nickname format for a guild, creating default if none exists
  */
 export const getNicknameFormat = async (guildId: string): Promise<string> => {
-    const guildConfig = await prisma.guildConfig.findUnique({
-        where: { guildId }
-    });
-
-    if (!guildConfig) {
-        // Create default config if none exists
-        const newConfig = await prisma.guildConfig.create({
-            data: {
-                id: guildId,
-                guildId,
-                nicknameFormat: '{robloxUsername}'
-            }
+    try {
+        // Use the correct case for the model name (GuildConfig)
+        const guildConfig = await prisma.GuildConfig.findUnique({
+            where: { guildId }
         });
-        return newConfig.nicknameFormat;
-    }
 
-    return guildConfig.nicknameFormat;
+        if (!guildConfig) {
+            // Create default config if none exists
+            const newConfig = await prisma.GuildConfig.create({
+                data: {
+                    id: guildId,
+                    guildId,
+                    nicknameFormat: '{robloxUsername}'
+                }
+            });
+            return newConfig.nicknameFormat;
+        }
+
+        return guildConfig.nicknameFormat;
+    } catch (err) {
+        console.error("Error getting nickname format:", err);
+        return '{robloxUsername}'; // Return default if error
+    }
 };
 
 /**
  * Set the nickname format for a guild
  */
 export const setNicknameFormat = async (guildId: string, format: string): Promise<string> => {
-    const guildConfig = await prisma.guildConfig.upsert({
-        where: { guildId },
-        update: { nicknameFormat: format },
-        create: {
-            id: guildId,
-            guildId,
-            nicknameFormat: format
-        }
-    });
+    try {
+        const guildConfig = await prisma.GuildConfig.upsert({
+            where: { guildId },
+            update: { nicknameFormat: format },
+            create: {
+                id: guildId,
+                guildId,
+                nicknameFormat: format
+            }
+        });
 
-    return guildConfig.nicknameFormat;
+        return guildConfig.nicknameFormat;
+    } catch (err) {
+        console.error("Error setting nickname format:", err);
+        throw err;
+    }
 };
 
 /**
@@ -78,11 +89,17 @@ export const updateNickname = async (member: GuildMember, robloxUser: User): Pro
             nickname = nickname.substring(0, 32);
         }
 
-        // Update nickname
-        await member.setNickname(nickname, 'Automatic nickname update from bot');
-        return true;
+        // Only update if the nickname is different
+        if (member.nickname !== nickname) {
+            await member.setNickname(nickname, 'Automatic nickname update from bot');
+            console.log(`Updated nickname for ${member.user.tag} to: ${nickname}`);
+            return true;
+        } else {
+            console.log(`No nickname change needed for ${member.user.tag}`);
+            return false;
+        }
     } catch (err) {
-        console.error('Error updating nickname:', err);
+        console.error(`Error updating nickname for ${member.user.tag}:`, err);
         return false;
     }
 };

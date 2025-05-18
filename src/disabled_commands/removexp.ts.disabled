@@ -1,0 +1,292 @@
+import { discordClient, robloxClient, robloxGroup } from '../../main';
+import { CommandContext } from '../../structures/addons/CommandAddons';
+import { Command } from '../../structures/Command';
+import {
+    getInvalidXPEmbed,
+    checkIconUrl,
+    xmarkIconUrl,
+    greenColor,
+    redColor
+} from '../../handlers/locale';
+import { checkActionEligibility } from '../../handlers/verificationChecks';
+import { config } from '../../config';
+import { User, PartialUser, GroupMember } from 'bloxy/dist/structures';
+import { logAction } from '../../handlers/handleLogging';
+import { getLinkedRobloxUser } from '../../handlers/accountLinks';
+import { provider } from '../../database';
+import { createBaseEmbed } from '../../utils/embedUtils';
+
+// // Debug helper
+// function debugLog(context: string, message: string, data?: any): void {
+//     console.log(`[REMOVEXP DEBUG] ${context}: ${message}`);
+//     if (data) console.log(JSON.stringify(data, null, 2));
+// }
+
+class RemoveXPCommand extends Command {
+    constructor() {
+        super({
+            trigger: 'removexp',
+            description: 'Removes XP from user(s).',
+            type: 'ChatInput',
+            module: 'xp',
+            args: [
+                {
+                    trigger: 'roblox-users',
+                    description: 'Who do you want to remove XP from? (comma-separated for multiple users)',
+                    autocomplete: false,
+                    type: 'String',
+                },
+                {
+                    trigger: 'decrement',
+                    description: 'How much XP would you like to remove?',
+                    type: 'Number',
+                },
+                {
+                    trigger: 'reason',
+                    description: 'If you would like a reason to be supplied in the logs, put it here.',
+                    isLegacyFlag: true,
+                    required: false,
+                    type: 'String',
+                },
+            ],
+            permissions: [
+                {
+                    type: 'role',
+                    ids: config.permissions.ranking,
+                    value: true,
+                }
+            ]
+        });
+    }
+
+    async run(ctx: CommandContext) {
+        // Validate XP amount first
+        if (!Number.isInteger(Number(ctx.args['decrement'])) || Number(ctx.args['decrement']) < 0) {
+            return ctx.reply({ embeds: [getInvalidXPEmbed()] });
+        }
+
+        const xpAmount = Number(ctx.args['decrement']);
+        const usernamesInput = ctx.args['roblox-users'] as string;
+        // debugLog('Input', `Processing input: ${usernamesInput} with XP amount: ${xpAmount}`);
+
+        // Split by both commas and spaces, then process Discord mentions properly
+        const userIdentifiers = usernamesInput.trim().split(/[\s,]+/).filter(Boolean);
+        // debugLog('Parsed', `Found ${userIdentifiers.length} user identifiers to process`, userIdentifiers);
+
+        if (userIdentifiers.length === 0) {
+            return ctx.reply({
+                content: 'Please provide at least one username or mention.',
+                ephemeral: true
+            });
+        }
+
+        // Create arrays to track results and cache for Discord users
+        const successfulRemovals = [];
+        const failedRemovals = [];
+        const discordUserCache = new Map();
+
+        // Process each user
+        for (const identifier of userIdentifiers) {
+            // debugLog('Processing', `Starting to process user: ${identifier}`);
+            try {
+                let robloxUser: User | PartialUser;
+
+                // Check if it's a Discord mention
+                if (identifier.startsWith('<@') && identifier.endsWith('>')) {
+                    // debugLog('Lookup', `Processing as Discord mention: ${identifier}`);
+                    try {
+                        // Extract Discord ID from mention
+                        const discordId = identifier.replace(/[<@!>]/g, '');
+
+                        // Check cache first
+                        if (discordUserCache.has(discordId)) {
+                            robloxUser = discordUserCache.get(discordId);
+                            // debugLog('Lookup', `Found cached Roblox user: ${robloxUser.name} (${robloxUser.id})`);
+                        } else {
+                            // Fetch Discord user and linked Roblox account
+                            const discordUser = await discordClient.users.fetch(discordId);
+                            // debugLog('Lookup', `Found Discord user: ${discordUser.username}`);
+
+                            const linkedUser = await getLinkedRobloxUser(discordUser.id);
+                            if (!linkedUser) throw new Error('No linked Roblox user');
+
+                            robloxUser = linkedUser;
+                            // debugLog('Lookup', `Found linked Roblox user: ${robloxUser.name} (${robloxUser.id})`);
+
+                            // Cache for future use
+                            discordUserCache.set(discordId, linkedUser);
+                        }
+                    } catch (err) {
+                        // debugLog('Lookup Error', `Error processing Discord mention: ${err.message}`);
+                        failedRemovals.push({
+                            user: identifier,
+                            reason: 'Could not find linked Roblox account'
+                        });
+                        continue;
+                    }
+                } else if (!isNaN(Number(identifier))) {
+                    // Try as Roblox ID
+                    try {
+                        // debugLog('Lookup', `Trying to find user as Roblox ID: ${identifier}`);
+                        robloxUser = await robloxClient.getUser(Number(identifier));
+                        // debugLog('Lookup', `Found user by ID: ${robloxUser.name} (${robloxUser.id})`);
+                    } catch (err) {
+                        // debugLog('Lookup Error', `Error finding by Roblox ID: ${err.message}`);
+                        failedRemovals.push({
+                            user: identifier,
+                            reason: 'Invalid Roblox ID'
+                        });
+                        continue;
+                    }
+                } else {
+                    // Try as Roblox username
+                    try {
+                        // debugLog('Lookup', `Trying to find user by username: ${identifier}`);
+                        const robloxUsers = await robloxClient.getUsersByUsernames([identifier]);
+                        if (robloxUsers.length === 0) throw new Error('No users found by username');
+                        robloxUser = robloxUsers[0];
+                        // debugLog('Lookup', `Found user by username: ${robloxUser.name} (${robloxUser.id})`);
+                    } catch (err) {
+                        // debugLog('Lookup Error', `Error finding by username: ${err.message}`);
+                        failedRemovals.push({
+                            user: identifier,
+                            reason: 'User not found'
+                        });
+                        continue;
+                    }
+                }
+
+                // Check if user is in the group
+                let robloxMember: GroupMember;
+                try {
+                    // debugLog('Group Check', `Checking if ${robloxUser.name} (${robloxUser.id}) is in group ${config.groupId}`);
+                    robloxMember = await robloxGroup.getMember(robloxUser.id);
+                    if (!robloxMember) {
+                        // debugLog('Group Check', `User ${robloxUser.name} is not a member (null response)`);
+                        throw new Error('Not a member (null response)');
+                    }
+                    // debugLog('Group Check', `User ${robloxUser.name} is in group with rank ${robloxMember.role.name} (${robloxMember.role.rank})`);
+                } catch (err) {
+                    // debugLog('Group Check Error', `Error checking group membership: ${err.message}`);
+                    failedRemovals.push({
+                        user: robloxUser.name,
+                        reason: 'Not a member of the group'
+                    });
+                    continue; // Skip to next user
+                }
+
+                // Check verification eligibility
+                if (config.verificationChecks) {
+                    try {
+                        // debugLog('Verification', `Checking verification eligibility for ${robloxUser.name}`);
+                        const actionEligibility = await checkActionEligibility(
+                            ctx.user.id,
+                            ctx.guild.id,
+                            robloxMember,
+                            robloxMember.role.rank
+                        );
+                        // debugLog('Verification', `Eligibility result: ${actionEligibility}`);
+
+                        if (!actionEligibility) {
+                            failedRemovals.push({
+                                user: robloxUser.name,
+                                reason: 'Verification check failed'
+                            });
+                            continue; // Skip to next user
+                        }
+                    } catch (err) {
+                        // debugLog('Verification Error', `Error during verification check: ${err.message}`);
+                        failedRemovals.push({
+                            user: robloxUser.name,
+                            reason: 'Error checking eligibility'
+                        });
+                        continue; // Skip to next user
+                    }
+                }
+
+                // Process XP removal
+                try {
+                    // debugLog('Database', `Finding user data for ${robloxUser.name} (${robloxUser.id})`);
+                    const userData = await provider.findUser(robloxUser.id.toString());
+                    if (!userData) {
+                        // debugLog('Database', `No database entry found for ${robloxUser.name}`);
+                        failedRemovals.push({
+                            user: robloxUser.name,
+                            reason: 'No database entry found'
+                        });
+                        continue;
+                    }
+
+                    // debugLog('Database', `Current XP: ${userData.xp}`);
+                    const oldXP = Number(userData.xp);
+                    const newXP = Math.max(0, oldXP - xpAmount);
+                    // debugLog('Database', `Updating XP: ${oldXP} -> ${newXP}`);
+
+                    await provider.updateUser(robloxUser.id.toString(), { xp: newXP });
+                    // debugLog('Database', `Successfully updated XP for ${robloxUser.name}`);
+
+                    // Add to successful list
+                    successfulRemovals.push({
+                        user: robloxUser.name,
+                        xpRemoved: xpAmount,
+                        oldXP: oldXP,
+                        newXP: newXP
+                    });
+
+                    // Log action
+                    // debugLog('Action Log', `Logging action for ${robloxUser.name}`);
+                    logAction('Remove XP', ctx.user, ctx.args['reason'], robloxUser, null, null, null, `${oldXP} → ${newXP} (-${xpAmount})`);
+                } catch (err) {
+                    // debugLog('Database Error', `Error updating XP: ${err.message}`);
+                    console.error(err);
+                    failedRemovals.push({
+                        user: robloxUser.name,
+                        reason: 'Database error: ' + err.message
+                    });
+                }
+            } catch (err) {
+                // debugLog('General Error', `Unexpected error processing ${identifier}: ${err.message}`);
+                console.error(err);
+                failedRemovals.push({
+                    user: identifier,
+                    reason: 'Unexpected error: ' + err.message
+                });
+            }
+        }
+
+        // debugLog('Results', `Processed all users. Success: ${successfulRemovals.length}, Failed: ${failedRemovals.length}`);
+
+        // Create response message
+        let description = '';
+
+        // Add successes to message
+        if (successfulRemovals.length > 0) {
+            description += '**Successfully Removed XP From:**\n';
+            for (const success of successfulRemovals) {
+                description += `- **${success.user}**: -${success.xpRemoved} XP (${success.oldXP} → ${success.newXP})\n`;
+            }
+        }
+
+        // Add failures to message
+        if (failedRemovals.length > 0) {
+            if (description) description += '\n';
+            description += '**Failed XP Removals:**\n';
+            for (const failure of failedRemovals) {
+                description += `- **${failure.user}**: ${failure.reason}\n`;
+            }
+        }
+
+        // Create and send response embed
+        const embed = createBaseEmbed()
+            .setAuthor({
+                name: 'XP Removal Results',
+                iconURL: successfulRemovals.length > 0 ? checkIconUrl : xmarkIconUrl
+            })
+            .setColor(successfulRemovals.length > 0 ? greenColor : redColor)
+            .setDescription(description);
+
+        return ctx.reply({ embeds: [embed] });
+    }
+}
+
+export default RemoveXPCommand;

@@ -1,0 +1,99 @@
+import { CommandContext } from '../../structures/addons/CommandAddons';
+import { Command } from '../../structures/Command';
+import { config } from '../../config';
+import { AttachmentBuilder } from 'discord.js';
+import { ActivityLogger } from '../../utils/activityLogger';
+import * as fs from 'fs';
+import * as path from 'path';
+
+class ViewLogsCommand extends Command {
+    constructor() {
+        super({
+            trigger: 'viewlogs',
+            description: 'View activity logs for a specific moderator',
+            type: 'ChatInput',
+            module: 'admin',
+            args: [
+                {
+                    trigger: 'moderator',
+                    description: 'Username, Discord mention or "all" for all logs',
+                    type: 'String',
+                    required: true
+                },
+                {
+                    trigger: 'weeks',
+                    description: 'Number of weeks to retrieve (default: 1)',
+                    type: 'Number',
+                    required: false
+                }
+            ],
+            permissions: [
+                {
+                    type: 'role',
+                    ids: config.permissions.admin,
+                    value: true
+                }
+            ]
+        });
+    }
+
+    async run(ctx: CommandContext) {
+        await ctx.defer();
+
+        try {
+            // Run a direct test to verify logging system
+            const testResult = ActivityLogger.testLogging();
+            console.log(`Logging system test: ${testResult ? "PASSED" : "FAILED"}`);
+
+            const moderator = ctx.args['moderator'] as string;
+            const weeks = ctx.args['weeks'] ? Number(ctx.args['weeks']) : 1;
+
+            if (isNaN(weeks) || weeks <= 0 || weeks > 10) {
+                return ctx.reply({ content: 'Please provide a valid number of weeks (between 1 and 10).' });
+            }
+
+            let logContent: string;
+            let fileName: string;
+
+            if (moderator.toLowerCase() === 'all') {
+                // Get combined logs for all moderators for current week
+                logContent = await ActivityLogger.getAllLogs(new Date());
+                fileName = 'all_moderators_current_week.txt';
+                console.log("Fetching logs for ALL moderators");
+            } else {
+                // Get logs for specific moderator
+                console.log(`Fetching logs for moderator: ${moderator}`);
+                logContent = await ActivityLogger.getModeratorLogs(moderator, weeks);
+
+                // Get a clean file name version of the moderator identifier
+                const cleanName = moderator.replace(/[<@!>]/g, '');
+                fileName = `${cleanName}_${weeks}_weeks.txt`;
+            }
+
+            console.log(`Log content length: ${logContent.length} characters`);
+
+            // Create temporary file
+            const tempDir = path.join(process.cwd(), 'temp');
+            if (!fs.existsSync(tempDir)) {
+                fs.mkdirSync(tempDir, { recursive: true });
+            }
+
+            const filePath = path.join(tempDir, fileName);
+            fs.writeFileSync(filePath, logContent);
+            console.log(`Wrote logs to file: ${filePath}`);
+
+            // Send file as attachment
+            const attachment = new AttachmentBuilder(filePath, { name: fileName });
+
+            return ctx.reply({
+                content: `Here are the activity logs ${moderator.toLowerCase() === 'all' ? 'for all moderators' : `for ${moderator}`}:`,
+                files: [attachment]
+            });
+        } catch (err) {
+            console.error('Error retrieving logs:', err);
+            return ctx.reply({ content: `An error occurred while retrieving the logs: ${err.message}` });
+        }
+    }
+}
+
+export default ViewLogsCommand;

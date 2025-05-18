@@ -1,0 +1,38 @@
+import { CommandContext } from '../../structures/addons/CommandAddons';
+import { Command } from '../../structures/Command';
+import { createBaseEmbed } from '../../utils/embedUtils';
+
+class ExampleCommand extends Command {
+    constructor() {
+        super({
+            trigger: 'kick',
+            description: 'Kicks a discord user.',
+            type: 'ChatInput',
+            module: 'admin',
+            args: [
+                {
+                    trigger: 'discord-user',
+                    description: 'Enter name of discord user you wish to kick.',
+                    required: true,
+                    type: 'String',
+                },
+            ],
+            enabled: false
+        });
+    }
+
+    async run(ctx: CommandContext) {
+        // Optional: handle arguments, if any
+        const userText = ctx.args['text'] ? ctx.args['text'] : 'Hello, world!';
+
+        // Creating a simple embed response
+        const embed = createBaseEmbed()
+            .setTitle('Example Command')
+            .setDescription(`You said: ${userText}`);
+
+        // Reply to the user with the embed
+        return ctx.reply({ embeds: [embed] });
+    }
+}
+
+export default ExampleCommand;

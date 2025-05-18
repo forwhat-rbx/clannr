@@ -1,0 +1,282 @@
+import axios from 'axios';
+import { CommandContext } from '../../structures/addons/CommandAddons';
+import { Command } from '../../structures/Command';
+import { createCanvas } from 'canvas';
+import { AttachmentBuilder } from 'discord.js';
+import { getUnexpectedErrorEmbed } from '../../handlers/locale';
+
+class BadgeCommand extends Command {
+    constructor() {
+        super({
+            trigger: "badges",
+            description: "Gets the cumulative badges of a Roblox user over time with benchmarking",
+            type: "ChatInput",
+            module: "information",
+            args: [
+                {
+                    trigger: 'username',
+                    description: 'The Roblox username to search badges for',
+                    required: true,
+                    type: 'String',
+                }
+            ]
+        });
+    }
+
+    async getUserIdAndCreationDate(username: string): Promise<{ userId: string; creationDate: Date }> {
+        const url = `https://users.roblox.com/v1/usernames/users`;
+        const response = await axios.post(url, { usernames: [username] });
+        if (response.status === 200 && response.data.data.length > 0) {
+            const userId = response.data.data[0].id;
+            const userResponse = await axios.get(`https://users.roblox.com/v1/users/${userId}`);
+            const creationDate = new Date(userResponse.data.created);
+            return { userId, creationDate };
+        }
+        throw new Error(`Could not find the user ID or creation date for username ${username}`);
+    }
+
+    async fetchBadges(userId: string, updateProgress: (message: string) => Promise<void>): Promise<any[]> {
+        const badges: any[] = [];
+        let cursor = null;
+        let pageCount = 0;
+
+        while (true) {
+            const url = `https://badges.roblox.com/v1/users/${userId}/badges?limit=100&sortOrder=Desc`;
+            const params = cursor ? { cursor } : {};
+
+            try {
+                pageCount++;
+                if (pageCount % 5 === 0) {
+                    await updateProgress(`Fetching badges page ${pageCount} (${badges.length} badges so far)...`);
+                }
+
+                const response = await axios.get(url, { params });
+                badges.push(...response.data.data);
+
+                if (response.data.nextPageCursor) {
+                    cursor = response.data.nextPageCursor;
+                    // Add a small delay between requests to avoid hitting rate limits
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                } else {
+                    break;
+                }
+            } catch (error) {
+                console.error(`Error fetching badges: ${error.message}`);
+                if (error.response && error.response.status === 429) {
+                    // If rate limited, wait the specified time before retrying
+                    const retryAfter = error.response.headers['retry-after'] || 5;
+                    await updateProgress(`Rate limited, waiting ${retryAfter} seconds before retrying page ${pageCount}...`);
+                    await new Promise(resolve => setTimeout(resolve, parseInt(retryAfter) * 1000 + 500));
+                    // Don't update cursor - retry the same page
+                } else {
+                    // For severe errors, return what we have so far rather than failing completely
+                    await updateProgress(`Encountered error: ${error.message}. Continuing with ${badges.length} badges fetched so far.`);
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    break;
+                }
+            }
+        }
+
+        return badges;
+    }
+
+    async fetchAwardDates(userId: string, badges: any[], updateProgress: (message: string) => Promise<void>): Promise<string[]> {
+        const dates: string[] = [];
+        const badgeIds = badges.map(badge => badge.id);
+
+        // Use a smaller batch size to avoid huge URLs and improve reliability
+        const BATCH_SIZE = 10;
+        const totalBatches = Math.ceil(badgeIds.length / BATCH_SIZE);
+
+        for (let i = 0; i < badgeIds.length; i += BATCH_SIZE) {
+            const batchIds = badgeIds.slice(i, i + BATCH_SIZE);
+            const currentBatch = Math.floor(i / BATCH_SIZE) + 1;
+
+            if (currentBatch % 5 === 0 || currentBatch === 1) {
+                await updateProgress(`Fetching award dates - batch ${currentBatch}/${totalBatches} (${Math.round((currentBatch / totalBatches) * 100)}% complete)...`);
+            }
+
+            try {
+                const params = { badgeIds: batchIds };
+                const response = await axios.get(`https://badges.roproxy.com/v1/users/${userId}/badges/awarded-dates`, { params });
+                dates.push(...response.data.data.map((badge: any) => badge.awardedDate));
+
+                // Add a delay between batches to avoid rate limits - longer delay for larger data sets
+                const delayMs = badges.length > 500 ? 500 : 300;
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+            } catch (error) {
+                console.error(`Error fetching award dates (batch ${currentBatch}/${totalBatches}): ${error.message}`);
+
+                if (error.response && error.response.status === 429) {
+                    // If rate limited, wait the specified time before retrying
+                    const retryAfter = parseInt(error.response.headers['retry-after'] || '5');
+                    await updateProgress(`Rate limited on batch ${currentBatch}, waiting ${retryAfter} seconds before retrying...`);
+                    await new Promise(resolve => setTimeout(resolve, retryAfter * 1000 + 500));
+                    i -= BATCH_SIZE; // Retry this batch
+                } else {
+                    // For non-rate limit errors, log but continue with next batch after a delay
+                    await updateProgress(`Error in batch ${currentBatch}. Skipping and continuing...`);
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            }
+        }
+
+        return dates;
+    }
+
+    convertDateToDatetime(date: string): Date {
+        return new Date(date);
+    }
+
+    async createBadgeGraph(username: string, userId: string, dates: string[], creationDate: Date): Promise<Buffer> {
+        const canvas = createCanvas(800, 600);
+        const ctx = canvas.getContext('2d');
+
+        // Prepare data for plotting
+        const y_values = dates.map(date => this.convertDateToDatetime(date)).sort((a, b) => a.getTime() - b.getTime());
+        const cumulative_counts = y_values.map((_, i) => i + 1);
+
+        // Define plot area and margins
+        const marginX = 60;
+        const marginY = 50;
+        const graphWidth = canvas.width - 2 * marginX;
+        const graphHeight = canvas.height - 2 * marginY;
+
+        // Background color
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Title and badge count
+        ctx.fillStyle = 'white';
+        ctx.font = '20px Arial';
+        ctx.fillText(`Badges Over Time For: ${username} (${userId})`, marginX, marginY - 10);
+        ctx.fillText(`Badge Count: ${cumulative_counts.length}`, marginX, marginY + 15);
+
+        // Determine min/max dates and badge count for scaling
+        const minDate = creationDate.getTime(); // Start from account creation date
+        const maxDate = Date.now();
+        const maxCount = cumulative_counts[cumulative_counts.length - 1];
+
+        // Set up x-axis labels (time in years)
+        const startYear = creationDate.getFullYear();
+        const endYear = new Date().getFullYear();
+        ctx.fillStyle = 'white';
+        ctx.font = '16px Arial';
+        for (let year = startYear; year <= endYear; year++) {
+            const x = marginX + ((new Date(year, 0).getTime() - minDate) / (maxDate - minDate)) * graphWidth;
+            ctx.fillText(year.toString(), x, canvas.height - marginY + 20);
+            ctx.beginPath();
+            ctx.moveTo(x, canvas.height - marginY);
+            ctx.lineTo(x, marginY);
+            ctx.strokeStyle = 'gray';
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
+        }
+
+        // Set up y-axis labels (badge counts)
+        const yInterval = Math.ceil(maxCount / 10 / 50) * 50; // Interval rounded to the nearest 50 or 100
+        ctx.fillStyle = 'white';
+        for (let i = 0; i <= maxCount; i += yInterval) {
+            const y = canvas.height - marginY - (i / maxCount) * graphHeight;
+            ctx.fillText(i.toString(), marginX - 40, y + 5);
+            ctx.beginPath();
+            ctx.moveTo(marginX, y);
+            ctx.lineTo(canvas.width - marginX, y);
+            ctx.strokeStyle = 'gray';
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
+        }
+
+        // Plot data points without connecting lines
+        ctx.fillStyle = 'white';
+        y_values.forEach((date, index) => {
+            const x = marginX + ((date.getTime() - minDate) / (maxDate - minDate)) * graphWidth;
+            const y = canvas.height - marginY - (cumulative_counts[index] / maxCount) * graphHeight;
+            ctx.beginPath();
+            ctx.arc(x, y, 3, 0, Math.PI * 2); // Scatter point
+            ctx.fill();
+        });
+
+        return canvas.toBuffer();
+    }
+
+    async run(ctx: CommandContext) {
+        const username = ctx.args['username'] as string;
+
+        try {
+            // Send the initial "thinking" message
+            const initialMessage = await ctx.reply({
+                content: `Processing badges for ${username}... This might take a while due to API rate limits.`,
+            });
+
+            // Create a function to update progress messages
+            const updateProgress = async (message: string) => {
+                try {
+                    await initialMessage.edit({ content: message });
+                } catch (e) {
+                    console.error("Failed to update progress message:", e);
+                }
+            };
+
+            const startTime = Date.now();
+
+            try {
+                // Fetch the necessary data
+                const { userId, creationDate } = await this.getUserIdAndCreationDate(username);
+
+                // Update progress message
+                await updateProgress(`Found user ${username} (${userId}). Starting to fetch badges...`);
+
+                // Fetch all badges with progress updates
+                const badges = await this.fetchBadges(userId, updateProgress);
+
+                // Update progress before starting award dates fetch
+                await updateProgress(`Found ${badges.length} badges for ${username}. Starting to fetch award dates for ALL badges (this may take several minutes)...`);
+
+                // Now process ALL badges, no more 100 badge limit
+                const dates = await this.fetchAwardDates(userId, badges, updateProgress);
+
+                // Let user know we're creating the graph
+                await updateProgress(`Badge dates fetched! Creating visualization for ${dates.length} badges...`);
+
+                // Create the badge graph
+                const imageBuffer = await this.createBadgeGraph(username, userId, dates, creationDate);
+                const attachment = new AttachmentBuilder(imageBuffer).setName('badge_graph.png');
+
+                const endTime = Date.now();
+                const processingTime = ((endTime - startTime) / 1000).toFixed(2); // In seconds
+
+                // Prepare the embed with side-by-side fields
+                const embed = {
+                    title: `Complete Badge Tracking for ${username}`,
+                    description: `Successfully processed all ${dates.length} badges!`,
+                    fields: [
+                        { name: 'User ID', value: `**${userId}**`, inline: true },
+                        { name: 'Total Badges', value: `**${badges.length}**`, inline: true },
+                        { name: 'Processed in', value: `**${processingTime}s**`, inline: true },
+                    ],
+                    image: { url: 'attachment://badge_graph.png' },
+                    color: 0xffffff, // white
+                };
+
+                // Edit the initial message to include the embed
+                await initialMessage.edit({
+                    content: null,
+                    embeds: [embed],
+                    files: [attachment],
+                });
+            } catch (error) {
+                await initialMessage.edit({
+                    content: null,
+                    embeds: [getUnexpectedErrorEmbed()],
+                });
+                console.error('Badge command error:', error);
+            }
+        } catch (error) {
+            console.error(error);
+            await ctx.reply({ embeds: [getUnexpectedErrorEmbed()] });
+        }
+    }
+}
+
+export default BadgeCommand;

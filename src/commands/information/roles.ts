@@ -1,0 +1,41 @@
+import { robloxGroup } from '../../main';
+import { CommandContext } from '../../structures/addons/CommandAddons';
+import { Command } from '../../structures/Command';
+import { createBaseEmbed } from '../../utils/embedUtils';
+
+class RolesCommand extends Command {
+    constructor() {
+        super({
+            trigger: 'roles',
+            description: 'Displays a list of roles on the group.',
+            type: 'ChatInput',
+            module: 'information',
+            enabled: false
+        });
+    }
+
+    async run(ctx: CommandContext) {
+        if (!this.enabled) {
+            return ctx.reply({
+                content: 'This command is currently disabled.',
+                ephemeral: true
+            });
+        }
+
+        const roles = await robloxGroup.getRoles();
+        const sortedRoles = roles.sort((a, b) => a.rank - b.rank);
+
+        // Build a neat list in the embed description
+        const roleList = sortedRoles
+            .map(role => `**${role.name}** (${role.rank})`)
+            .join('\n');
+
+        const embed = createBaseEmbed()
+            .setTitle('List of Group Roles')
+            .setDescription(roleList);
+
+        return ctx.reply({ embeds: [embed] });
+    }
+}
+
+export default RolesCommand;

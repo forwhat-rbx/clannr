@@ -1,0 +1,219 @@
+import { CommandContext } from '../../structures/addons/CommandAddons';
+import { Command } from '../../structures/Command';
+import { provider } from '../../database';
+import { createCanvas } from 'canvas';
+import { AttachmentBuilder } from 'discord.js';
+
+class HeatmapCommand extends Command {
+    constructor() {
+        super({
+            trigger: 'heatmap',
+            description: 'Displays an activity heatmap based on user activity',
+            type: 'ChatInput',
+            module: 'information',
+            args: []
+        });
+    }
+
+    async run(cmdCtx: CommandContext) {
+        try {
+            await cmdCtx.reply({ content: "Generating activity heatmap... this may take a moment." });
+            
+            // Create a simple matrix for our heatmap: days of week (0-6) × hours of day (0-23)
+            const activityData = Array(7).fill(0).map(() => Array(24).fill(0));
+            
+            // Try to get XP logs, but it might be empty if this is a new feature
+            const allLogs = await provider.getXpLogs(1000);
+            
+            if (allLogs.length === 0) {
+                return cmdCtx.reply({ content: "No activity data available yet. Activity will be recorded as users earn XP." });
+            }
+            
+            // Populate the heatmap from logs
+            for (const log of allLogs) {
+                const date = new Date(log.timestamp);
+                const day = date.getDay(); // 0-6, where 0 is Sunday
+                const hour = date.getHours(); // 0-23
+                activityData[day][hour] += Math.abs(log.amount);
+            }
+            
+            // Find maximum value for scaling
+            const maxActivity = Math.max(...activityData.map(day => Math.max(...day)));
+            
+            // Generate the heatmap image
+            // Make canvas slightly larger for better spacing
+            const canvas = createCanvas(800, 450);
+            const ctx = canvas.getContext('2d');
+            
+            // Set background with gradient
+            const bgGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            bgGradient.addColorStop(0, '#1a1a2e');
+            bgGradient.addColorStop(1, '#16213e');
+            ctx.fillStyle = bgGradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Add a subtle grid pattern
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < canvas.width; i += 20) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, canvas.height);
+                ctx.stroke();
+            }
+            for (let i = 0; i < canvas.height; i += 20) {
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(canvas.width, i);
+                ctx.stroke();
+            }
+            
+            // Draw title with better styling
+            ctx.font = 'bold 24px Segoe UI, Arial';
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.fillText('Activity Heatmap', canvas.width / 2, 35);
+            
+            // Add subtitle
+            ctx.font = '14px Segoe UI, Arial';
+            ctx.fillStyle = '#8e9eab';
+            ctx.fillText('User Activity by Day and Hour', canvas.width / 2, 60);
+            
+            // Cell dimensions - smaller for better fit
+            const cellWidth = 26;
+            const cellHeight = 32;
+            const xOffset = 80;
+            const yOffset = 100;
+            
+            // Draw hour labels with consistent sizing
+            ctx.font = '12px Segoe UI, Arial';
+            ctx.fillStyle = '#8e9eab';
+            ctx.textAlign = 'center';
+            for (let hour = 0; hour < 24; hour += 3) {
+                ctx.fillText(`${hour}:00`, xOffset + hour * cellWidth + cellWidth/2, 90);
+            }
+            
+            // Draw the day labels
+            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            ctx.textAlign = 'right';
+            
+            for (let d = 0; d < 7; d++) {
+                ctx.fillStyle = '#8e9eab';
+                ctx.fillText(days[d], 70, yOffset + d * cellHeight + cellHeight / 2 + 4);
+                
+                for (let hour = 0; hour < 24; hour++) {
+                    const value = activityData[d][hour];
+                    const intensity = maxActivity > 0 ? value / maxActivity : 0;
+                    
+                    // Use a better color gradient (vibrant purple to orange)
+                    let color;
+                    if (intensity === 0) {
+                        color = 'rgba(25, 25, 40, 0.6)'; // Very dark for zero values
+                    } else {
+                        // Modern colorscale from cool blue to hot orange/red
+                        const hue = (1 - intensity) * 220; // Hue: 220 (blue) to 0 (red)
+                        const s = 80 + intensity * 20; // Saturation increases with intensity
+                        const l = 25 + intensity * 30; // Lightness increases with intensity
+                        color = `hsl(${hue}, ${s}%, ${l}%)`;
+                    }
+                    
+                    // Draw cell with rounded corners and shadow
+                    ctx.fillStyle = color;
+                    const x = xOffset + hour * cellWidth;
+                    const y = yOffset + d * cellHeight;
+                    const w = cellWidth - 2;
+                    const height = cellHeight - 2;
+                    const r = 4; // Corner radius
+                    
+                    // Add subtle shadow
+                    ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+                    ctx.shadowBlur = 3;
+                    ctx.shadowOffsetX = 1;
+                    ctx.shadowOffsetY = 1;
+                    
+                    // Draw rounded rectangle
+                    ctx.beginPath();
+                    ctx.moveTo(x + r, y);
+                    ctx.lineTo(x + w - r, y);
+                    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+                    ctx.lineTo(x + w, y + height - r);
+                    ctx.quadraticCurveTo(x + w, y + height, x + w - r, y + height);
+                    ctx.lineTo(x + r, y + height);
+                    ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+                    ctx.lineTo(x, y + r);
+                    ctx.quadraticCurveTo(x, y, x + r, y);
+                    ctx.closePath();
+                    ctx.fill();
+                    
+                    // Reset shadow for text
+                    ctx.shadowColor = 'transparent';
+                    ctx.shadowBlur = 0;
+                    ctx.shadowOffsetX = 0;
+                    ctx.shadowOffsetY = 0;
+                    
+                    // Add text for significant values
+                    if (value > maxActivity / 10) {
+                        ctx.fillStyle = intensity > 0.6 ? '#ffffff' : '#ffffff';
+                        ctx.font = '10px Segoe UI, Arial';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(
+                            value.toString(), 
+                            x + w / 2,
+                            y + height / 2 + 4
+                        );
+                    }
+                }
+            }
+            
+            // Add a legend
+            const legendX = 80;
+            const legendY = yOffset + 7 * cellHeight + 20;
+            const legendWidth = 20;
+            const legendHeight = 10;
+            
+            ctx.font = '12px Segoe UI, Arial';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#8e9eab';
+            ctx.fillText('Activity Level', canvas.width / 2, legendY);
+            
+            // Draw legend gradient
+            const steps = 10;
+            for (let i = 0; i < steps; i++) {
+                const intensity = i / (steps - 1);
+                const hue = (1 - intensity) * 220;
+                const s = 80 + intensity * 20;
+                const l = 25 + intensity * 30;
+                ctx.fillStyle = `hsl(${hue}, ${s}%, ${l}%)`;
+                
+                const x = legendX + i * (600 / steps);
+                ctx.fillRect(x, legendY + 15, 600/steps, legendHeight);
+            }
+            
+            // Add legend labels
+            ctx.textAlign = 'left';
+            ctx.fillStyle = '#8e9eab';
+            ctx.fillText('Low', legendX, legendY + 40);
+            
+            ctx.textAlign = 'right';
+            ctx.fillText('High', legendX + 600, legendY + 40);
+            
+            // Add timestamp
+            ctx.textAlign = 'right';
+            ctx.font = '10px Segoe UI, Arial';
+            ctx.fillStyle = '#8e9eab';
+            ctx.fillText(`Generated: ${new Date().toLocaleString()}`, canvas.width - 20, canvas.height - 10);
+            
+            // Create a buffer from the canvas
+            const buffer = canvas.toBuffer('image/png');
+            const attachment = new AttachmentBuilder(buffer, { name: 'heatmap.png' });
+            
+            return cmdCtx.reply({ files: [attachment] });
+            
+        } catch (err) {
+            console.error('Heatmap command error:', err);
+            return cmdCtx.reply({ content: 'An error occurred while generating the heatmap.' });
+        }
+    }
+}
+
+export default HeatmapCommand;

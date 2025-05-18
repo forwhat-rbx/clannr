@@ -1,7 +1,7 @@
 import { EmbedBuilder } from 'discord.js';
 
 // Change the footer text as desired.
-const GLOBAL_FOOTER_TEXT = "SOH Bot v1";
+const GLOBAL_FOOTER_TEXT = "SOH Bot v2";
 
 export function createBaseEmbed(): EmbedBuilder {
     return new EmbedBuilder()

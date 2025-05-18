@@ -31,20 +31,28 @@ export const getLinkedRobloxUser = async (discordId: string): Promise<User | nul
  */
 export const createUserLink = async (discordId: string, robloxId: string) => {
     try {
-        return await prisma.userLink.upsert({
+        console.log(`[LINK DEBUG] Creating link: Discord ID ${discordId} -> Roblox ID ${robloxId}`);
+
+        // Ensure robloxId is always a string
+        const robloxIdString = String(robloxId);
+
+        const result = await prisma.userLink.upsert({
             where: {
                 discordId: discordId
             },
             update: {
-                robloxId: robloxId,
+                robloxId: robloxIdString,
                 verifiedAt: new Date()
             },
             create: {
                 discordId: discordId,
-                robloxId: robloxId,
+                robloxId: robloxIdString,
                 verifiedAt: new Date()
             }
         });
+
+        console.log(`[LINK DEBUG] Link created successfully:`, result);
+        return result;
     } catch (err) {
         console.error("Failed to create user link:", err);
         throw err;

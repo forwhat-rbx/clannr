@@ -92,7 +92,8 @@ export default class ManageXPCommand extends Command {
                 return ctx.reply({ embeds: [getInvalidXPEmbed()], ephemeral: true });
             }
 
-            const usersArg = rawUsers.trim().split(/\s+/);
+            // Improved splitting - handle both spaces and commas 
+            const usersArg = rawUsers.trim().split(/[\s,]+/).filter(Boolean);
             await ctx.defer();
 
             const successes: string[] = [];
@@ -115,21 +116,28 @@ export default class ManageXPCommand extends Command {
                         robloxUser = found[0];
                     }
 
+                    // Ensure Roblox ID is consistently a string
+                    const robloxIdString = robloxUser.id.toString();
+
                     // 3) Check group membership
                     const member = await robloxGroup.getMember(robloxUser.id);
                     if (!member) throw new Error('User not in group');
 
-                    // 4) Fetch XP record
-                    const userData = await provider.findUser(robloxUser.id.toString());
+                    // 4) Fetch XP record with consistent ID format
+                    const userData = await provider.findUser(robloxIdString);
                     if (!userData) throw new Error('No XP record found');
 
-                    const oldXP = Number(userData.xp);
+                    // Ensure old XP is always a number
+                    const oldXP = userData.xp ? Number(userData.xp) : 0;
                     const newXP =
                         action === 'add'
                             ? oldXP + amount
                             : Math.max(0, oldXP - amount);
 
-                    // 5) Update database
+                    // Debug log to trace XP changes
+                    console.log(`[XP DEBUG] User ${robloxUser.name} (${robloxIdString}): ${oldXP} → ${newXP} (${action === 'add' ? '+' : '-'}${amount})`);
+
+                    // 5) Update database with atomic operation
                     const update: any = { xp: newXP, lastActivity: new Date() };
                     if (action === 'add' && eventType) {
                         update[eventType] = (userData[eventType] || 0) + 1;
@@ -137,11 +145,12 @@ export default class ManageXPCommand extends Command {
                             `last${eventType.charAt(0).toUpperCase() + eventType.slice(1)}`
                         ] = new Date();
                     }
-                    await provider.updateUser(robloxUser.id.toString(), update);
+
+                    await provider.updateUser(robloxIdString, update);
 
                     // 6) Log XP change to history
                     await provider.logXpChange(
-                        robloxUser.id.toString(),
+                        robloxIdString,
                         action === 'add' ? amount : -amount,
                         reason ||
                         (action === 'add'
@@ -178,13 +187,20 @@ export default class ManageXPCommand extends Command {
                         );
                     }
 
-                    successes.push(`**${robloxUser.name}**: ${oldXP} → ${newXP}`);
+                    // 9) Verify the update succeeded by refetching the data
+                    const verifyUpdate = await provider.findUser(robloxIdString);
+                    if (verifyUpdate && verifyUpdate.xp === newXP) {
+                        successes.push(`**${robloxUser.name}**: ${oldXP} → ${newXP}`);
+                    } else {
+                        throw new Error('XP update verification failed');
+                    }
                 } catch (err: any) {
+                    console.error(`XP command error with user "${iden}":`, err);
                     failures.push(`**${iden}**: ${err.message}`);
                 }
             }
 
-            // 9) Build and send summary using createBaseEmbed
+            // 10) Build and send summary using createBaseEmbed
             const resultEmbed = createBaseEmbed()
                 .setTitle(`XP ${action === 'add' ? 'Added' : 'Removed'}`)
                 .setColor(successes.length > 0 ? '#6699ff' : '#FA5757');

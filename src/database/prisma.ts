@@ -18,9 +18,79 @@ class PrismaProvider extends DatabaseProvider {
     }
 
     async findUser(robloxId: string): Promise<DatabaseUser> {
-        let userData = await this.db.user.findUnique({ where: { robloxId } });
-        if (!userData) userData = await this.db.user.create({ data: { robloxId } });
+        console.log(`[DB DEBUG] Looking up user with Roblox ID: ${robloxId}`);
+
+        // Always use string format for IDs to ensure consistency
+        const idString = String(robloxId);
+
+        let userData = await this.db.user.findUnique({
+            where: { robloxId: idString }
+        });
+
+        console.log(`[DB DEBUG] Found user data:`, userData ? 'yes' : 'no');
+
+        if (!userData) {
+            console.log(`[DB DEBUG] Creating new user record for ${idString}`);
+            userData = await this.db.user.create({
+                data: {
+                    robloxId: idString,
+                    xp: 0
+                }
+            });
+        }
+
+        // Ensure XP is always a number
+        if (userData) {
+            userData.xp = Number(userData.xp || 0);
+        }
+
         return userData;
+    }
+
+    async updateUser(robloxId: string, data: any) {
+        try {
+            console.log(`[DB DEBUG] Updating user ${robloxId} with data:`, data);
+
+            // Always use string format for IDs to ensure consistency
+            const idString = String(robloxId);
+
+            // Ensure we have a user record
+            let userData = await this.db.user.findUnique({ where: { robloxId: idString } });
+            if (!userData) {
+                console.log(`[DB DEBUG] Creating user during update as they don't exist: ${idString}`);
+                userData = await this.db.user.create({
+                    data: {
+                        robloxId: idString,
+                        xp: 0
+                    }
+                });
+            }
+
+            // Create a clean update object with only valid fields
+            const updateData = {};
+            Object.keys(data).forEach(key => {
+                if (data[key] !== undefined && data[key] !== null) {
+                    updateData[key] = data[key];
+                }
+            });
+
+            // If updating XP, ensure it's a number
+            if ('xp' in updateData) {
+                updateData['xp'] = Number(updateData['xp']);
+            }
+
+            // Perform the update
+            const result = await this.db.user.update({
+                where: { robloxId: idString },
+                data: updateData
+            });
+
+            console.log(`[DB DEBUG] Update completed for user ${idString}`);
+            return result;
+        } catch (error) {
+            console.error(`[DB ERROR] Failed to update user ${robloxId}:`, error);
+            throw error;
+        }
     }
 
     async findSuspendedUsers(): Promise<DatabaseUser[]> {
@@ -29,39 +99,6 @@ class PrismaProvider extends DatabaseProvider {
 
     async findBannedUsers(): Promise<DatabaseUser[]> {
         return await this.db.user.findMany({ where: { isBanned: true } });
-    }
-
-    async updateUser(robloxId: string, data: any) {
-        try {
-            let userData = await this.db.user.findUnique({ where: { robloxId } });
-            if (!userData) userData = await this.db.user.create({ data: { robloxId } });
-
-            // Create a clean update object with only valid fields
-            const updateData = {};
-
-            // First copy known valid fields that exist in the schema
-            const validFields = [
-                'xp', 'raids', 'defenses', 'scrims', 'trainings',
-                'lastRaid', 'lastDefense', 'lastScrim', 'lastTraining', 'lastActivity',
-                'suspendedUntil', 'unsuspendRank', 'isBanned'
-            ];
-
-            for (const key of validFields) {
-                if (key in data) {
-                    updateData[key] = data[key];
-                }
-            }
-
-            // Update the user with only valid fields
-            return await this.db.user.update({
-                where: { robloxId },
-                data: updateData
-            });
-        } catch (error) {
-            console.error(`Failed to update user ${robloxId}:`, error);
-            // Return the user or null so the command doesn't completely crash
-            return await this.db.user.findUnique({ where: { robloxId } });
-        }
     }
 
     async getAllUsers(): Promise<DatabaseUser[]> {

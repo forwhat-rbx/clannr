@@ -5,6 +5,7 @@ import { robloxClient } from '../../main';
 import { config } from '../../config';
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { createBaseEmbed } from '../../utils/embedUtils';
+import { provider } from '../../database';
 
 // Use global pending verifications instead of local map
 declare global {
@@ -76,9 +77,9 @@ class VerifyCommand extends Command {
             // Generate a verification code
             const verificationCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
-            // Store the verification data in global map
+            // Store the verification data in global map with consistent ID format
             global.pendingVerifications.set(ctx.user.id, {
-                robloxId: robloxUser.id.toString(),
+                robloxId: String(robloxUser.id),
                 robloxUsername: robloxUser.name,
                 code: verificationCode,
                 expires: Date.now() + 10 * 60 * 1000 // 10 minutes expiry
@@ -142,8 +143,12 @@ export async function checkVerification(userId: string) {
     }
 
     try {
+        // Ensure Roblox ID is always a string
+        const robloxIdString = String(verification.robloxId);
+
         // Get the user's Roblox profile
-        const robloxUser = await robloxClient.getUser(Number(verification.robloxId));
+        const robloxUser = await robloxClient.getUser(Number(robloxIdString));
+        console.log(`[VERIFY DEBUG] Verifying user: ${robloxUser.name} (${robloxIdString})`);
 
         // Fetch the user's profile description directly
         let description = '';
@@ -151,25 +156,47 @@ export async function checkVerification(userId: string) {
             // Fix the getUserById call to match the expected type
             const userInfo = await robloxClient.apis.usersAPI.getUserById({ userId: robloxUser.id });
             description = userInfo.description || '';
+            console.log(`[VERIFY DEBUG] Profile description: "${description.substring(0, 50)}${description.length > 50 ? '...' : ''}"`);
         } catch (err) {
             console.error('Error fetching profile description:', err);
             return { success: false, message: 'Failed to fetch your Roblox profile description.' };
         }
 
-        // Rest of the function remains the same
+        // Check if the verification code is in their description
         if (description.includes(verification.code)) {
-            // Create the link in DB
-            await createUserLink(userId, verification.robloxId);
+            console.log(`[VERIFY DEBUG] Verification successful for Discord ID: ${userId}, Roblox ID: ${robloxIdString}`);
 
-            // Remove from pending verification
-            global.pendingVerifications.delete(userId);
+            try {
+                // Create the link in DB with string ID
+                await createUserLink(userId, robloxIdString);
+                console.log(`[VERIFY DEBUG] UserLink created in database`);
 
-            return {
-                success: true,
-                robloxUsername: verification.robloxUsername,
-                robloxId: verification.robloxId
-            };
+                // Initialize user in the XP database if they don't exist
+                const existingUser = await provider.findUser(robloxIdString);
+                if (!existingUser) {
+                    console.log(`[VERIFY DEBUG] Creating new user record with 0 XP`);
+                    await provider.updateUser(robloxIdString, {
+                        xp: 0,
+                        lastActivity: new Date()
+                    });
+                } else {
+                    console.log(`[VERIFY DEBUG] User already exists in database with XP: ${existingUser.xp || 0}`);
+                }
+
+                // Remove from pending verification
+                global.pendingVerifications.delete(userId);
+
+                return {
+                    success: true,
+                    robloxUsername: verification.robloxUsername,
+                    robloxId: robloxIdString
+                };
+            } catch (dbErr) {
+                console.error("Database error in verification:", dbErr);
+                return { success: false, message: 'An error occurred while saving your verification to the database.' };
+            }
         } else {
+            console.log(`[VERIFY DEBUG] Verification code not found in profile for Discord ID: ${userId}`);
             return { success: false, message: 'Verification code not found in your profile description.' };
         }
     } catch (err) {

@@ -717,12 +717,28 @@ class XPCommand extends Command {
         }
 
         const userData = await provider.findUser(robloxUser.id.toString());
+        // Add debug logging
+        console.log(`[XP CARD DEBUG] User: ${robloxUser.name} (${robloxUser.id}) | Retrieved XP: ${userData?.xp || 0}`);
+
         if (!userData) {
-            return ctx.reply({
-                content: 'User data not found. They might not have any XP logged yet.',
-                ephemeral: true,
-            });
+            // Create a new user record if none exists
+            console.log(`Creating new user record for ${robloxUser.name} (${robloxUser.id})`);
+            try {
+                await provider.updateUser(robloxUser.id.toString(), { xp: 0 });
+                return ctx.reply({
+                    content: 'User data created. This user has 0 XP. Please try the command again.',
+                    ephemeral: true,
+                });
+            } catch (createErr) {
+                console.error('Error creating user record:', createErr);
+                return ctx.reply({
+                    content: 'Failed to create user record. Please try again later.',
+                    ephemeral: true,
+                });
+            }
         }
+
+        userData.xp = Number(userData.xp || 0);
 
         let robloxMember: GroupMember;
         try {

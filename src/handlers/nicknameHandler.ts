@@ -9,13 +9,13 @@ import { robloxGroup } from '../main';
 export const getNicknameFormat = async (guildId: string): Promise<string> => {
     try {
         // Use the correct case for the model name (GuildConfig)
-        const guildConfig = await prisma.GuildConfig.findUnique({
+        const guildConfig = await prisma.guildConfig.findUnique({
             where: { guildId }
         });
 
         if (!guildConfig) {
             // Create default config if none exists
-            const newConfig = await prisma.GuildConfig.create({
+            const newConfig = await prisma.guildConfig.create({
                 data: {
                     id: guildId,
                     guildId,
@@ -37,7 +37,7 @@ export const getNicknameFormat = async (guildId: string): Promise<string> => {
  */
 export const setNicknameFormat = async (guildId: string, format: string): Promise<string> => {
     try {
-        const guildConfig = await prisma.GuildConfig.upsert({
+        const guildConfig = await prisma.guildConfig.upsert({
             where: { guildId },
             update: { nicknameFormat: format },
             create: {

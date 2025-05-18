@@ -12,9 +12,15 @@ export const getRoleBindings = async (guildId: string) => {
 };
 
 /**
- * Add a role binding
+ * Add a role binding with rank range
  */
-export const addRoleBinding = async (guildId: string, discordRoleId: string, robloxRankId: number, robloxRankName: string) => {
+export const addRoleBinding = async (
+    guildId: string,
+    discordRoleId: string,
+    minRankId: number,
+    maxRankId: number,
+    robloxRankName: string
+) => {
     return await prisma.roleBind.upsert({
         where: {
             guildId_discordRoleId: {
@@ -23,13 +29,15 @@ export const addRoleBinding = async (guildId: string, discordRoleId: string, rob
             }
         },
         update: {
-            robloxRankId,
+            minRankId,
+            maxRankId,
             robloxRankName
         },
         create: {
             guildId,
             discordRoleId,
-            robloxRankId,
+            minRankId,
+            maxRankId,
             robloxRankName
         }
     });
@@ -69,9 +77,9 @@ export const updateUserRoles = async (guild: Guild, member: GuildMember, robloxU
         // Get the user's rank ID
         const userRankId = groupMember.role.rank;
 
-        // Find all roles that should be assigned
+        // Find all roles that should be assigned - check if user's rank is within the range
         const rolesToAdd = roleBindings
-            .filter(binding => binding.robloxRankId <= userRankId)
+            .filter(binding => userRankId >= binding.minRankId && userRankId <= binding.maxRankId)
             .map(binding => binding.discordRoleId);
 
         // Get all bound role IDs to properly remove roles that shouldn't be assigned

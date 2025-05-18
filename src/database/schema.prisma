@@ -47,11 +47,11 @@ model RoleBind {
   id            String   @id @default(uuid())
   guildId       String
   discordRoleId String
-  robloxRankId  Int
+  minRankId     Int      @default(0)
+  maxRankId     Int
   robloxRankName String?
   
   @@unique([guildId, discordRoleId])
-  @@unique([guildId, robloxRankId])
 }
 
 model GuildConfig {

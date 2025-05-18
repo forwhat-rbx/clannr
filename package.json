@@ -11,6 +11,9 @@
     "resetSlashCmds": "echo [] > src/resources/commands.json",
     "update": "git fetch && git reset --hard origin/master && git pull"
   },
+  "prisma": {
+    "schema": "./src/database/schema.prisma"
+  },
   "author": "LengoLabs",
   "license": "MIT",
   "devDependencies": {

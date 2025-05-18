@@ -113,7 +113,7 @@ export class promotionService {
 
     public async updatePromotionEmbed(): Promise<void> {
         const actor = "Promotion Service";
-        const channelId = '1370180938641702922';
+        const channelId = '1304989133026099251'; //replace with channel id
         if (!channelId) {
             logSystemAction('Embed Update Error', actor, undefined, undefined, 'Promotion channel ID not configured.');
             return;

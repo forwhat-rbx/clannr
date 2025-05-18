@@ -31,8 +31,14 @@ class RoleBindsCommand extends Command {
                     required: false
                 },
                 {
-                    trigger: 'roblox-rank',
-                    description: 'Roblox group rank ID (number)',
+                    trigger: 'min-rank',
+                    description: 'Minimum Roblox rank ID (inclusive)',
+                    type: 'Number',
+                    required: false
+                },
+                {
+                    trigger: 'max-rank',
+                    description: 'Maximum Roblox rank ID (inclusive, defaults to min-rank if not set)',
                     type: 'Number',
                     required: false
                 }
@@ -69,7 +75,13 @@ class RoleBindsCommand extends Command {
                 const bindingsDescription = bindings.map(binding => {
                     const discordRole = ctx.guild.roles.cache.get(binding.discordRoleId);
                     const roleName = discordRole ? discordRole.name : 'Unknown Role';
-                    return `<@&${binding.discordRoleId}> (${roleName}) → Rank: ${binding.robloxRankName || binding.robloxRankId}`;
+
+                    // Display rank range instead of single rank
+                    const rankDisplay = binding.minRankId === binding.maxRankId
+                        ? `Rank: ${binding.minRankId}`
+                        : `Ranks: ${binding.minRankId} - ${binding.maxRankId}`;
+
+                    return `<@&${binding.discordRoleId}> (${roleName}) → ${rankDisplay}`;
                 });
 
                 return ctx.reply({
@@ -111,43 +123,81 @@ class RoleBindsCommand extends Command {
 
             // Add binding
             if (action === 'add') {
-                const robloxRankId = ctx.args['roblox-rank'] as number;
-                if (!robloxRankId && robloxRankId !== 0) {
+                const minRankId = ctx.args['min-rank'] as number;
+                if (!minRankId && minRankId !== 0) {
                     return ctx.reply({
                         embeds: [
                             createBaseEmbed()
                                 .setTitle('Missing Arguments')
-                                .setDescription('You must specify a Roblox rank ID.')
+                                .setDescription('You must specify a minimum rank ID.')
                                 .setColor(0xff0000)
                         ],
                         ephemeral: true
                     });
                 }
 
-                // Get the Roblox rank name
+                // If max rank is not specified, use min rank (single rank binding)
+                const maxRankId = (ctx.args['max-rank'] as number) ?? minRankId;
+
+                // Validate rank range
+                if (minRankId > maxRankId) {
+                    return ctx.reply({
+                        embeds: [
+                            createBaseEmbed()
+                                .setTitle('Invalid Arguments')
+                                .setDescription('Minimum rank cannot be higher than maximum rank.')
+                                .setColor(0xff0000)
+                        ],
+                        ephemeral: true
+                    });
+                }
+
+                // Get the Roblox rank names
                 try {
                     const groupRoles = await robloxGroup.getRoles();
-                    const role = groupRoles.find(r => r.rank === robloxRankId);
+                    const minRole = groupRoles.find(r => r.rank === minRankId);
+                    const maxRole = groupRoles.find(r => r.rank === maxRankId);
 
-                    if (!role) {
+                    if (!minRole) {
                         return ctx.reply({
                             embeds: [
                                 createBaseEmbed()
                                     .setTitle('Invalid Rank')
-                                    .setDescription(`Could not find rank with ID ${robloxRankId} in the group.`)
+                                    .setDescription(`Could not find minimum rank with ID ${minRankId} in the group.`)
                                     .setColor(0xff0000)
                             ],
                             ephemeral: true
                         });
                     }
 
-                    await addRoleBinding(ctx.guild.id, discordRoleId, robloxRankId, role.name);
+                    if (!maxRole) {
+                        return ctx.reply({
+                            embeds: [
+                                createBaseEmbed()
+                                    .setTitle('Invalid Rank')
+                                    .setDescription(`Could not find maximum rank with ID ${maxRankId} in the group.`)
+                                    .setColor(0xff0000)
+                            ],
+                            ephemeral: true
+                        });
+                    }
+
+                    // For the name, we'll use a range or single name based on whether min and max are the same
+                    const rankName = minRankId === maxRankId
+                        ? minRole.name
+                        : `${minRole.name} to ${maxRole.name}`;
+
+                    await addRoleBinding(ctx.guild.id, discordRoleId, minRankId, maxRankId, rankName);
+
+                    const rangeText = minRankId === maxRankId
+                        ? `rank "${minRole.name}" (${minRankId})`
+                        : `rank range "${minRole.name}" (${minRankId}) to "${maxRole.name}" (${maxRankId})`;
 
                     return ctx.reply({
                         embeds: [
                             createBaseEmbed()
                                 .setTitle('Role Binding Added')
-                                .setDescription(`Bound Discord role <@&${discordRoleId}> to Roblox rank "${role.name}" (${robloxRankId})`)
+                                .setDescription(`Bound Discord role <@&${discordRoleId}> to Roblox ${rangeText}`)
                         ]
                     });
                 } catch (err) {

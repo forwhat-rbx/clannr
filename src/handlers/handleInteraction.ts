@@ -31,6 +31,7 @@ const handleInteraction = async (payload: Interaction<CacheType>) => {
             return;
         }
 
+        // Find this section in the file (around line 27-45)
         const context = new CommandContext(interaction, command);
 
         // Log permission checks only if permission is denied
@@ -41,7 +42,7 @@ const handleInteraction = async (payload: Interaction<CacheType>) => {
         }
 
         // Define commands that will show modals
-        const modalCommands = ['dmrole', 'comparegroups']; // Add any other commands that use modals
+        const modalCommands = ['dmrole', 'comparegroups', 'binds']; // Added 'binds' here
 
         // Only defer if it's not a modal command
         if (!modalCommands.includes(interaction.commandName)) {
@@ -55,6 +56,7 @@ const handleInteraction = async (payload: Interaction<CacheType>) => {
             } else {
                 (new command()).run(context);
             }
+
         } catch (err) {
             console.error(`Error executing command ${interaction.commandName}:`, err);
         }

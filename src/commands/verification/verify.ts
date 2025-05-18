@@ -146,18 +146,17 @@ export async function checkVerification(userId: string) {
         const robloxUser = await robloxClient.getUser(Number(verification.robloxId));
 
         // Fetch the user's profile description directly
-        // Using the correct method from Bloxy API
         let description = '';
         try {
-            // Use getUserById instead of getUserDetails
-            const userInfo = await robloxClient.apis.usersAPI.getUserById(robloxUser.id);
+            // Fix the getUserById call to match the expected type
+            const userInfo = await robloxClient.apis.usersAPI.getUserById({ userId: robloxUser.id });
             description = userInfo.description || '';
         } catch (err) {
             console.error('Error fetching profile description:', err);
             return { success: false, message: 'Failed to fetch your Roblox profile description.' };
         }
 
-        // Check if the verification code is in their description
+        // Rest of the function remains the same
         if (description.includes(verification.code)) {
             // Create the link in DB
             await createUserLink(userId, verification.robloxId);

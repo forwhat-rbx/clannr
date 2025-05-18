@@ -66,7 +66,6 @@ async function handleVerifyButton(interaction: ButtonInteraction): Promise<void>
 
     // Only the user who started verification can verify
     if (userId !== interaction.user.id) {
-        // Use void to ignore the return value
         void interaction.followUp({
             content: 'This verification is for someone else.',
             ephemeral: true
@@ -83,28 +82,25 @@ async function handleVerifyButton(interaction: ButtonInteraction): Promise<void>
 
         // Update roles and nickname
         const robloxUser = await robloxClient.getUser(Number(result.robloxId));
-        if (robloxUser) {
-            // Need to ensure member is definitely a GuildMember
+        if (robloxUser && interaction.guild) {
+            // Fix the casting issue - ensure we have a proper GuildMember
             if (interaction.member && 'roles' in interaction.member) {
-                await updateUserRoles(interaction.guild!, interaction.member, robloxUser.id);
-                await updateNickname(interaction.member, robloxUser);
+                const guildMember = interaction.member as GuildMember;
+                await updateUserRoles(interaction.guild, guildMember, robloxUser.id);
+                await updateNickname(guildMember, robloxUser);
             }
         }
 
-        // Use void to ignore the return value
         void interaction.followUp({
             embeds: [embed],
             components: [],
             ephemeral: true
         });
-        return;
     } else {
-        // Use void to ignore the return value
         void interaction.followUp({
             content: result.message,
             ephemeral: true
         });
-        return;
     }
 }
 

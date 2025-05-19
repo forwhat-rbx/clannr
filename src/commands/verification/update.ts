@@ -1,10 +1,10 @@
 import { CommandContext } from '../../structures/addons/CommandAddons';
 import { Command } from '../../structures/Command';
+import { createBaseEmbed } from '../../utils/embedUtils';
 import { getLinkedRobloxUser } from '../../handlers/accountLinks';
-import { robloxGroup } from '../../main';
 import { updateUserRoles } from '../../handlers/roleBindHandler';
 import { updateNickname } from '../../handlers/nicknameHandler';
-import { createBaseEmbed } from '../../utils/embedUtils';
+import { robloxClient, robloxGroup } from '../../main';
 import { config } from '../../config';
 
 class UpdateCommand extends Command {
@@ -28,80 +28,86 @@ class UpdateCommand extends Command {
 
     async run(ctx: CommandContext) {
         try {
-            // Target user (self or specified by admin)
-            const targetUser = ctx.args['user']
-                ? await ctx.guild.members.fetch(ctx.args['user'])
-                : ctx.member;
+            // Defer the reply to give us time to process
+            await ctx.defer();
 
-            // Check if admin for updating other users
-            const isAdmin = ctx.member.permissions.has('Administrator') ||
-                ctx.member.roles.cache.some(role =>
-                    (config.permissions.admin || []).includes(role.id));
+            // Check if we're updating someone else (admin only)
+            let targetMember = ctx.member;
+            const targetUser = ctx.args['user'] ? ctx.args['user'] : ctx.user;
 
-            // If trying to update someone else without admin perms
-            if (targetUser.id !== ctx.user.id && !isAdmin) {
-                return ctx.reply({
-                    embeds: [
-                        createBaseEmbed()
-                            .setTitle('Permission Denied')
-                            .setDescription('You do not have permission to update other users.')
-                            .setColor(0xff0000)
-                    ],
-                    ephemeral: true
-                });
+            if (ctx.args['user'] && ctx.args['user'] !== ctx.user.id) {
+                // Admin permission check for updating others
+                if (!ctx.member.roles.cache.some(role => config.permissions.admin.includes(role.id))) {
+                    return ctx.reply({
+                        content: 'You need admin permissions to update other users.',
+                        ephemeral: true
+                    });
+                }
+
+                try {
+                    targetMember = await ctx.guild.members.fetch(targetUser.id);
+                } catch (err) {
+                    return ctx.reply({
+                        content: 'Could not find that user in this server.',
+                        ephemeral: true
+                    });
+                }
             }
 
             // Get linked Roblox user
             const robloxUser = await getLinkedRobloxUser(targetUser.id);
             if (!robloxUser) {
                 return ctx.reply({
-                    embeds: [
-                        createBaseEmbed()
-                            .setTitle('Not Verified')
-                            .setDescription(`${targetUser.id === ctx.user.id ? 'You are' : 'This user is'} not verified. Please use \`/verify\` first.`)
-                            .setColor(0xff0000)
-                    ],
+                    content: targetUser.id === ctx.user.id
+                        ? "You're not verified. Please use `/verify` first."
+                        : "That user isn't verified.",
                     ephemeral: true
                 });
             }
 
-            // Update roles
-            const roleResult = await updateUserRoles(ctx.guild, targetUser, robloxUser.id);
+            // Log what we're doing
+            console.log(`Running update command for ${targetUser.tag}: Roblox user ${robloxUser.name} (${robloxUser.id})`);
 
-            // Update nickname
-            const nicknameResult = await updateNickname(targetUser, robloxUser);
+            // Update nickname, with verbose logging
+            console.log(`Updating nickname for ${targetMember.user.tag}`);
+            const nicknameUpdated = await updateNickname(targetMember, robloxUser);
+            console.log(`Nickname update result: ${nicknameUpdated ? "Success" : "No change/Failed"}`);
 
-            return ctx.reply({
-                embeds: [
-                    createBaseEmbed()
-                        .setTitle('Update Successful')
-                        .setDescription(`Updated ${targetUser.id === ctx.user.id ? 'your' : targetUser.user.username + "'s"} roles and nickname based on Roblox profile.`)
-                        .addFields([
-                            {
-                                name: 'Role Changes',
-                                value: roleResult.success
-                                    ? `Added: ${roleResult.added || 0}, Removed: ${roleResult.removed || 0}`
-                                    : 'Failed to update roles',
-                                inline: true
-                            },
-                            {
-                                name: 'Nickname',
-                                value: nicknameResult ? 'Updated' : 'No change needed or failed',
-                                inline: true
-                            }
-                        ])
-                ],
-                ephemeral: true
-            });
+            // Update roles, with verbose logging
+            console.log(`Updating roles for ${targetMember.user.tag}`);
+            const roleResult = await updateUserRoles(ctx.guild, targetMember, robloxUser.id);
+            console.log(`Role update result: ${roleResult.success ? "Success" : "Failed"}, Added: ${roleResult.added || 0}, Removed: ${roleResult.removed || 0}`);
+
+            // Send a response based on what was updated
+            if (nicknameUpdated || (roleResult.success && (roleResult.added > 0 || roleResult.removed > 0))) {
+                // Something was updated
+                return ctx.reply({
+                    embeds: [
+                        createBaseEmbed()
+                            .setTitle('Update Successful')
+                            .setDescription(
+                                `Updated ${targetUser.id === ctx.user.id ? 'your' : `${targetUser.tag}'s`} ` +
+                                `${nicknameUpdated ? 'nickname' : ''}` +
+                                `${nicknameUpdated && (roleResult.added > 0 || roleResult.removed > 0) ? ' and ' : ''}` +
+                                `${(roleResult.added > 0 || roleResult.removed > 0) ? 'roles' : ''}`
+                            )
+                            .setColor('#00ff00')
+                    ]
+                });
+            } else {
+                // Nothing needed updating
+                return ctx.reply({
+                    embeds: [
+                        createBaseEmbed()
+                            .setTitle('Update Completed')
+                            .setDescription(`No changes were needed for ${targetUser.id === ctx.user.id ? 'your' : `${targetUser.tag}'s`} nickname or roles.`)
+                    ]
+                });
+            }
         } catch (err) {
-            console.error("Error in update command:", err);
+            console.error('Error in update command:', err);
             return ctx.reply({
-                embeds: [
-                    createBaseEmbed()
-                        .setTitle('Update Error')
-                        .setDescription('An error occurred while trying to update. Please try again later.')
-                        .setColor(0xff0000)
-                ],
+                content: 'An error occurred while updating. Please try again later.',
                 ephemeral: true
             });
         }

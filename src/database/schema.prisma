@@ -50,7 +50,7 @@ model RoleBind {
   minRankId      Int
   maxRankId      Int
   robloxRankName String
-  rolesToRemove  String[]
+  rolesToRemove  String? @default("[]")
 
   @@unique([guildId, discordRoleId])
 }

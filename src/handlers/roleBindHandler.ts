@@ -2,16 +2,18 @@ import { Guild, GuildMember } from 'discord.js';
 import { prisma } from '../database/prisma';
 import { robloxGroup } from '../main';
 
-/**
- * Get all role bindings for a guild
- */
-export const getRoleBindings = async (guildId: string) => {
-    return await prisma.roleBind.findMany({
-        where: { guildId }
-    });
-};
+function parseRolesToRemove(jsonStr: string | null): string[] {
+    if (!jsonStr) return [];
+    try {
+        return JSON.parse(jsonStr);
+    } catch {
+        return [];
+    }
+}
 
-// Update the addRoleBinding function to include rolesToRemove parameter:
+function stringifyRolesToRemove(roles: string[]): string {
+    return JSON.stringify(roles || []);
+}
 
 export const addRoleBinding = async (
     guildId: string,
@@ -32,7 +34,7 @@ export const addRoleBinding = async (
             minRankId,
             maxRankId,
             robloxRankName,
-            rolesToRemove
+            rolesToRemoveJson: stringifyRolesToRemove(rolesToRemove)
         },
         create: {
             guildId,
@@ -40,9 +42,24 @@ export const addRoleBinding = async (
             minRankId,
             maxRankId,
             robloxRankName,
-            rolesToRemove
+            rolesToRemoveJson: stringifyRolesToRemove(rolesToRemove)
         }
     });
+};
+
+// Update your getRoleBindings function to parse the JSON when returning bindings
+export const getRoleBindings = async (guildId: string) => {
+    const bindings = await prisma.roleBind.findMany({
+        where: {
+            guildId
+        }
+    });
+
+    // Add rolesToRemove field to each binding by parsing the JSON
+    return bindings.map(binding => ({
+        ...binding,
+        rolesToRemove: parseRolesToRemove(binding.rolesToRemoveJson)
+    }));
 };
 
 // Make sure your updateUserRoles function handles the rolesToRemove field:

@@ -12,7 +12,8 @@ function parseRolesToRemove(jsonStr: string | null): string[] {
     }
 }
 
-function stringifyRolesToRemove(roles: string[]): string {
+// Ensure stringifyRolesToRemove handles empty arrays correctly:
+function stringifyRolesToRemove(roles: string[] | undefined | null): string {
     return JSON.stringify(roles || []);
 }
 

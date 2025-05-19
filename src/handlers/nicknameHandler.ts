@@ -59,23 +59,18 @@ export const setNicknameFormat = async (guildId: string, format: string): Promis
         console.log(`Setting nickname format for guild ${guildId} to: ${format}`);
 
         // Only use camelCase version of the model name
-        try {
-            const guildConfig = await prisma.guildConfig.upsert({
-                where: { guildId },
-                update: { nicknameFormat: format },
-                create: {
-                    id: guildId,
-                    guildId,
-                    nicknameFormat: format
-                }
-            });
+        const guildConfig = await prisma.guildConfig.upsert({
+            where: { guildId },
+            update: { nicknameFormat: format },
+            create: {
+                id: guildId,
+                guildId,
+                nicknameFormat: format
+            }
+        });
 
-            console.log(`Successfully updated nickname format for guild ${guildId}`);
-            return guildConfig.nicknameFormat;
-        } catch (err) {
-            console.error(`Error updating nickname format: ${err.message}`);
-            throw err;
-        }
+        console.log(`Successfully updated nickname format for guild ${guildId}`);
+        return guildConfig.nicknameFormat;
     } catch (err) {
         console.error(`Error setting nickname format for guild ${guildId}:`, err);
         throw err;

@@ -6,6 +6,7 @@ import { updateUserRoles } from '../../handlers/roleBindHandler';
 import { updateNickname } from '../../handlers/nicknameHandler';
 import { robloxClient, robloxGroup } from '../../main';
 import { config } from '../../config';
+import { Role } from 'discord.js';
 
 class UpdateCommand extends Command {
     constructor() {
@@ -68,46 +69,80 @@ class UpdateCommand extends Command {
             // Log what we're doing
             console.log(`Running update command for ${targetUser.tag}: Roblox user ${robloxUser.name} (${robloxUser.id})`);
 
+            // Store initial nickname for comparison later
+            const oldNickname = targetMember.nickname || targetMember.user.username;
+
             // Update nickname, with verbose logging
             console.log(`Updating nickname for ${targetMember.user.tag}`);
-            const nicknameUpdated = await updateNickname(targetMember, robloxUser);
-            console.log(`Nickname update result: ${nicknameUpdated ? "Success" : "No change/Failed"}`);
+            const nicknameResult = await updateNickname(targetMember, robloxUser);
+            const newNickname = targetMember.nickname || targetMember.user.username;
+            console.log(`Nickname update result: ${nicknameResult ? "Success" : "No change/Failed"}, Old: "${oldNickname}", New: "${newNickname}"`);
 
             // Update roles, with verbose logging
             console.log(`Updating roles for ${targetMember.user.tag}`);
-            const roleResult = await updateUserRoles(ctx.guild, targetMember, robloxUser.id);
-            console.log(`Role update result: ${roleResult.success ? "Success" : "Failed"}, Added: ${roleResult.added || 0}, Removed: ${roleResult.removed || 0}`);
 
-            // Send a response based on what was updated
-            if (nicknameUpdated || (roleResult.success && (roleResult.added > 0 || roleResult.removed > 0))) {
-                // Something was updated
-                return ctx.reply({
-                    embeds: [
-                        createBaseEmbed()
-                            .setTitle('Update Successful')
-                            .setDescription(
-                                `Updated ${targetUser.id === ctx.user.id ? 'your' : `${targetUser.tag}'s`} ` +
-                                `${nicknameUpdated ? 'nickname' : ''}` +
-                                `${nicknameUpdated && (roleResult.added > 0 || roleResult.removed > 0) ? ' and ' : ''}` +
-                                `${(roleResult.added > 0 || roleResult.removed > 0) ? 'roles' : ''}`
-                            )
-                            .setColor('#00ff00')
-                    ]
-                });
-            } else {
-                // Nothing needed updating
-                return ctx.reply({
-                    embeds: [
-                        createBaseEmbed()
-                            .setTitle('Update Completed')
-                            .setDescription(`No changes were needed for ${targetUser.id === ctx.user.id ? 'your' : `${targetUser.tag}'s`} nickname or roles.`)
-                    ]
+            // Custom updateUserRoles that captures role names for better feedback
+            const roleResult = await updateUserRoles(ctx.guild, targetMember, robloxUser.id);
+
+            // Get details about the role changes
+            let addedRoles: string[] = [];
+            let removedRoles: string[] = [];
+
+            if (roleResult.addedRoleIds) {
+                addedRoles = roleResult.addedRoleIds.map(id => {
+                    const role = ctx.guild.roles.cache.get(id);
+                    return role ? role.name : `Unknown Role (${id})`;
                 });
             }
+
+            if (roleResult.removedRoleIds) {
+                removedRoles = roleResult.removedRoleIds.map(id => {
+                    const role = ctx.guild.roles.cache.get(id);
+                    return role ? role.name : `Unknown Role (${id})`;
+                });
+            }
+
+            console.log(`Role update result: ${roleResult.success ? "Success" : "Failed"}, Added: [${addedRoles.join(', ')}], Removed: [${removedRoles.join(', ')}]`);
+
+            // Build a detailed response
+            const embed = createBaseEmbed().setTitle('Update Results');
+            const changes = [];
+
+            // Add nickname change details if applicable
+            if (nicknameResult && oldNickname !== newNickname) {
+                changes.push(`**Nickname:** \`${oldNickname}\` → \`${newNickname}\``);
+            }
+
+            // Add role changes details if applicable
+            if (addedRoles.length > 0) {
+                changes.push(`**Added Roles:** ${addedRoles.map(r => `\`${r}\``).join(', ')}`);
+            }
+
+            if (removedRoles.length > 0) {
+                changes.push(`**Removed Roles:** ${removedRoles.map(r => `\`${r}\``).join(', ')}`);
+            }
+
+            // Determine color and response based on whether changes were made
+            if (changes.length > 0) {
+                embed
+                    .setColor('#00ff00')
+                    .setDescription(`${targetUser.id === ctx.user.id ? 'Your' : `${targetUser.tag}'s`} data has been successfully updated:\n\n${changes.join('\n')}`);
+            } else {
+                embed
+                    .setColor('#0099ff')
+                    .setDescription(`No changes were needed for ${targetUser.id === ctx.user.id ? 'your' : `${targetUser.tag}'s`} nickname or roles.`);
+            }
+
+            return ctx.reply({ embeds: [embed] });
         } catch (err) {
             console.error('Error in update command:', err);
             return ctx.reply({
-                content: 'An error occurred while updating. Please try again later.',
+                embeds: [
+                    createBaseEmbed()
+                        .setTitle('Update Error')
+                        .setDescription('An error occurred while updating: ' + (err.message || 'Unknown error'))
+                        .setColor('#FF0000')
+                ],
                 ephemeral: true
             });
         }

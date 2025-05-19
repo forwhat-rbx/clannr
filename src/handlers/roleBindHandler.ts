@@ -65,13 +65,13 @@ export const updateUserRoles = async (guild: Guild, member: GuildMember, robloxU
         // Get all role bindings for this guild
         const roleBindings = await getRoleBindings(guild.id);
         if (roleBindings.length === 0) {
-            return { success: true, message: 'No role bindings configured for this server' };
+            return { success: true, message: 'No role bindings configured for this server', added: 0, removed: 0 };
         }
 
         // Get the user's rank in the group
         const groupMember = await robloxGroup.getMember(robloxUserId);
         if (!groupMember) {
-            return { success: false, message: 'User is not in the group' };
+            return { success: false, message: 'User is not in the group', added: 0, removed: 0 };
         }
 
         // Get the user's rank ID
@@ -90,18 +90,35 @@ export const updateUserRoles = async (guild: Guild, member: GuildMember, robloxU
             .filter(role => allBoundRoleIds.includes(role.id) && !rolesToAdd.includes(role.id))
             .map(role => role.id);
 
+        // Store IDs for detailed reporting
+        const addedRoleIds = [];
+        const removedRoleIds = [];
+
         // Update the roles
         if (rolesToRemove.length > 0) {
             await member.roles.remove(rolesToRemove, 'Automatic role update from bot');
+            removedRoleIds.push(...rolesToRemove);
         }
 
         if (rolesToAdd.length > 0) {
-            await member.roles.add(rolesToAdd, 'Automatic role update from bot');
+            // Filter out roles the user already has
+            const newRoles = rolesToAdd.filter(roleId => !member.roles.cache.has(roleId));
+
+            if (newRoles.length > 0) {
+                await member.roles.add(newRoles, 'Automatic role update from bot');
+                addedRoleIds.push(...newRoles);
+            }
         }
 
-        return { success: true, added: rolesToAdd.length, removed: rolesToRemove.length };
+        return {
+            success: true,
+            added: addedRoleIds.length,
+            removed: removedRoleIds.length,
+            addedRoleIds,
+            removedRoleIds
+        };
     } catch (err) {
         console.error('Error updating user roles:', err);
-        return { success: false, message: 'An error occurred while updating roles' };
+        return { success: false, message: 'An error occurred while updating roles', added: 0, removed: 0 };
     }
 };

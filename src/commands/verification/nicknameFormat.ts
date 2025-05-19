@@ -68,7 +68,7 @@ class NicknameFormatCommand extends Command {
                 embeds: [
                     createBaseEmbed()
                         .setTitle('Command Error')
-                        .setDescription('An unexpected error occurred.')
+                        .setDescription('An unexpected error occurred: ' + (err.message || 'Unknown error'))
                         .setColor(0xff0000)
                 ],
                 ephemeral: true

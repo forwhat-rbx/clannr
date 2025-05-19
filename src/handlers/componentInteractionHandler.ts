@@ -114,16 +114,18 @@ async function handleBindsRoleSelection(interaction: RoleSelectMenuInteraction) 
                         `Successfully bound Discord role <@&${discordRoleId}> to ${rankDisplay}.${roleRemovalText}`
                     )
             ],
-            components: [],
+            components: []
         });
 
+    } catch (err) {
+        console.error('Error saving role binding:', err);
         await interaction.update({
             embeds: [
                 createBaseEmbed('danger')
                     .setTitle('Error')
                     .setDescription('An error occurred while saving the role binding.')
             ],
-            components: [],
+            components: []
         });
     }
 }

@@ -1,16 +1,41 @@
-// Create this file if it doesn't exist:
-
 import {
     ActionRowBuilder,
     ButtonBuilder,
     ButtonInteraction,
     ButtonStyle,
     ComponentType,
+    ModalBuilder,
+    RoleSelectMenuBuilder,
     RoleSelectMenuInteraction,
-    StringSelectMenuInteraction
+    StringSelectMenuInteraction,
+    TextInputBuilder,
+    TextInputStyle
 } from 'discord.js';
 import { createBaseEmbed } from '../utils/embedUtils';
 import { addRoleBinding, getRoleBindings } from './roleBindHandler';
+import { config } from '../config';
+import { robloxGroup } from '../main';
+
+// For managing binding workflow state
+interface BindingWorkflowData {
+    discordRoleIds: string[];
+    minRankId?: number;
+    maxRankId?: number;
+    rankName?: string;
+    rolesToRemove?: string[];
+}
+
+// Global storage for binding workflow data
+declare global {
+    var bindingWorkflows: {
+        [key: string]: BindingWorkflowData
+    };
+}
+
+// Initialize if not exists
+if (!global.bindingWorkflows) {
+    global.bindingWorkflows = {};
+}
 
 export async function handleComponentInteraction(interaction) {
     // Handle different component types
@@ -24,64 +49,144 @@ export async function handleComponentInteraction(interaction) {
 }
 
 async function handleButtonInteraction(interaction: ButtonInteraction) {
-    // Handle button interactions
-    // (You may already have this code elsewhere)
+    const customId = interaction.customId;
+
+    try {
+        if (customId.startsWith('dm_matched_members:')) {
+            // Handle existing DM matched members button
+            // (Your existing code here if needed)
+        } else if (customId.startsWith('purge_members:')) {
+            // Handle existing purge members button
+            // (Your existing code here if needed)
+        } else if (customId === 'role_binding_confirm') {
+            await handleRoleBindingConfirmation(interaction);
+        } else if (customId === 'role_binding_cancel') {
+            // Clean up workflow data
+            delete global.bindingWorkflows[interaction.user.id];
+            await interaction.update({
+                content: 'Role binding process cancelled.',
+                embeds: [],
+                components: []
+            });
+        }
+    } catch (err) {
+        console.error('Error handling button interaction:', err);
+        try {
+            const reply = interaction.replied ? interaction.followUp : interaction.update;
+            await reply.call(interaction, {
+                embeds: [
+                    createBaseEmbed('danger')
+                        .setTitle('Error')
+                        .setDescription('An error occurred while processing your selection.')
+                ],
+                components: []
+            });
+        } catch (e) {
+            console.error('Failed to send error message:', e);
+        }
+    }
 }
 
 async function handleStringSelectMenuInteraction(interaction: StringSelectMenuInteraction) {
-    // Handle string select menu interactions
-    // (You may already have this code elsewhere)
+    // Handle string select menu interactions if needed
+    console.log('String select menu interaction received:', interaction.customId);
 }
 
 async function handleRoleSelectMenuInteraction(interaction: RoleSelectMenuInteraction) {
     const customId = interaction.customId;
 
     try {
-        // Handle role selection for bindings
-        if (customId.startsWith('binds_select_roles:')) {
-            await handleBindsRoleSelection(interaction);
+        if (customId === 'binds_add_roles_selection') {
+            await handleRolesToBindSelection(interaction);
+        } else if (customId.startsWith('binds_select_roles:')) {
+            await handleRolesToRemoveSelection(interaction);
         }
-        // Handle other role select menus as needed
     } catch (err) {
         console.error('Error handling role select menu interaction:', err);
-        if (!interaction.replied) {
-            await interaction.reply({
+        try {
+            await interaction.update({
                 embeds: [
                     createBaseEmbed('danger')
                         .setTitle('Error')
                         .setDescription('An error occurred while processing your selection.')
                 ],
-                ephemeral: true
+                components: []
             });
+        } catch (e) {
+            console.error('Failed to send error message:', e);
         }
     }
 }
 
-// Handler for role selection in binds command
-async function handleBindsRoleSelection(interaction: RoleSelectMenuInteraction) {
-    // Parse the custom ID to get binding parameters
-    // Format: binds_select_roles:discordRoleId:minRankId:maxRankId:rankName
+// Handle selection of roles to bind
+async function handleRolesToBindSelection(interaction: RoleSelectMenuInteraction) {
+    // Validate that roles were selected
+    if (!interaction.values || interaction.values.length === 0) {
+        await interaction.update({
+            content: 'You must select at least one role to bind.',
+            components: []
+        });
+        return;
+    }
+
+    // Store the selected roles in the workflow state
+    const workflowKey = interaction.user.id;
+    global.bindingWorkflows[workflowKey] = {
+        discordRoleIds: interaction.values
+    };
+
+    // Create a modal for rank range input
+    const modal = new ModalBuilder()
+        .setCustomId('binds_multi_add_modal')
+        .setTitle(`Bind ${interaction.values.length} Role(s)`);
+
+    const rankRangeInput = new TextInputBuilder()
+        .setCustomId('rank_range')
+        .setLabel('Rank Range (e.g. "5" or "1-255")')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Enter a single rank or range like 1-255')
+        .setRequired(true);
+
+    const firstActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(rankRangeInput);
+    modal.addComponents(firstActionRow);
+
+    // Show the modal
+    await interaction.showModal(modal);
+}
+
+// Handle selection of roles to remove when binding is active
+async function handleRolesToRemoveSelection(interaction: RoleSelectMenuInteraction) {
+    // Get binding parameters from the custom ID
     const parts = interaction.customId.split(':');
+    if (parts.length < 5) {
+        await interaction.update({
+            content: 'Invalid binding parameters.',
+            components: []
+        });
+        return;
+    }
+
+    // Extract parameters (for single role bind flow)
     const discordRoleId = parts[1];
-    const minRankId = parseInt(parts[2], 10);
-    const maxRankId = parseInt(parts[3], 10);
+    const minRankId = parseInt(parts[2]);
+    const maxRankId = parseInt(parts[3]);
     const rankName = decodeURIComponent(parts[4]);
 
     // Get the selected roles to remove
-    const rolesToRemove = interaction.values;
+    const rolesToRemove = interaction.values || [];
 
     try {
-        // Get the Discord role information
+        // Get role information for display
         const discordRole = interaction.guild.roles.cache.get(discordRoleId);
         if (!discordRole) {
-            return await interaction.update({
-                content: 'Error: The Discord role you were binding no longer exists.',
-                components: [],
-                embeds: []
+            await interaction.update({
+                content: 'The Discord role you selected no longer exists.',
+                components: []
             });
+            return;
         }
 
-        // Create the binding with the selected roles to remove
+        // Create the binding
         await addRoleBinding(
             interaction.guild.id,
             discordRoleId,
@@ -91,11 +196,10 @@ async function handleBindsRoleSelection(interaction: RoleSelectMenuInteraction) 
             rolesToRemove
         );
 
-        // Format roles for display in response
+        // Format message
         let roleRemovalText = '';
         if (rolesToRemove.length > 0) {
-            const roleList = rolesToRemove.map(id => `<@&${id}>`).join(', ');
-            roleRemovalText = `\n\n**Will remove:** ${roleList}`;
+            roleRemovalText = `\n\n**Will remove:** ${rolesToRemove.map(id => `<@&${id}>`).join(' ')}`;
         } else {
             roleRemovalText = '\n\nNo roles will be removed when this binding is active.';
         }
@@ -116,7 +220,6 @@ async function handleBindsRoleSelection(interaction: RoleSelectMenuInteraction) 
             ],
             components: []
         });
-
     } catch (err) {
         console.error('Error saving role binding:', err);
         await interaction.update({
@@ -124,6 +227,99 @@ async function handleBindsRoleSelection(interaction: RoleSelectMenuInteraction) 
                 createBaseEmbed('danger')
                     .setTitle('Error')
                     .setDescription('An error occurred while saving the role binding.')
+            ],
+            components: []
+        });
+    }
+}
+
+// Handle confirmation to add multiple role bindings
+async function handleRoleBindingConfirmation(interaction: ButtonInteraction) {
+    const workflowKey = interaction.user.id;
+    const workflowData = global.bindingWorkflows[workflowKey];
+
+    if (!workflowData) {
+        await interaction.update({
+            content: 'Your binding session has expired. Please try again.',
+            components: [],
+            embeds: []
+        });
+        return;
+    }
+
+    const { discordRoleIds, minRankId, maxRankId, rankName, rolesToRemove } = workflowData;
+
+    // Validate all required data is present
+    if (!discordRoleIds || !discordRoleIds.length || !minRankId || !maxRankId || !rankName) {
+        await interaction.update({
+            content: 'Missing binding information. Please try again.',
+            components: [],
+            embeds: []
+        });
+        return;
+    }
+
+    try {
+        // Show processing message
+        await interaction.update({
+            content: `Creating ${discordRoleIds.length} role bindings...`,
+            components: [],
+            embeds: []
+        });
+
+        // Create each binding
+        const results = [];
+        for (const roleId of discordRoleIds) {
+            try {
+                const role = interaction.guild.roles.cache.get(roleId);
+                await addRoleBinding(
+                    interaction.guild.id,
+                    roleId,
+                    minRankId,
+                    maxRankId,
+                    rankName,
+                    rolesToRemove || []
+                );
+                results.push(`✅ <@&${roleId}> (${role ? role.name : 'Unknown Role'})`);
+            } catch (bindError) {
+                console.error(`Error adding binding for role ${roleId}:`, bindError);
+                results.push(`❌ <@&${roleId}> - Error: ${bindError.message}`);
+            }
+        }
+
+        // Clean up workflow data
+        delete global.bindingWorkflows[workflowKey];
+
+        // Format the rank display
+        const rankDisplay = minRankId === maxRankId
+            ? `Roblox rank "${rankName}" (${minRankId})`
+            : `Roblox ranks from "${rankName}" (${minRankId} to ${maxRankId})`;
+
+        // Format roles to remove display
+        let removalText = '';
+        if (rolesToRemove && rolesToRemove.length > 0) {
+            removalText = `\n\n**Will remove:** ${rolesToRemove.map(id => `<@&${id}>`).join(' ')}`;
+        }
+
+        // Send success message
+        await interaction.editReply({
+            embeds: [
+                createBaseEmbed('success')
+                    .setTitle('Role Bindings Added')
+                    .setDescription(
+                        `Successfully created bindings for ${discordRoleIds.length} role(s) to ${rankDisplay}.${removalText}\n\n` +
+                        `**Results:**\n${results.join('\n')}`
+                    )
+            ],
+            components: []
+        });
+    } catch (err) {
+        console.error('Error in handleRoleBindingConfirmation:', err);
+        await interaction.editReply({
+            embeds: [
+                createBaseEmbed('danger')
+                    .setTitle('Error')
+                    .setDescription('An error occurred while creating role bindings: ' + err.message)
             ],
             components: []
         });

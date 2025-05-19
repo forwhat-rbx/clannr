@@ -108,8 +108,7 @@ discordClient.on('interactionCreate', async (interaction) => {
     try {
         if (interaction.isCommand()) {
             await handleInteraction(interaction);
-        } else if (interaction.isButton()) {
-            await handleButtonInteraction(interaction);
+        } else if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isRoleSelectMenu()) {
             await handleComponentInteraction(interaction);
         } else if (interaction.isModalSubmit()) {
             await handleModalSubmit(interaction);

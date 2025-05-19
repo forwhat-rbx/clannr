@@ -7,6 +7,7 @@ function parseRolesToRemove(jsonStr: string | null): string[] {
     try {
         return JSON.parse(jsonStr);
     } catch {
+        console.error('Error parsing rolesToRemoveJson:', jsonStr);
         return [];
     }
 }
@@ -47,7 +48,6 @@ export const addRoleBinding = async (
     });
 };
 
-// Update your getRoleBindings function to parse the JSON when returning bindings
 export const getRoleBindings = async (guildId: string) => {
     const bindings = await prisma.roleBind.findMany({
         where: {
@@ -61,8 +61,6 @@ export const getRoleBindings = async (guildId: string) => {
         rolesToRemove: parseRolesToRemove(binding.rolesToRemoveJson)
     }));
 };
-
-// Make sure your updateUserRoles function handles the rolesToRemove field:
 
 export const updateUserRoles = async (guild: Guild, member: GuildMember, robloxUserId: number) => {
     try {
@@ -111,15 +109,13 @@ export const updateUserRoles = async (guild: Guild, member: GuildMember, robloxU
             }
         });
 
-        // Get currently bound roles that should be removed
+        // Get all bound roles that should be removed (roles that are bound but no longer applicable, 
+        // or roles explicitly set to be removed)
         const boundRoleIds = roleBindings.map(binding => binding.discordRoleId);
-        const boundRolesToRemove = boundRoleIds.filter(id =>
-            !rolesToAdd.includes(id) || rolesToRemoveSet.has(id)
-        );
-
         const rolesToRemove = member.roles.cache
             .filter(role =>
-                boundRolesToRemove.includes(role.id) || rolesToRemoveSet.has(role.id)
+                (boundRoleIds.includes(role.id) && !rolesToAdd.includes(role.id)) ||
+                rolesToRemoveSet.has(role.id)
             )
             .map(role => role.id);
 
@@ -169,7 +165,6 @@ export const updateUserRoles = async (guild: Guild, member: GuildMember, robloxU
         };
     }
 };
-
 /**
  * Remove a role binding
  */

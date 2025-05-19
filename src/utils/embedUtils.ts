@@ -5,16 +5,17 @@ const GLOBAL_FOOTER_TEXT = "SOH Bot v2";
 
 // Enhanced color system
 export const embedColors = {
-    normal: '#6699ff',  // Default blue
-    success: '#4CAF50', // Green
-    danger: '#992D22',  // Crimson red (not too bright)
-    warning: '#FFA726'  // Orange
+    normal: '#6699ff',   // Default blue
+    primary: '#6699ff',  // Same as normal for backward compatibility
+    success: '#4CAF50',  // Green
+    danger: '#992D22',   // Crimson red (not too bright)
+    warning: '#FFA726'   // Orange
 };
 
 export function createBaseEmbed(color: keyof typeof embedColors | string = 'normal'): EmbedBuilder {
     const colorValue = color in embedColors
         ? embedColors[color as keyof typeof embedColors]
-        : color;
+        : (color.startsWith('#') ? color : '#6699ff'); // Use default if invalid color provided
 
     return new EmbedBuilder()
         .setFooter({ text: GLOBAL_FOOTER_TEXT })

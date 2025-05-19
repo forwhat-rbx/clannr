@@ -51,6 +51,51 @@ export const getNicknameFormat = async (guildId: string): Promise<string> => {
     }
 };
 
+// Add this function after getNicknameFormat and before updateNickname
+
+/**
+ * Set the nickname format for a guild
+ */
+export const setNicknameFormat = async (guildId: string, format: string): Promise<string> => {
+    try {
+        console.log(`Setting nickname format for guild ${guildId} to: ${format}`);
+
+        // Try both cases for model name with proper error handling
+        try {
+            const guildConfig = await prisma.guildConfig.upsert({
+                where: { guildId },
+                update: { nicknameFormat: format },
+                create: {
+                    id: guildId,
+                    guildId,
+                    nicknameFormat: format
+                }
+            });
+
+            console.log(`Successfully updated nickname format for guild ${guildId}`);
+            return guildConfig.nicknameFormat;
+        } catch (err) {
+            // Try alternate case if first attempt fails
+            console.log(`Trying alternate case for DB model: ${err.message}`);
+            const guildConfig = await prisma.GuildConfig.upsert({
+                where: { guildId },
+                update: { nicknameFormat: format },
+                create: {
+                    id: guildId,
+                    guildId,
+                    nicknameFormat: format
+                }
+            });
+
+            console.log(`Successfully updated nickname format with alternate case for guild ${guildId}`);
+            return guildConfig.nicknameFormat;
+        }
+    } catch (err) {
+        console.error(`Error setting nickname format for guild ${guildId}:`, err);
+        throw err;
+    }
+};
+
 /**
  * Update a user's nickname based on their Roblox profile
  */

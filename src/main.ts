@@ -17,6 +17,7 @@ import { fetchWithRetry } from './utils/robloxUtils';
 import { handleModalSubmit } from './handlers/modalSubmitHandler';
 import { getLogChannels as initializeLogChannels } from './handlers/handleLogging';
 import { ActivityLogger } from './utils/activityLogger';
+import { handleComponentInteraction } from './handlers/componentInteractionHandler';
 
 require('dotenv').config();
 
@@ -109,6 +110,7 @@ discordClient.on('interactionCreate', async (interaction) => {
             await handleInteraction(interaction);
         } else if (interaction.isButton()) {
             await handleButtonInteraction(interaction);
+            await handleComponentInteraction(interaction);
         } else if (interaction.isModalSubmit()) {
             await handleModalSubmit(interaction);
         } else if (interaction.isAutocomplete()) {

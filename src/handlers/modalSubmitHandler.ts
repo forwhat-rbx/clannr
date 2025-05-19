@@ -1,10 +1,11 @@
-import { ModalSubmitInteraction } from 'discord.js';
+import { ActionRowBuilder, ModalSubmitInteraction, RoleSelectMenuBuilder } from 'discord.js';
 import { robloxClient, robloxGroup } from '../main'; // Added robloxGroup
 import { createBaseEmbed } from '../utils/embedUtils';
 import { processInChunks, ProcessingOptions } from '../utils/processingUtils';
 import { logAction } from './handleLogging';
 import { config } from '../config';
-import { addRoleBinding } from '../handlers/roleBindHandler'; // Added this import
+import { addRoleBinding, getRoleBindings } from '../handlers/roleBindHandler'; // Added this import
+
 
 export async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
     const customId = interaction.customId;
@@ -40,6 +41,8 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction): Pr
     }
 }
 
+// Replace the existing handleBindsAddModalSubmit function:
+
 async function handleBindsAddModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
     // Extract role ID from modal custom ID
     const discordRoleId = interaction.customId.replace('binds_add_', '');
@@ -69,7 +72,7 @@ async function handleBindsAddModalSubmit(interaction: ModalSubmitInteraction): P
                 ],
                 ephemeral: true
             });
-            return; // Fixed: removed return value
+            return;
         }
 
         if (minRankId > maxRankId) {
@@ -82,7 +85,7 @@ async function handleBindsAddModalSubmit(interaction: ModalSubmitInteraction): P
                 ],
                 ephemeral: true
             });
-            return; // Fixed: removed return value
+            return;
         }
 
         // Get the Roblox rank names
@@ -100,7 +103,7 @@ async function handleBindsAddModalSubmit(interaction: ModalSubmitInteraction): P
                 ],
                 ephemeral: true
             });
-            return; // Fixed: removed return value
+            return;
         }
 
         if (!maxRole) {
@@ -113,7 +116,7 @@ async function handleBindsAddModalSubmit(interaction: ModalSubmitInteraction): P
                 ],
                 ephemeral: true
             });
-            return; // Fixed: removed return value
+            return;
         }
 
         // Get the Discord role
@@ -124,29 +127,45 @@ async function handleBindsAddModalSubmit(interaction: ModalSubmitInteraction): P
             ? minRole.name
             : `${minRole.name} to ${maxRole.name}`;
 
-        await addRoleBinding(interaction.guild.id, discordRoleId, minRankId, maxRankId, rankName);
+        // Instead of creating the binding immediately, show a role selection menu
+        // Create a custom ID that includes all the needed information
+        const customId = `binds_select_roles:${discordRoleId}:${minRankId}:${maxRankId}:${encodeURIComponent(rankName)}`;
 
-        const rangeText = minRankId === maxRankId
-            ? `rank "${minRole.name}" (${minRankId})`
-            : `rank range "${minRole.name}" (${minRankId}) to "${maxRole.name}" (${maxRankId})`;
+        // Get other role bindings to exclude this role from options
+        const roleBindings = await getRoleBindings(interaction.guild.id);
+        const boundRoleIds = new Set(roleBindings.map(binding => binding.discordRoleId));
+
+        // Create the role selection component
+        const row = new ActionRowBuilder<RoleSelectMenuBuilder>()
+            .addComponents(
+                new RoleSelectMenuBuilder()
+                    .setCustomId(customId)
+                    .setPlaceholder('Select roles to remove when this binding is active (optional)')
+                    .setMinValues(0)
+                    .setMaxValues(25)
+            );
 
         await interaction.reply({
             embeds: [
-                createBaseEmbed('primary')
-                    .setTitle('Role Binding Added')
-                    .setDescription(`Bound Discord role <@&${discordRoleId}> (${discordRole.name}) to Roblox ${rangeText}`)
+                createBaseEmbed()
+                    .setTitle('Select Roles to Remove')
+                    .setDescription(
+                        `You're binding <@&${discordRoleId}> to Roblox rank "${rankName}".\n\n` +
+                        `Now, select any Discord roles that should be **removed** when a member has this rank.\n\n` +
+                        `For example, if you're binding the "Officer" role, you might want to remove the "NCO" role when someone gets promoted.`
+                    )
             ],
-            ephemeral: false
+            components: [row],
+            ephemeral: true
         });
-        return; // Fixed: removed return value
 
     } catch (err) {
-        console.error('Error processing role binding modal:', err);
+        console.error('Error in handleBindsAddModalSubmit:', err);
         await interaction.reply({
             embeds: [
                 createBaseEmbed('primary')
                     .setTitle('Error')
-                    .setDescription('An error occurred while adding the role binding.')
+                    .setDescription('An error occurred while processing your request.')
                     .setColor(0xff0000)
             ],
             ephemeral: true

@@ -54,7 +54,7 @@ class RoleBindsCommand extends Command {
                 if (bindings.length === 0) {
                     return ctx.reply({
                         embeds: [
-                            createBaseEmbed('primary')
+                            createBaseEmbed()
                                 .setTitle('Role Bindings')
                                 .setDescription('No role bindings configured for this server.')
                         ]
@@ -70,14 +70,24 @@ class RoleBindsCommand extends Command {
                         ? `Rank: ${binding.minRankId}`
                         : `Ranks: ${binding.minRankId}-${binding.maxRankId}`;
 
-                    return `<@&${binding.discordRoleId}> (${roleName}) → ${rankDisplay}`;
+                    // Add information about roles to remove
+                    let removalInfo = '';
+                    if (binding.rolesToRemove && binding.rolesToRemove.length > 0) {
+                        const removalRoles = binding.rolesToRemove.map(id => {
+                            const role = ctx.guild.roles.cache.get(id);
+                            return role ? `<@&${id}>` : `Unknown Role (${id})`;
+                        });
+                        removalInfo = `\n    *Removes: ${removalRoles.join(', ')}*`;
+                    }
+
+                    return `<@&${binding.discordRoleId}> (${roleName}) → ${rankDisplay}${removalInfo}`;
                 });
 
                 return ctx.reply({
                     embeds: [
-                        createBaseEmbed('primary')
+                        createBaseEmbed()
                             .setTitle('Role Bindings')
-                            .setDescription(bindingsDescription.join('\n'))
+                            .setDescription(bindingsDescription.join('\n\n'))
                     ]
                 });
             }

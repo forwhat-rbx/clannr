@@ -11,15 +11,15 @@ export const getRoleBindings = async (guildId: string) => {
     });
 };
 
-/**
- * Add a role binding with rank range
- */
+// Update the addRoleBinding function to include rolesToRemove parameter:
+
 export const addRoleBinding = async (
     guildId: string,
     discordRoleId: string,
     minRankId: number,
     maxRankId: number,
-    robloxRankName: string
+    robloxRankName: string,
+    rolesToRemove: string[] = []
 ) => {
     return await prisma.roleBind.upsert({
         where: {
@@ -31,35 +31,22 @@ export const addRoleBinding = async (
         update: {
             minRankId,
             maxRankId,
-            robloxRankName
+            robloxRankName,
+            rolesToRemove
         },
         create: {
             guildId,
             discordRoleId,
             minRankId,
             maxRankId,
-            robloxRankName
+            robloxRankName,
+            rolesToRemove
         }
     });
 };
 
-/**
- * Remove a role binding
- */
-export const removeRoleBinding = async (guildId: string, discordRoleId: string) => {
-    return await prisma.roleBind.delete({
-        where: {
-            guildId_discordRoleId: {
-                guildId,
-                discordRoleId
-            }
-        }
-    });
-};
+// Make sure your updateUserRoles function handles the rolesToRemove field:
 
-/**
- * Update a user's roles based on their Roblox rank
- */
 export const updateUserRoles = async (guild: Guild, member: GuildMember, robloxUserId: number) => {
     try {
         // Get all role bindings for this guild
@@ -91,21 +78,37 @@ export const updateUserRoles = async (guild: Guild, member: GuildMember, robloxU
         // Get the user's rank ID
         const userRankId = groupMember.role.rank;
 
-        // Find all roles that should be assigned - check if user's rank is within the range
-        const rolesToAdd = roleBindings
-            .filter(binding => userRankId >= binding.minRankId && userRankId <= binding.maxRankId)
-            .map(binding => binding.discordRoleId);
+        // Find bindings that apply to this user
+        const applicableBindings = roleBindings.filter(binding =>
+            userRankId >= binding.minRankId && userRankId <= binding.maxRankId
+        );
 
-        // Get all bound role IDs to properly remove roles that shouldn't be assigned
-        const allBoundRoleIds = roleBindings.map(binding => binding.discordRoleId);
+        // Roles to add based on rank
+        const rolesToAdd = applicableBindings.map(binding => binding.discordRoleId);
 
-        // Find roles to remove
+        // Collect all roles to remove from applicable bindings
+        const rolesToRemoveSet = new Set<string>();
+        applicableBindings.forEach(binding => {
+            if (binding.rolesToRemove && binding.rolesToRemove.length > 0) {
+                binding.rolesToRemove.forEach(roleId => rolesToRemoveSet.add(roleId));
+            }
+        });
+
+        // Get currently bound roles that should be removed
+        const boundRoleIds = roleBindings.map(binding => binding.discordRoleId);
+        const boundRolesToRemove = boundRoleIds.filter(id =>
+            !rolesToAdd.includes(id) || rolesToRemoveSet.has(id)
+        );
+
         const rolesToRemove = member.roles.cache
-            .filter(role => allBoundRoleIds.includes(role.id) && !rolesToAdd.includes(role.id))
+            .filter(role =>
+                boundRolesToRemove.includes(role.id) || rolesToRemoveSet.has(role.id)
+            )
             .map(role => role.id);
 
-        const addedRoleIds = [];
-        const removedRoleIds = [];
+        // Track role changes
+        const addedRoleIds: string[] = [];
+        const removedRoleIds: string[] = [];
 
         // Remove roles
         if (rolesToRemove.length > 0) {
@@ -148,4 +151,18 @@ export const updateUserRoles = async (guild: Guild, member: GuildMember, robloxU
             removedRoleIds: []
         };
     }
+};
+
+/**
+ * Remove a role binding
+ */
+export const removeRoleBinding = async (guildId: string, discordRoleId: string) => {
+    return await prisma.roleBind.delete({
+        where: {
+            guildId_discordRoleId: {
+                guildId,
+                discordRoleId
+            }
+        }
+    });
 };

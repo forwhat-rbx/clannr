@@ -44,13 +44,14 @@ model UserLink {
 }
 
 model RoleBind {
-  id            String   @id @default(uuid())
-  guildId       String
-  discordRoleId String
-  minRankId     Int      @default(0)
-  maxRankId     Int
-  robloxRankName String?
-  
+  id             String   @id @default(uuid())
+  guildId        String
+  discordRoleId  String
+  minRankId      Int
+  maxRankId      Int
+  robloxRankName String
+  rolesToRemove  String[]
+
   @@unique([guildId, discordRoleId])
 }
 

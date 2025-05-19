@@ -1,16 +1,16 @@
-import { CommandContext } from '../../structures/addons/CommandAddons';
-import { Command } from '../../structures/Command';
+import { CommandContext } from '../structures/addons/CommandAddons';
+import { Command } from '../structures/Command';
 import {
     getSuccessfulRevertRanksEmbed,
     getInvalidDurationEmbed,
     getInvalidRobloxUserEmbed,
-} from '../../handlers/locale';
-import { config } from '../../config';
-import { discordClient, robloxClient, robloxGroup } from '../../main';
+} from '../handlers/locale';
+import { config } from '../config';
+import { discordClient, robloxClient, robloxGroup } from '../main';
 import ms from 'ms';
-import { logAction } from '../../handlers/handleLogging';
+import { logAction } from '../handlers/handleLogging';
 import { PartialUser, User } from 'bloxy/dist/structures';
-import { getLinkedRobloxUser } from '../../handlers/accountLinks';
+import { getLinkedRobloxUser } from '../handlers/accountLinks';
 
 class RevertRanksCommand extends Command {
     constructor() {

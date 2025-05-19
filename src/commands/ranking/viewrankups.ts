@@ -103,7 +103,7 @@ class XPCheckRankupsCommand extends Command {
             canRankUpList.push(...results.filter(Boolean));
         });
 
-        const embed = createBaseEmbed()
+        const embed = createBaseEmbed('primary')
             .setTitle('Pending Promotions')
             .setDescription(
                 canRankUpList.length

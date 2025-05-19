@@ -39,7 +39,7 @@ class NicknameFormatCommand extends Command {
 
                 return ctx.reply({
                     embeds: [
-                        createBaseEmbed()
+                        createBaseEmbed('primary')
                             .setTitle('Nickname Format')
                             .setDescription(`Current nickname format: \`${currentFormat}\`\n\n` +
                                 'Available placeholders:\n' +
@@ -55,7 +55,7 @@ class NicknameFormatCommand extends Command {
 
             return ctx.reply({
                 embeds: [
-                    createBaseEmbed()
+                    createBaseEmbed('primary')
                         .setTitle('Nickname Format Updated')
                         .setDescription(`Updated nickname format to: \`${format}\`\n\n` +
                             'Users\' nicknames will be updated when they use the `/update` command ' +

@@ -54,7 +54,7 @@ class RoleBindsCommand extends Command {
                 if (bindings.length === 0) {
                     return ctx.reply({
                         embeds: [
-                            createBaseEmbed()
+                            createBaseEmbed('primary')
                                 .setTitle('Role Bindings')
                                 .setDescription('No role bindings configured for this server.')
                         ]
@@ -75,7 +75,7 @@ class RoleBindsCommand extends Command {
 
                 return ctx.reply({
                     embeds: [
-                        createBaseEmbed()
+                        createBaseEmbed('primary')
                             .setTitle('Role Bindings')
                             .setDescription(bindingsDescription.join('\n'))
                     ]
@@ -87,7 +87,7 @@ class RoleBindsCommand extends Command {
             if (!discordRoleId) {
                 return ctx.reply({
                     embeds: [
-                        createBaseEmbed()
+                        createBaseEmbed('primary')
                             .setTitle('Missing Arguments')
                             .setDescription('You must specify a Discord role.')
                             .setColor(0xff0000)
@@ -101,7 +101,7 @@ class RoleBindsCommand extends Command {
             if (!discordRole) {
                 return ctx.reply({
                     embeds: [
-                        createBaseEmbed()
+                        createBaseEmbed('primary')
                             .setTitle('Invalid Role')
                             .setDescription('The specified Discord role could not be found.')
                             .setColor(0xff0000)
@@ -162,7 +162,7 @@ class RoleBindsCommand extends Command {
 
                     return ctx.reply({
                         embeds: [
-                            createBaseEmbed()
+                            createBaseEmbed('primary')
                                 .setTitle('Role Binding Removed')
                                 .setDescription(`Removed binding for Discord role <@&${discordRoleId}>`)
                         ]
@@ -171,7 +171,7 @@ class RoleBindsCommand extends Command {
                     console.error('Error removing role binding:', err);
                     return ctx.reply({
                         embeds: [
-                            createBaseEmbed()
+                            createBaseEmbed('primary')
                                 .setTitle('Error')
                                 .setDescription('An error occurred while removing the role binding, or the binding doesn\'t exist.')
                                 .setColor(0xff0000)
@@ -184,7 +184,7 @@ class RoleBindsCommand extends Command {
             // If we got here, the action wasn't valid
             return ctx.reply({
                 embeds: [
-                    createBaseEmbed()
+                    createBaseEmbed('primary')
                         .setTitle('Invalid Action')
                         .setDescription('You must specify a valid action: add, remove, or view.')
                         .setColor(0xff0000)
@@ -195,7 +195,7 @@ class RoleBindsCommand extends Command {
             console.error('Error in binds command:', err);
             return ctx.reply({
                 embeds: [
-                    createBaseEmbed()
+                    createBaseEmbed('primary')
                         .setTitle('Command Error')
                         .setDescription('An unexpected error occurred.')
                         .setColor(0xff0000)

@@ -44,7 +44,7 @@ class RolesCommand extends Command {
             })
             .join('\n');
 
-        const embed = createBaseEmbed()
+        const embed = createBaseEmbed('primary')
             .setTitle('Ranks')
             .setDescription(roleList || 'No configured ranks found between 2 and 8.');
 

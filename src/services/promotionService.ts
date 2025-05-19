@@ -174,7 +174,7 @@ export class promotionService {
     }
 
     private createPromotionEmbed(): EmbedBuilder {
-        const embed = createBaseEmbed() // Assuming this is defined elsewhere
+        const embed = createBaseEmbed('primary') // Assuming this is defined elsewhere
             .setTitle('Pending Promotions')
             .setDescription(
                 this.pendingPromotions.length > 0

@@ -77,7 +77,7 @@ class ProfileCommand extends Command {
         const totalEvents = (userData.raids || 0) + (userData.scrims || 0) +
             (userData.defenses || 0) + (userData.trainings || 0);
 
-        const embed = createBaseEmbed()
+        const embed = createBaseEmbed('primary')
             .setAuthor({
                 name: robloxUser.name,
                 url: `https://www.roblox.com/users/${robloxUser.id}/profile`,

@@ -68,7 +68,7 @@ class GroupsCommand extends Command {
                     )
                     .join('\n');
 
-                return createBaseEmbed()
+                return createBaseEmbed('primary')
                     .setTitle(`Groups for ${robloxUser.name} (Page ${page}/${totalPages})`)
                     .setDescription(groupList || 'No groups found')
                     .addFields({

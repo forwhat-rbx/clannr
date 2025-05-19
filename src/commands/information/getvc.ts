@@ -58,7 +58,7 @@ class GetVCCommand extends Command {
             const memberList = voiceMembers.join(',');
 
             // Prepare embed
-            const embed = createBaseEmbed()
+            const embed = createBaseEmbed('primary')
                 .setTitle(`Users in ${voiceChannel.name}`)
                 .setDescription(`\`${memberList}\``);
 

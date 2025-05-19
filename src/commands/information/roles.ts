@@ -30,7 +30,7 @@ class RolesCommand extends Command {
             .map(role => `**${role.name}** (${role.rank})`)
             .join('\n');
 
-        const embed = createBaseEmbed()
+        const embed = createBaseEmbed('primary')
             .setTitle('List of Group Roles')
             .setDescription(roleList);
 

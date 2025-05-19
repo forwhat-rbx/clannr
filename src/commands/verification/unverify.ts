@@ -21,7 +21,7 @@ class UnverifyCommand extends Command {
             if (!linkedUser) {
                 return ctx.reply({
                     embeds: [
-                        createBaseEmbed()
+                        createBaseEmbed('primary')
                             .setTitle('Not Verified')
                             .setDescription('You do not have a Roblox account linked to your Discord account.')
                             .setColor(0xff0000)
@@ -34,7 +34,7 @@ class UnverifyCommand extends Command {
 
             return ctx.reply({
                 embeds: [
-                    createBaseEmbed()
+                    createBaseEmbed('primary')
                         .setTitle('Unverified Successfully')
                         .setDescription(`Your Discord account has been unlinked from [${linkedUser.name}](https://www.roblox.com/users/${linkedUser.id}/profile).`)
                 ],
@@ -44,7 +44,7 @@ class UnverifyCommand extends Command {
             console.error("Error in unverify command:", err);
             return ctx.reply({
                 embeds: [
-                    createBaseEmbed()
+                    createBaseEmbed('danger')
                         .setTitle('Error')
                         .setDescription('An error occurred while trying to unverify your account. Please try again later.')
                         .setColor(0xff0000)

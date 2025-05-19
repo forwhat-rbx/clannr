@@ -80,7 +80,7 @@ export default class ManageXPCommand extends Command {
             const reason = ctx.args['reason'] as string | undefined;
 
             if (!rawUsers) {
-                const embed = createBaseEmbed()
+                const embed = createBaseEmbed('danger')
                     .setTitle('Missing Users')
                     .setDescription('You must specify at least one username or mention.')
                     .setColor('#FA5757');
@@ -201,7 +201,7 @@ export default class ManageXPCommand extends Command {
             }
 
             // 10) Build and send summary using createBaseEmbed
-            const resultEmbed = createBaseEmbed()
+            const resultEmbed = createBaseEmbed('primary')
                 .setTitle(`XP ${action === 'add' ? 'Added' : 'Removed'}`)
                 .setColor(successes.length > 0 ? '#6699ff' : '#FA5757');
 
@@ -231,7 +231,7 @@ export default class ManageXPCommand extends Command {
                 true
             );
 
-            const errorEmbed = createBaseEmbed()
+            const errorEmbed = createBaseEmbed('danger')
                 .setTitle('Error')
                 .setDescription('An unexpected error occurred while processing your XP request.')
                 .setColor('#FA5757');

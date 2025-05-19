@@ -63,7 +63,7 @@ class ResetStatsCommand extends Command {
                 trainings: 0
             });
 
-            const embed = createBaseEmbed()
+            const embed = createBaseEmbed('primary')
                 .setTitle('Stats Reset')
                 .setDescription(`Successfully reset all stats for **${robloxUser.name}**`)
                 .addFields(

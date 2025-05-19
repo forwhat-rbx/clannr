@@ -84,7 +84,7 @@ export async function handleModalSubmit(interaction) {
             if (isNaN(minRankId) || isNaN(maxRankId)) {
                 return interaction.reply({
                     embeds: [
-                        createBaseEmbed()
+                        createBaseEmbed('primary')
                             .setTitle('Invalid Input')
                             .setDescription('Please enter a valid rank number or range (e.g. "5" or "1-255").')
                             .setColor(0xff0000)
@@ -96,7 +96,7 @@ export async function handleModalSubmit(interaction) {
             if (minRankId > maxRankId) {
                 return interaction.reply({
                     embeds: [
-                        createBaseEmbed()
+                        createBaseEmbed('primary')
                             .setTitle('Invalid Range')
                             .setDescription('Minimum rank cannot be higher than maximum rank.')
                             .setColor(0xff0000)
@@ -113,7 +113,7 @@ export async function handleModalSubmit(interaction) {
             if (!minRole) {
                 return interaction.reply({
                     embeds: [
-                        createBaseEmbed()
+                        createBaseEmbed('primary')
                             .setTitle('Invalid Rank')
                             .setDescription(`Could not find minimum rank with ID ${minRankId} in the group.`)
                             .setColor(0xff0000)
@@ -125,7 +125,7 @@ export async function handleModalSubmit(interaction) {
             if (!maxRole) {
                 return interaction.reply({
                     embeds: [
-                        createBaseEmbed()
+                        createBaseEmbed('primary')
                             .setTitle('Invalid Rank')
                             .setDescription(`Could not find maximum rank with ID ${maxRankId} in the group.`)
                             .setColor(0xff0000)
@@ -150,7 +150,7 @@ export async function handleModalSubmit(interaction) {
 
             return interaction.reply({
                 embeds: [
-                    createBaseEmbed()
+                    createBaseEmbed('primary')
                         .setTitle('Role Binding Added')
                         .setDescription(`Bound Discord role <@&${discordRoleId}> (${discordRole.name}) to Roblox ${rangeText}`)
                 ],
@@ -161,7 +161,7 @@ export async function handleModalSubmit(interaction) {
             console.error('Error processing role binding modal:', err);
             return interaction.reply({
                 embeds: [
-                    createBaseEmbed()
+                    createBaseEmbed('primary')
                         .setTitle('Error')
                         .setDescription('An error occurred while adding the role binding.')
                         .setColor(0xff0000)
@@ -190,7 +190,7 @@ async function handleVerifyButton(interaction: ButtonInteraction): Promise<void>
     const result = await checkVerification(userId);
 
     if (result.success) {
-        const embed = createBaseEmbed()
+        const embed = createBaseEmbed('primary')
             .setTitle('Verification Successful')
             .setDescription(`Your Discord account has been successfully linked to your Roblox account.\n\n**Username:** ${result.robloxUsername}\n**User ID:** ${result.robloxId}`);
 
@@ -658,7 +658,7 @@ async function handlePurgeMembersButton(interaction: ButtonInteraction): Promise
         );
 
         // Create results embed
-        const resultsEmbed = createBaseEmbed()
+        const resultsEmbed = createBaseEmbed('primary')
             .setTitle('Purge Operation Results')
             .setDescription(`Purge operation complete for ${membersToPurge.length} users.`)
             .addFields(

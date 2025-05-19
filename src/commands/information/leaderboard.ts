@@ -41,7 +41,7 @@ class LeaderboardCommand extends Command {
             );
         }
 
-        const embed = createBaseEmbed()
+        const embed = createBaseEmbed('primary')
             .setTitle('XP Leaderboard')
             .setDescription(lines.join('\n'));
 

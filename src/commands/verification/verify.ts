@@ -47,7 +47,7 @@ class VerifyCommand extends Command {
         if (existingLink) {
             return ctx.reply({
                 embeds: [
-                    createBaseEmbed()
+                    createBaseEmbed('primary')
                         .setTitle('Already Verified')
                         .setDescription(`You are already verified as [${existingLink.name}](https://www.roblox.com/users/${existingLink.id}/profile).\n\nTo change your account, use \`/unverify\` first.`)
                 ],
@@ -63,7 +63,7 @@ class VerifyCommand extends Command {
             if (robloxUsers.length === 0) {
                 return ctx.reply({
                     embeds: [
-                        createBaseEmbed()
+                        createBaseEmbed('danger')
                             .setTitle('User Not Found')
                             .setDescription(`Could not find a Roblox user with the username "${username}".`)
                             .setColor(0xff0000)
@@ -122,7 +122,7 @@ class VerifyCommand extends Command {
             console.error("Error in verify command:", err);
             return ctx.reply({
                 embeds: [
-                    createBaseEmbed()
+                    createBaseEmbed('danger')
                         .setTitle('Verification Error')
                         .setDescription('An error occurred while trying to verify your account. Please try again later.')
                         .setColor(0xff0000)

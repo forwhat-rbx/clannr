@@ -225,7 +225,7 @@ class CompareGroupsCommand extends Command {
     }
 
     private createResultEmbed(discordRoleName: string, groupName: string, matchedMembers: Array<{ id: number, username: string, role1: string, role2: string }>): EmbedBuilder {
-        const embed = createBaseEmbed()
+        const embed = createBaseEmbed('primary')
             .setTitle(`Role Comparison Results`)
             .setDescription(`**${matchedMembers.length} members** with the role **${discordRoleName}** are in the group **${groupName}**`)
             .setTimestamp();

@@ -62,7 +62,7 @@ async function handleBindsAddModalSubmit(interaction: ModalSubmitInteraction): P
         if (isNaN(minRankId) || isNaN(maxRankId)) {
             await interaction.reply({
                 embeds: [
-                    createBaseEmbed()
+                    createBaseEmbed('primary')
                         .setTitle('Invalid Input')
                         .setDescription('Please enter a valid rank number or range (e.g. "5" or "1-255").')
                         .setColor(0xff0000)
@@ -75,7 +75,7 @@ async function handleBindsAddModalSubmit(interaction: ModalSubmitInteraction): P
         if (minRankId > maxRankId) {
             await interaction.reply({
                 embeds: [
-                    createBaseEmbed()
+                    createBaseEmbed('primary')
                         .setTitle('Invalid Range')
                         .setDescription('Minimum rank cannot be higher than maximum rank.')
                         .setColor(0xff0000)
@@ -93,7 +93,7 @@ async function handleBindsAddModalSubmit(interaction: ModalSubmitInteraction): P
         if (!minRole) {
             await interaction.reply({
                 embeds: [
-                    createBaseEmbed()
+                    createBaseEmbed('primary')
                         .setTitle('Invalid Rank')
                         .setDescription(`Could not find minimum rank with ID ${minRankId} in the group.`)
                         .setColor(0xff0000)
@@ -106,7 +106,7 @@ async function handleBindsAddModalSubmit(interaction: ModalSubmitInteraction): P
         if (!maxRole) {
             await interaction.reply({
                 embeds: [
-                    createBaseEmbed()
+                    createBaseEmbed('primary')
                         .setTitle('Invalid Rank')
                         .setDescription(`Could not find maximum rank with ID ${maxRankId} in the group.`)
                         .setColor(0xff0000)
@@ -132,7 +132,7 @@ async function handleBindsAddModalSubmit(interaction: ModalSubmitInteraction): P
 
         await interaction.reply({
             embeds: [
-                createBaseEmbed()
+                createBaseEmbed('primary')
                     .setTitle('Role Binding Added')
                     .setDescription(`Bound Discord role <@&${discordRoleId}> (${discordRole.name}) to Roblox ${rangeText}`)
             ],
@@ -144,7 +144,7 @@ async function handleBindsAddModalSubmit(interaction: ModalSubmitInteraction): P
         console.error('Error processing role binding modal:', err);
         await interaction.reply({
             embeds: [
-                createBaseEmbed()
+                createBaseEmbed('primary')
                     .setTitle('Error')
                     .setDescription('An error occurred while adding the role binding.')
                     .setColor(0xff0000)
@@ -219,7 +219,7 @@ async function handleDmRoleModalSubmit(interaction: ModalSubmitInteraction): Pro
                 await new Promise(r => setTimeout(r, 500 * (index % 5)));
 
                 // Create a nice embed for the DM
-                const dmEmbed = createBaseEmbed()
+                const dmEmbed = createBaseEmbed('primary')
                     .setTitle(messageSubject)
                     .setDescription(messageContent)
                     .setFooter({ text: `Sent by ${interaction.user.tag} from ${interaction.guild?.name}` })
@@ -257,7 +257,7 @@ async function handleDmRoleModalSubmit(interaction: ModalSubmitInteraction): Pro
     );
 
     // Create results embed
-    const resultsEmbed = createBaseEmbed()
+    const resultsEmbed = createBaseEmbed('primary')
         .setTitle('DM Operation Results')
         .setDescription(`DM operation complete for ${membersWithRole.size} members with role ${role.name}.`)
         .addFields(
@@ -327,7 +327,7 @@ async function handleDmMatchedMembersModalSubmit(interaction: ModalSubmitInterac
             }
 
             // Create a nice embed for the DM
-            const dmEmbed = createBaseEmbed()
+            const dmEmbed = createBaseEmbed('primary')
                 .setTitle(messageSubject)
                 .setDescription(messageContent)
                 .setFooter({ text: `Sent by ${interaction.user.tag} from ${interaction.guild?.name || 'the server'}` })
@@ -364,7 +364,7 @@ async function handleDmMatchedMembersModalSubmit(interaction: ModalSubmitInterac
     }
 
     // Create results embed
-    const resultsEmbed = createBaseEmbed()
+    const resultsEmbed = createBaseEmbed('primary')
         .setTitle('DM Operation Results')
         .setDescription(`DM operation complete for ${discordIdsToMessage.length} matched members.`)
         .addFields(
@@ -445,7 +445,7 @@ async function handleDmModalSubmit(interaction: ModalSubmitInteraction): Promise
                 const robloxUser = await robloxClient.getUser(userId);
 
                 // Create a nice embed for the DM
-                const dmEmbed = createBaseEmbed()
+                const dmEmbed = createBaseEmbed('primary')
                     .setTitle(messageSubject)
                     .setDescription(messageContent)
                     .setFooter({ text: `Sent by ${interaction.user.tag}` })
@@ -466,7 +466,7 @@ async function handleDmModalSubmit(interaction: ModalSubmitInteraction): Promise
     );
 
     // Create results embed
-    const resultsEmbed = createBaseEmbed()
+    const resultsEmbed = createBaseEmbed('primary')
         .setTitle('DM Operation Results')
         .setDescription(`DM operation complete for ${membersToDm.length} users.`)
         .addFields(

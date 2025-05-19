@@ -26,7 +26,7 @@ class ExampleCommand extends Command {
         const userText = ctx.args['text'] ? ctx.args['text'] : 'Hello, world!';
 
         // Creating a simple embed response
-        const embed = createBaseEmbed()
+        const embed = createBaseEmbed('primary')
             .setTitle('Example Command')
             .setDescription(`You said: ${userText}`);
 

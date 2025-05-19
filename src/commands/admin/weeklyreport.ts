@@ -65,7 +65,7 @@ class WeeklyReportCommand extends Command {
             fs.writeFileSync(filePath, logs);
 
             // Create embed
-            const embed = createBaseEmbed()
+            const embed = createBaseEmbed('primary')
                 .setTitle('Weekly Activity Report')
                 .setDescription(`Report for week of ${weekStart.toLocaleDateString()} to ${weekEnd.toLocaleDateString()}`)
                 .setTimestamp();

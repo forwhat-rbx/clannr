@@ -214,7 +214,7 @@ class LastActiveCommand extends Command {
             });
 
             // Create an embed with the results
-            const embed = createBaseEmbed()
+            const embed = createBaseEmbed('primary')
                 .setTitle(`Inactive Users (${days}+ days)`)
                 .setDescription(
                     inactiveUsers.length > 0

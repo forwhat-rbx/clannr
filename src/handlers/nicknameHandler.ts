@@ -15,9 +15,7 @@ export const getNicknameFormat = async (guildId: string): Promise<string> => {
                 where: { guildId }
             });
         } catch (err) {
-            guildConfig = await prisma.guildConfig.findUnique({
-                where: { guildId }
-            });
+            console.log('error')
         }
 
         if (!guildConfig) {
@@ -60,7 +58,7 @@ export const setNicknameFormat = async (guildId: string, format: string): Promis
     try {
         console.log(`Setting nickname format for guild ${guildId} to: ${format}`);
 
-        // Try both cases for model name with proper error handling
+        // Only use camelCase version of the model name
         try {
             const guildConfig = await prisma.guildConfig.upsert({
                 where: { guildId },
@@ -75,20 +73,8 @@ export const setNicknameFormat = async (guildId: string, format: string): Promis
             console.log(`Successfully updated nickname format for guild ${guildId}`);
             return guildConfig.nicknameFormat;
         } catch (err) {
-            // Try alternate case if first attempt fails
-            console.log(`Trying alternate case for DB model: ${err.message}`);
-            const guildConfig = await prisma.GuildConfig.upsert({
-                where: { guildId },
-                update: { nicknameFormat: format },
-                create: {
-                    id: guildId,
-                    guildId,
-                    nicknameFormat: format
-                }
-            });
-
-            console.log(`Successfully updated nickname format with alternate case for guild ${guildId}`);
-            return guildConfig.nicknameFormat;
+            console.error(`Error updating nickname format: ${err.message}`);
+            throw err;
         }
     } catch (err) {
         console.error(`Error setting nickname format for guild ${guildId}:`, err);

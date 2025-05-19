@@ -1,4 +1,4 @@
-import { GuildMember, PermissionsBitField } from 'discord.js';
+import { GuildMember, PermissionFlagsBits } from 'discord.js';
 import { User } from 'bloxy/dist/structures';
 import { prisma } from '../database/prisma';
 import { robloxGroup } from '../main';
@@ -11,7 +11,7 @@ export const getNicknameFormat = async (guildId: string): Promise<string> => {
         // Try both cases for model name - PascalCase first, then regular
         let guildConfig;
         try {
-            guildConfig = await prisma.GuildConfig.findUnique({
+            guildConfig = await prisma.guildConfig.findUnique({
                 where: { guildId }
             });
         } catch (err) {
@@ -25,7 +25,7 @@ export const getNicknameFormat = async (guildId: string): Promise<string> => {
             console.log(`Creating new guild config for guild ${guildId}`);
             let newConfig;
             try {
-                newConfig = await prisma.GuildConfig.create({
+                newConfig = await prisma.guildConfig.create({
                     data: {
                         id: guildId,
                         guildId,
@@ -60,7 +60,7 @@ export const updateNickname = async (member: GuildMember, robloxUser: User): Pro
         console.log(`Attempting to update nickname for ${member.user.tag} (${member.id})`);
 
         // Check if bot has permission to change nicknames
-        if (!member.guild.members.me.permissions.has(PermissionsBitField.Flags.ManageNicknames)) {
+        if (!member.guild.members.me.permissions.has(PermissionFlagsBits.ManageNicknames)) {
             console.error(`Bot lacks permission to manage nicknames in guild ${member.guild.name}`);
             return false;
         }

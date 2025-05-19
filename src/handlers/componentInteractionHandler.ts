@@ -280,10 +280,10 @@ async function handleRoleBindingConfirmation(interaction: ButtonInteraction) {
                     rankName,
                     rolesToRemove || []
                 );
-                results.push(`✅ <@&${roleId}> (${role ? role.name : 'Unknown Role'})`);
+                results.push(`<@&${roleId}> (${role ? role.name : 'Unknown Role'})`);
             } catch (bindError) {
                 console.error(`Error adding binding for role ${roleId}:`, bindError);
-                results.push(`❌ <@&${roleId}> - Error: ${bindError.message}`);
+                results.push(`<@&${roleId}> - Error: ${bindError.message}`);
             }
         }
 

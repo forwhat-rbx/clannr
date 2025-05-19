@@ -50,7 +50,7 @@ model RoleBind {
   minRankId      Int
   maxRankId      Int
   robloxRankName String
-  rolesToRemove  String? @default("[]")
+  rolesToRemoveJson String? @default("[]") // Store as JSON string instead of array
 
   @@unique([guildId, discordRoleId])
 }

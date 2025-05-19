@@ -66,10 +66,9 @@ class NicknameFormatCommand extends Command {
             console.error('Error in nicknameformat command:', err);
             return ctx.reply({
                 embeds: [
-                    createBaseEmbed()
+                    createBaseEmbed('danger')
                         .setTitle('Command Error')
                         .setDescription('An unexpected error occurred: ' + (err.message || 'Unknown error'))
-                        .setColor(0xff0000)
                 ],
                 ephemeral: true
             });

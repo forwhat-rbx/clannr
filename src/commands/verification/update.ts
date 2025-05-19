@@ -1,6 +1,6 @@
 import { CommandContext } from '../../structures/addons/CommandAddons';
 import { Command } from '../../structures/Command';
-import { createBaseEmbed } from '../../utils/embedUtils';
+import { createBaseEmbed, embedColors } from '../../utils/embedUtils';
 import { getLinkedRobloxUser } from '../../handlers/accountLinks';
 import { updateUserRoles } from '../../handlers/roleBindHandler';
 import { updateNickname } from '../../handlers/nicknameHandler';
@@ -81,31 +81,14 @@ class UpdateCommand extends Command {
             // Update roles, with verbose logging
             console.log(`Updating roles for ${targetMember.user.tag}`);
 
-            // Custom updateUserRoles that captures role names for better feedback
+            // Custom updateUserRoles that captures role IDs for better feedback
             const roleResult = await updateUserRoles(ctx.guild, targetMember, robloxUser.id);
 
-            // Get details about the role changes
-            let addedRoles: string[] = [];
-            let removedRoles: string[] = [];
-
-            if (roleResult.addedRoleIds) {
-                addedRoles = roleResult.addedRoleIds.map(id => {
-                    const role = ctx.guild.roles.cache.get(id);
-                    return role ? role.name : `Unknown Role (${id})`;
-                });
-            }
-
-            if (roleResult.removedRoleIds) {
-                removedRoles = roleResult.removedRoleIds.map(id => {
-                    const role = ctx.guild.roles.cache.get(id);
-                    return role ? role.name : `Unknown Role (${id})`;
-                });
-            }
-
-            console.log(`Role update result: ${roleResult.success ? "Success" : "Failed"}, Added: [${addedRoles.join(', ')}], Removed: [${removedRoles.join(', ')}]`);
+            console.log(`Role update result: ${roleResult.success ? "Success" : "Failed"}, Added: ${roleResult.addedRoleIds?.length || 0}, Removed: ${roleResult.removedRoleIds?.length || 0}`);
 
             // Build a detailed response
-            const embed = createBaseEmbed().setTitle('Update Results');
+            const embed = createBaseEmbed();
+            embed.setTitle('Update Results');
             const changes = [];
 
             // Add nickname change details if applicable
@@ -113,24 +96,20 @@ class UpdateCommand extends Command {
                 changes.push(`**Nickname:** \`${oldNickname}\` → \`${newNickname}\``);
             }
 
-            // Add role changes details if applicable
-            if (addedRoles.length > 0) {
-                changes.push(`**Added Roles:** ${addedRoles.map(r => `\`${r}\``).join(', ')}`);
+            // Add role changes details with mentions
+            if (roleResult.addedRoleIds && roleResult.addedRoleIds.length > 0) {
+                changes.push(`**Added Roles:** ${roleResult.addedRoleIds.map(id => `<@&${id}>`).join(' ')}`);
             }
 
-            if (removedRoles.length > 0) {
-                changes.push(`**Removed Roles:** ${removedRoles.map(r => `\`${r}\``).join(', ')}`);
+            if (roleResult.removedRoleIds && roleResult.removedRoleIds.length > 0) {
+                changes.push(`**Removed Roles:** ${roleResult.removedRoleIds.map(id => `<@&${id}>`).join(' ')}`);
             }
 
-            // Determine color and response based on whether changes were made
+            // Set description based on whether changes were made
             if (changes.length > 0) {
-                embed
-                    .setColor('#00ff00')
-                    .setDescription(`${targetUser.id === ctx.user.id ? 'Your' : `${targetUser.tag}'s`} data has been successfully updated:\n\n${changes.join('\n')}`);
+                embed.setDescription(`${targetUser.id === ctx.user.id ? 'Your' : `${targetUser.tag}'s`} data has been successfully updated:\n\n${changes.join('\n')}`);
             } else {
-                embed
-                    .setColor('#0099ff')
-                    .setDescription(`No changes were needed for ${targetUser.id === ctx.user.id ? 'your' : `${targetUser.tag}'s`} nickname or roles.`);
+                embed.setDescription(`No changes were needed for ${targetUser.id === ctx.user.id ? 'your' : `${targetUser.tag}'s`} nickname or roles.`);
             }
 
             return ctx.reply({ embeds: [embed] });
@@ -138,10 +117,9 @@ class UpdateCommand extends Command {
             console.error('Error in update command:', err);
             return ctx.reply({
                 embeds: [
-                    createBaseEmbed()
+                    createBaseEmbed('danger')
                         .setTitle('Update Error')
                         .setDescription('An error occurred while updating: ' + (err.message || 'Unknown error'))
-                        .setColor('#FF0000')
                 ],
                 ephemeral: true
             });

@@ -65,13 +65,27 @@ export const updateUserRoles = async (guild: Guild, member: GuildMember, robloxU
         // Get all role bindings for this guild
         const roleBindings = await getRoleBindings(guild.id);
         if (roleBindings.length === 0) {
-            return { success: true, message: 'No role bindings configured for this server', added: 0, removed: 0 };
+            return {
+                success: true,
+                message: 'No role bindings configured for this server',
+                added: 0,
+                removed: 0,
+                addedRoleIds: [],
+                removedRoleIds: []
+            };
         }
 
         // Get the user's rank in the group
         const groupMember = await robloxGroup.getMember(robloxUserId);
         if (!groupMember) {
-            return { success: false, message: 'User is not in the group', added: 0, removed: 0 };
+            return {
+                success: false,
+                message: 'User is not in the group',
+                added: 0,
+                removed: 0,
+                addedRoleIds: [],
+                removedRoleIds: []
+            };
         }
 
         // Get the user's rank ID
@@ -85,28 +99,34 @@ export const updateUserRoles = async (guild: Guild, member: GuildMember, robloxU
         // Get all bound role IDs to properly remove roles that shouldn't be assigned
         const allBoundRoleIds = roleBindings.map(binding => binding.discordRoleId);
 
-        // Add and remove roles
+        // Find roles to remove
         const rolesToRemove = member.roles.cache
             .filter(role => allBoundRoleIds.includes(role.id) && !rolesToAdd.includes(role.id))
             .map(role => role.id);
 
-        // Store IDs for detailed reporting
         const addedRoleIds = [];
         const removedRoleIds = [];
 
-        // Update the roles
+        // Remove roles
         if (rolesToRemove.length > 0) {
-            await member.roles.remove(rolesToRemove, 'Automatic role update from bot');
-            removedRoleIds.push(...rolesToRemove);
+            try {
+                await member.roles.remove(rolesToRemove, 'Automatic role update from bot');
+                removedRoleIds.push(...rolesToRemove);
+                console.log(`Removed roles from ${member.user.tag}: ${rolesToRemove.join(', ')}`);
+            } catch (removeErr) {
+                console.error(`Error removing roles from ${member.user.tag}:`, removeErr);
+            }
         }
 
-        if (rolesToAdd.length > 0) {
-            // Filter out roles the user already has
-            const newRoles = rolesToAdd.filter(roleId => !member.roles.cache.has(roleId));
-
-            if (newRoles.length > 0) {
+        // Add roles the user doesn't already have
+        const newRoles = rolesToAdd.filter(roleId => !member.roles.cache.has(roleId));
+        if (newRoles.length > 0) {
+            try {
                 await member.roles.add(newRoles, 'Automatic role update from bot');
                 addedRoleIds.push(...newRoles);
+                console.log(`Added roles to ${member.user.tag}: ${newRoles.join(', ')}`);
+            } catch (addErr) {
+                console.error(`Error adding roles to ${member.user.tag}:`, addErr);
             }
         }
 
@@ -119,6 +139,13 @@ export const updateUserRoles = async (guild: Guild, member: GuildMember, robloxU
         };
     } catch (err) {
         console.error('Error updating user roles:', err);
-        return { success: false, message: 'An error occurred while updating roles', added: 0, removed: 0 };
+        return {
+            success: false,
+            message: 'An error occurred while updating roles',
+            added: 0,
+            removed: 0,
+            addedRoleIds: [],
+            removedRoleIds: []
+        };
     }
 };

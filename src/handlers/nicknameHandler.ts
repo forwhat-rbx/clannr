@@ -8,48 +8,40 @@ import { robloxGroup } from '../main';
  */
 export const getNicknameFormat = async (guildId: string): Promise<string> => {
     try {
-        // Try both cases for model name - PascalCase first, then regular
-        let guildConfig;
+        // Get guild config with error handling
+        let guildConfig = null;
         try {
             guildConfig = await prisma.guildConfig.findUnique({
                 where: { guildId }
             });
-        } catch (err) {
-            console.log('error')
+        } catch (e) {
+            console.error(`Error finding guild config: ${e.message}`);
         }
 
         if (!guildConfig) {
-            // Create default config if none exists
-            console.log(`Creating new guild config for guild ${guildId}`);
-            let newConfig;
             try {
-                newConfig = await prisma.guildConfig.create({
+                // Create default config if none exists
+                console.log(`Creating new guild config for guild ${guildId}`);
+                const newConfig = await prisma.guildConfig.create({
                     data: {
                         id: guildId,
                         guildId,
                         nicknameFormat: '{robloxUsername}'
                     }
                 });
-            } catch (err) {
-                newConfig = await prisma.guildConfig.create({
-                    data: {
-                        id: guildId,
-                        guildId,
-                        nicknameFormat: '{robloxUsername}'
-                    }
-                });
+                return newConfig.nicknameFormat;
+            } catch (createErr) {
+                console.error(`Failed to create guild config: ${createErr.message}`);
+                return '{robloxUsername}'; // Fallback default
             }
-            return newConfig.nicknameFormat;
         }
 
         return guildConfig.nicknameFormat;
     } catch (err) {
-        console.error("Error getting nickname format:", err);
+        console.error(`Error in getNicknameFormat: ${err.message || err}`);
         return '{robloxUsername}'; // Return default if error
     }
 };
-
-// Add this function after getNicknameFormat and before updateNickname
 
 /**
  * Set the nickname format for a guild
@@ -58,19 +50,24 @@ export const setNicknameFormat = async (guildId: string, format: string): Promis
     try {
         console.log(`Setting nickname format for guild ${guildId} to: ${format}`);
 
-        // Only use camelCase version of the model name
-        const guildConfig = await prisma.guildConfig.upsert({
-            where: { guildId },
-            update: { nicknameFormat: format },
-            create: {
-                id: guildId,
-                guildId,
-                nicknameFormat: format
-            }
-        });
+        try {
+            // Use prisma.guildConfig (lowercase) as per prisma client conventions
+            const guildConfig = await prisma.guildConfig.upsert({
+                where: { guildId },
+                update: { nicknameFormat: format },
+                create: {
+                    id: guildId,
+                    guildId,
+                    nicknameFormat: format
+                }
+            });
 
-        console.log(`Successfully updated nickname format for guild ${guildId}`);
-        return guildConfig.nicknameFormat;
+            console.log(`Successfully updated nickname format for guild ${guildId}`);
+            return guildConfig.nicknameFormat;
+        } catch (dbError) {
+            console.error(`Database error in setNicknameFormat: ${dbError.message}`, dbError);
+            throw new Error(`Failed to update nickname format: ${dbError.message}`);
+        }
     } catch (err) {
         console.error(`Error setting nickname format for guild ${guildId}:`, err);
         throw err;
@@ -82,19 +79,24 @@ export const setNicknameFormat = async (guildId: string, format: string): Promis
  */
 export const updateNickname = async (member: GuildMember, robloxUser: User): Promise<boolean> => {
     try {
-        // Enhanced logging
-        console.log(`Attempting to update nickname for ${member.user.tag} (${member.id})`);
+        // Enhanced logging with user IDs
+        console.log(`Attempting to update nickname for ${member.user.tag} (${member.id}) with Roblox user ${robloxUser.name} (${robloxUser.id})`);
 
-        // Check if bot has permission to change nicknames
+        // Check if the bot has permission to manage nicknames
+        if (!member.guild.members.me) {
+            console.error(`Bot is not in guild ${member.guild.name}`);
+            return false;
+        }
+
         if (!member.guild.members.me.permissions.has(PermissionFlagsBits.ManageNicknames)) {
-            console.error(`Bot lacks permission to manage nicknames in guild ${member.guild.name}`);
+            console.error(`Bot lacks ManageNicknames permission in guild ${member.guild.name}`);
             return false;
         }
 
         // Check if bot's role is higher than the user's highest role
         const botMember = member.guild.members.me;
         if (member.roles.highest.position >= botMember.roles.highest.position) {
-            console.error(`Cannot update nickname for ${member.user.tag} - their role is higher than or equal to bot's highest role`);
+            console.error(`Cannot update nickname for ${member.user.tag} - their role position (${member.roles.highest.position}) is higher than or equal to bot's highest role position (${botMember.roles.highest.position})`);
             return false;
         }
 
@@ -120,6 +122,7 @@ export const updateNickname = async (member: GuildMember, robloxUser: User): Pro
             }
         } catch (err) {
             console.error(`Error getting group member for ${robloxUser.name}:`, err);
+            // Continue with "Guest" rank
         }
 
         // Format the nickname

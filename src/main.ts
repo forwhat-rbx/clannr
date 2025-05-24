@@ -18,6 +18,7 @@ import { handleModalSubmit } from './handlers/modalSubmitHandler';
 import { getLogChannels as initializeLogChannels } from './handlers/handleLogging';
 import { ActivityLogger } from './utils/activityLogger';
 import { handleComponentInteraction } from './handlers/componentInteractionHandler';
+import { Logger } from './utils/logger';
 
 require('dotenv').config();
 
@@ -93,9 +94,8 @@ let robloxGroup: Group = null;
         if (config.antiAbuse.enabled) clearActions();
         if (config.deleteWallURLs) checkWallForAds();
     } catch (error) {
-        console.error('❌ AUTHENTICATION FAILED - Your Roblox cookie may be invalid or expired');
-        console.error(error);
-        // Consider adding process.exit(1) here if you want to fail hard on auth issues
+        Logger.error('❌ AUTHENTICATION FAILED - Your Roblox cookie may be invalid or expired', 'Auth', error);
+        process.exit(1);
     }
 })();
 
@@ -116,7 +116,7 @@ discordClient.on('interactionCreate', async (interaction) => {
             await handleInteraction(interaction);
         }
     } catch (error) {
-        console.error('Error handling interaction:', error);
+        Logger.error('Error handling interaction:', 'Interaction', error);
         // Try to respond to the user if possible
         if (!('replied' in interaction && interaction.replied) && !('deferred' in interaction && interaction.deferred)) {
             try {
@@ -127,7 +127,7 @@ discordClient.on('interactionCreate', async (interaction) => {
                     });
                 }
             } catch (responseError) {
-                console.error('Failed to send error message:', responseError);
+                Logger.error('Failed to send error response:', 'Interaction', responseError);
             }
         }
     }

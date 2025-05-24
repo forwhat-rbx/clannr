@@ -4,8 +4,8 @@ import {
     ButtonInteraction,
     ButtonStyle,
     ComponentType,
+    GuildMember,
     ModalBuilder,
-    RoleSelectMenuBuilder,
     RoleSelectMenuInteraction,
     StringSelectMenuInteraction,
     TextInputBuilder,
@@ -13,8 +13,10 @@ import {
 } from 'discord.js';
 import { createBaseEmbed } from '../utils/embedUtils';
 import { addRoleBinding, getRoleBindings } from './roleBindHandler';
-import { config } from '../config';
-import { robloxGroup } from '../main';
+import { checkVerification } from '../commands/verification/verify';
+import { robloxClient } from '../main';
+import { updateUserRoles } from './roleBindHandler';
+import { updateNickname } from './nicknameHandler';
 
 // For managing binding workflow state
 interface BindingWorkflowData {
@@ -52,13 +54,14 @@ async function handleButtonInteraction(interaction: ButtonInteraction) {
     const customId = interaction.customId;
 
     try {
-        if (customId.startsWith('dm_matched_members:')) {
-            // Handle existing DM matched members button
-            // (Your existing code here if needed)
-        } else if (customId.startsWith('purge_members:')) {
-            // Handle existing purge members button
-            // (Your existing code here if needed)
-        } else if (customId === 'role_binding_confirm') {
+        // Handle verification buttons
+        if (customId.startsWith('verify_')) {
+            await handleVerifyButton(interaction);
+        } else if (customId.startsWith('cancel_verify_')) {
+            await handleCancelVerifyButton(interaction);
+        }
+        // Handle role binding confirmation/cancel
+        else if (customId === 'role_binding_confirm') {
             await handleRoleBindingConfirmation(interaction);
         } else if (customId === 'role_binding_cancel') {
             // Clean up workflow data
@@ -69,26 +72,121 @@ async function handleButtonInteraction(interaction: ButtonInteraction) {
                 components: []
             });
         }
+        // Add other button handlers as needed
     } catch (err) {
         console.error('Error handling button interaction:', err);
         try {
-            const reply = interaction.replied ? interaction.followUp : interaction.update;
-            await reply.call(interaction, {
-                embeds: [
-                    createBaseEmbed('danger')
-                        .setTitle('Error')
-                        .setDescription('An error occurred while processing your selection.')
-                ],
-                components: []
-            });
+            // Proper error handling based on interaction state
+            if (interaction.deferred) {
+                await interaction.editReply({
+                    embeds: [
+                        createBaseEmbed('danger')
+                            .setTitle('Error')
+                            .setDescription('An error occurred while processing your request: ' + err.message)
+                    ],
+                    components: []
+                });
+            } else if (!interaction.replied) {
+                await interaction.reply({
+                    embeds: [
+                        createBaseEmbed('danger')
+                            .setTitle('Error')
+                            .setDescription('An error occurred while processing your request: ' + err.message)
+                    ],
+                    ephemeral: true
+                });
+            }
         } catch (e) {
             console.error('Failed to send error message:', e);
         }
     }
 }
 
+// Handle verification button click
+async function handleVerifyButton(interaction: ButtonInteraction): Promise<void> {
+    // Important: Defer the update first to prevent timeout
+    await interaction.deferUpdate();
+
+    // Extract user ID from the button custom ID
+    const userId = interaction.customId.replace('verify_', '');
+
+    // Only the user who started verification can verify
+    if (userId !== interaction.user.id) {
+        await interaction.followUp({
+            content: 'This verification is for someone else.',
+            ephemeral: true
+        });
+        return;
+    }
+
+    // Log the verification attempt for debugging
+    console.log(`[VERIFY] Verification button clicked by ${interaction.user.tag} (${interaction.user.id})`);
+
+    // Check the verification
+    const result = await checkVerification(userId);
+    console.log(`[VERIFY] Verification result:`, result);
+
+    if (result.success) {
+        const embed = createBaseEmbed()
+            .setTitle('Verification Successful')
+            .setDescription(`Your Discord account has been successfully linked to your Roblox account.\n\n**Username:** ${result.robloxUsername}\n**User ID:** ${result.robloxId}`);
+
+        // Update roles and nickname
+        try {
+            const robloxUser = await robloxClient.getUser(Number(result.robloxId));
+            if (robloxUser && interaction.guild) {
+                // Make sure we have a guild member
+                if (interaction.member && interaction.member instanceof GuildMember) {
+                    const guildMember = interaction.member;
+                    await updateUserRoles(interaction.guild, guildMember, robloxUser.id);
+                    await updateNickname(guildMember, robloxUser);
+                    console.log(`[VERIFY] Updated roles and nickname for ${interaction.user.tag}`);
+                }
+            }
+        } catch (updateErr) {
+            console.error(`[VERIFY] Error updating roles/nickname:`, updateErr);
+            // We'll still show success even if this part fails
+        }
+
+        await interaction.editReply({
+            embeds: [embed],
+            components: []
+        });
+    } else {
+        await interaction.editReply({
+            content: `Verification failed: ${result.message}`,
+            components: []
+        });
+    }
+}
+
+// Handle cancel verification button
+async function handleCancelVerifyButton(interaction: ButtonInteraction): Promise<void> {
+    await interaction.deferUpdate();
+    const userId = interaction.customId.replace('cancel_verify_', '');
+
+    // Only the user who started verification can cancel
+    if (userId !== interaction.user.id) {
+        await interaction.followUp({
+            content: 'This verification is for someone else.',
+            ephemeral: true
+        });
+        return;
+    }
+
+    // Remove from pending verifications
+    global.pendingVerifications.delete(userId);
+
+    await interaction.editReply({
+        content: 'Verification cancelled.',
+        embeds: [],
+        components: []
+    });
+}
+
+// Add other function handlers for role selections, etc.
 async function handleStringSelectMenuInteraction(interaction: StringSelectMenuInteraction) {
-    // Handle string select menu interactions if needed
+    // Handle string select menu interactions
     console.log('String select menu interaction received:', interaction.customId);
 }
 

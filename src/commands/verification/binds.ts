@@ -25,12 +25,6 @@ class RoleBindsCommand extends Command {
                         { name: 'View', value: 'view' }
                     ]
                 },
-                {
-                    trigger: 'discord-role',
-                    description: 'Discord role to bind or remove',
-                    type: 'DiscordRole',
-                    required: false
-                }
             ],
             permissions: [
                 {

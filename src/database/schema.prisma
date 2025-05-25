@@ -56,9 +56,11 @@ model RoleBind {
 }
 
 model GuildConfig {
-  id                 String   @id
-  guildId            String   @unique
-  nicknameFormat     String   @default("{robloxUsername}")
-  verifiedRoleId     String?
-  autoUpdateEnabled  Boolean  @default(true)
+  id                   String   @id
+  guildId              String   @unique
+  nicknameFormat       String   @default("{robloxUsername}")
+  verifiedRoleId       String?
+  autoUpdateEnabled    Boolean  @default(true)
+  verificationChannelId String?
+  verificationMessageId String?
 }

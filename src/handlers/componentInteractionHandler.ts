@@ -154,7 +154,11 @@ async function handleVerifyButton(interaction: ButtonInteraction): Promise<void>
         });
     } else {
         await interaction.editReply({
-            content: `Verification failed: ${result.message}`,
+            embeds: [
+                createBaseEmbed('danger')
+                    .setTitle('Verification Failed')
+                    .setDescription(result.message)
+            ],
             components: []
         });
     }

@@ -5,6 +5,8 @@ import { processInChunks, ProcessingOptions } from '../utils/processingUtils';
 import { logAction } from './handleLogging';
 import { config } from '../config';
 import { addRoleBinding, getRoleBindings } from '../handlers/roleBindHandler'; // Added this import
+import { Logger } from '../utils/logger';
+import { getLinkedRobloxUser } from './accountLinks';
 
 
 export async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
@@ -19,6 +21,8 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction): Pr
             await handleDmMatchedMembersModalSubmit(interaction);
         } else if (customId.startsWith('binds_add_')) {
             await handleBindsAddModalSubmit(interaction);
+        } else if (customId.startsWith('verify_modal')) {
+            await handleVerifyUsernameModal(interaction);
         } else if (customId === 'binds_multi_add_modal') {
             await handleMultiBindsAddModalSubmit(interaction);
         } else {
@@ -33,6 +37,116 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction): Pr
         // Rest of error handling
     }
 }
+
+async function handleVerifyUsernameModal(interaction: ModalSubmitInteraction): Promise<void> {
+    try {
+        // Get the username from the modal
+        const username = interaction.fields.getTextInputValue('username');
+
+        // Check if user is already verified
+        const existingLink = await getLinkedRobloxUser(interaction.user.id);
+        if (existingLink) {
+            void interaction.reply({
+                embeds: [
+                    createBaseEmbed('primary')
+                        .setTitle('Already Verified')
+                        .setDescription(`You are already verified as [${existingLink.name}](https://www.roblox.com/users/${existingLink.id}/profile).\n\nTo change your account, use \`/unverify\` first.`)
+                ],
+                ephemeral: true
+            });
+        }
+
+        // Try to find the Roblox user
+        try {
+            const robloxUsers = await robloxClient.getUsersByUsernames([username]);
+            if (robloxUsers.length === 0) {
+                void interaction.reply({
+                    embeds: [
+                        createBaseEmbed('danger')
+                            .setTitle('User Not Found')
+                            .setDescription(`Could not find a Roblox user with the username "${username}".`)
+                    ],
+                    ephemeral: true
+                });
+            }
+
+            const robloxUser = robloxUsers[0];
+
+            // Generate a verification code
+            const verificationCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+            // Store the verification data in global map with consistent ID format
+            global.pendingVerifications.set(interaction.user.id, {
+                robloxId: String(robloxUser.id),
+                robloxUsername: robloxUser.name,
+                code: verificationCode,
+                expires: Date.now() + 10 * 60 * 1000 // 10 minutes expiry
+            });
+
+            // Create verification embed
+            const embed = createBaseEmbed()
+                .setTitle('Verification Started')
+                .setDescription(
+                    `Please put this code in your Roblox profile description to verify: \n\n` +
+                    `\`\`\`\n${verificationCode}\n\`\`\`\n\n` +
+                    `1. Go to [your profile](https://www.roblox.com/users/${robloxUser.id}/profile)\n` +
+                    `2. Click the pencil icon next to your description\n` +
+                    `3. Paste the code anywhere in your description\n` +
+                    `4. Click Save\n` +
+                    `5. Come back and click the "Verify" button below\n\n` +
+                    `This verification will expire in 10 minutes.`
+                )
+                .setThumbnail(`https://www.roblox.com/headshot-thumbnail/image?userId=${robloxUser.id}&width=420&height=420&format=png`);
+
+            // Create buttons
+            const row = new ActionRowBuilder<ButtonBuilder>()
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(`verify_${interaction.user.id}`)
+                        .setLabel('Verify')
+                        .setStyle(ButtonStyle.Success),
+                    new ButtonBuilder()
+                        .setCustomId(`cancel_verify_${interaction.user.id}`)
+                        .setLabel('Cancel')
+                        .setStyle(ButtonStyle.Danger)
+                );
+
+            // Send the verification instructions as a DM
+            try {
+                await interaction.user.send({
+                    embeds: [embed],
+                    components: [row]
+                });
+
+                // Confirm that DM was sent
+                void interaction.reply({
+                    embeds: [
+                        createBaseEmbed('success')
+                            .setTitle('Verification Started')
+                            .setDescription('Please check your DMs for verification instructions!')
+                    ],
+                    ephemeral: true
+                });
+            } catch (dmErr) {
+                // Handle case where DMs are closed
+                Logger.error('Failed to send verification DM', 'VerifyDM', dmErr);
+                void interaction.reply({
+                    embeds: [
+                        createBaseEmbed('danger')
+                            .setTitle('Cannot Send DM')
+                            .setDescription('I couldn\'t send you a DM. Please enable DMs from server members and try again.')
+                    ],
+                    ephemeral: true
+                });
+            }
+        } catch (err) {
+            Logger.error('Error in verify username modal', 'VerifyUsernameModal', err);
+        }
+    } catch (err) {
+        Logger.error('Error in verify username modal', 'VerifyUsernameModal', err);
+    }
+}
+
 
 async function handleMultiBindsAddModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
     // Get workflow data

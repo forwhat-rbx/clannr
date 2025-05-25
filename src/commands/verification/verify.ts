@@ -1,11 +1,12 @@
 import { CommandContext } from '../../structures/addons/CommandAddons';
 import { Command } from '../../structures/Command';
 import { createUserLink, getLinkedRobloxUser } from '../../handlers/accountLinks';
-import { robloxClient } from '../../main';
+import { discordClient, robloxClient } from '../../main';
 import { config } from '../../config';
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { createBaseEmbed } from '../../utils/embedUtils';
 import { provider } from '../../database';
+import { logVerificationEvent } from '../../handlers/handleLogging';
 
 // Use global pending verifications instead of local map
 declare global {
@@ -137,6 +138,24 @@ class VerifyCommand extends Command {
 export async function checkVerification(userId: string) {
     const verification = global.pendingVerifications.get(userId);
     if (!verification || verification.expires < Date.now()) {
+        // Try to get the Discord user object for logging
+        let discordUser;
+        try {
+            discordUser = await discordClient.users.fetch(userId);
+        } catch (e) {
+            console.error(`Failed to fetch user ${userId} for verification logging:`, e);
+            // Continue with available data if we can't get the user
+        }
+
+        if (discordUser) {
+            await logVerificationEvent(
+                discordUser,
+                'Verification Failed',
+                null,
+                'Verification not found or expired'
+            );
+        }
+
         return { success: false, message: 'Verification not found or expired. Please start verification again.' };
     }
 
@@ -157,8 +176,23 @@ export async function checkVerification(userId: string) {
             console.log(`[VERIFY DEBUG] Profile description: "${description.substring(0, 50)}${description.length > 50 ? '...' : ''}"`);
         } catch (err) {
             console.error('Error fetching profile description:', err);
+
+            // Try to get the Discord user object for logging
+            const discordUser = await discordClient.users.fetch(userId).catch(() => null);
+            if (discordUser) {
+                await logVerificationEvent(
+                    discordUser,
+                    'Verification Failed',
+                    { id: robloxUser.id, username: robloxUser.name },
+                    `Failed to fetch profile description: ${err.message}`
+                );
+            }
+
             return { success: false, message: 'Failed to fetch your Roblox profile description.' };
         }
+
+        // Get Discord user for logging
+        const discordUser = await discordClient.users.fetch(userId).catch(() => null);
 
         // Check if the verification code is in their description
         if (description.includes(verification.code)) {
@@ -184,6 +218,16 @@ export async function checkVerification(userId: string) {
                 // Remove from pending verification
                 global.pendingVerifications.delete(userId);
 
+                // Log successful verification
+                if (discordUser) {
+                    await logVerificationEvent(
+                        discordUser,
+                        'Verification Success',
+                        { id: robloxUser.id, username: robloxUser.name },
+                        `Successfully verified Discord user with Roblox account`
+                    );
+                }
+
                 return {
                     success: true,
                     robloxUsername: verification.robloxUsername,
@@ -194,6 +238,16 @@ export async function checkVerification(userId: string) {
 
                 // Log additional details for troubleshooting
                 console.error(`User ID: ${userId}, Roblox ID: ${robloxIdString}`);
+
+                // Log verification but note the DB error
+                if (discordUser) {
+                    await logVerificationEvent(
+                        discordUser,
+                        'Verification Success',
+                        { id: robloxUser.id, username: robloxUser.name },
+                        `Verification successful but database error occurred: ${dbErr.message}`
+                    );
+                }
 
                 // Still return success but log the DB error
                 // This lets users verify even if DB writes fail temporarily
@@ -206,10 +260,35 @@ export async function checkVerification(userId: string) {
             }
         } else {
             console.log(`[VERIFY DEBUG] Verification code not found in profile for Discord ID: ${userId}`);
+
+            // Log failed verification - code not found
+            if (discordUser) {
+                await logVerificationEvent(
+                    discordUser,
+                    'Verification Failed',
+                    { id: robloxUser.id, username: robloxUser.name },
+                    `Verification code not found in profile description`
+                );
+            }
+
             return { success: false, message: 'Verification code not found in your profile description.' };
         }
     } catch (err) {
         console.error("Error checking verification:", err);
+
+        // Try to get the Discord user object for logging
+        try {
+            const discordUser = await discordClient.users.fetch(userId);
+            await logVerificationEvent(
+                discordUser,
+                'Verification Failed',
+                null,
+                `Error during verification check: ${err.message}`
+            );
+        } catch (e) {
+            console.error(`Failed to log verification error:`, e);
+        }
+
         return { success: false, message: 'An error occurred while checking your verification.' };
     }
 }

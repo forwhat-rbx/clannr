@@ -1,18 +1,21 @@
-import { TextChannel, User as DiscordUser } from 'discord.js';
+import { TextChannel, User as DiscordUser, EmbedBuilder } from 'discord.js';
 import { GroupMember, PartialUser, User as RobloxUser } from 'bloxy/dist/structures';
 import { discordClient } from '../main';
 import { getLogEmbed } from './locale'; // Ensure this function is correctly defined
 import { config } from '../config';
 import { recordAction as recordAbuseAction } from './abuseDetection'; // Renamed to avoid confusion
 import { ActivityLogger, ModAction } from '../utils/activityLogger'; // Ensure ModAction is exported
+import { embedColors, createBaseEmbed } from '../utils/embedUtils';
 
 let actionLogChannel: TextChannel | null = null;
+let verificationLogChannel: TextChannel | null = null;
 
 /**
  * Fetches the log channels from the Discord client and assigns them to variables.
  * Should be called once at bot startup.
  */
 const getLogChannels = async () => {
+    // Existing code for action log channel
     if (config.logChannels.actions) {
         try {
             const channel = await discordClient.channels.fetch(config.logChannels.actions);
@@ -30,6 +33,87 @@ const getLogChannels = async () => {
     } else {
         console.warn('[LOG_INIT] No action log channel ID configured.');
     }
+
+    // Add this new code for verification log channel
+    if (config.logChannels.verification) {
+        try {
+            const channel = await discordClient.channels.fetch(config.logChannels.verification);
+            if (channel && channel.isTextBased()) {
+                verificationLogChannel = channel as TextChannel;
+                console.log(`[LOG_INIT] Verification log channel "${verificationLogChannel.name}" fetched successfully.`);
+            } else {
+                console.error('[LOG_INIT] Failed to fetch verification log channel or it is not a text channel.');
+                verificationLogChannel = null;
+            }
+        } catch (error) {
+            console.error(`[LOG_INIT] Error fetching verification log channel: ${error.message}`);
+            verificationLogChannel = null;
+        }
+    } else {
+        console.warn('[LOG_INIT] No verification log channel ID configured.');
+    }
+};
+
+const logVerificationEvent = async (
+    discordUser: DiscordUser,
+    eventType: 'Verification Started' | 'Verification Success' | 'Verification Failed' | 'Account Unlinked',
+    robloxInfo: { id: string | number, username: string } | null,
+    details?: string
+): Promise<void> => {
+    if (!verificationLogChannel) {
+        console.warn(`[LOG] Verification log channel not available. Event not logged.`);
+        return;
+    }
+
+    // Choose color based on event type
+    let colorType: keyof typeof embedColors;
+    switch (eventType) {
+        case 'Verification Success':
+            colorType = 'verificationSuccess';
+            break;
+        case 'Verification Failed':
+            colorType = 'verificationFailed';
+            break;
+        case 'Account Unlinked':
+            colorType = 'accountUnlinked';
+            break;
+        default:
+            colorType = 'verificationPending';
+    }
+
+    // Create base embed with appropriate color
+    const embed = createBaseEmbed(colorType)
+        .setTitle(`Account ${eventType}`)
+        .addFields(
+            { name: 'Discord User', value: `<@${discordUser.id}> (${discordUser.tag})`, inline: true }
+        )
+        .setFooter({ text: `User ID: ${discordUser.id}` });
+
+    // Add Roblox information if available
+    if (robloxInfo) {
+        embed.addFields({
+            name: 'Roblox Account',
+            value: `[${robloxInfo.username}](https://www.roblox.com/users/${robloxInfo.id}/profile) (ID: ${robloxInfo.id})`,
+            inline: true
+        });
+
+        // Add thumbnail for Roblox avatar if we have an ID
+        embed.setThumbnail(`https://www.roblox.com/headshot-thumbnail/image?userId=${robloxInfo.id}&width=420&height=420&format=png`);
+    }
+
+    // Add details if provided
+    if (details) {
+        embed.addFields({ name: 'Details', value: details });
+    }
+
+    try {
+        await verificationLogChannel.send({ embeds: [embed] });
+    } catch (error) {
+        console.error(`[LOG] Failed to send verification log to Discord: ${error.message}`);
+    }
+
+    // Also log to console for backup
+    console.log(`[VERIFICATION] ${eventType} | Discord: ${discordUser.tag} (${discordUser.id}) | Roblox: ${robloxInfo?.username || 'N/A'} (${robloxInfo?.id || 'N/A'}) | ${details || ''}`);
 };
 
 /**
@@ -205,4 +289,4 @@ const logSystemAction = async (
 };
 
 
-export { logAction, getLogChannels, logSystemAction };
+export { logAction, getLogChannels, logSystemAction, logVerificationEvent };

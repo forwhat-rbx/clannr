@@ -9,7 +9,13 @@ export const embedColors = {
     primary: '#6699ff',  // Same as normal for backward compatibility
     success: '#4CAF50',  // Green
     danger: '#992D22',   // Crimson red (not too bright)
-    warning: '#FFA726'   // Orange
+    warning: '#FFA726',  // Orange
+
+    // Verification-specific colors
+    verificationSuccess: '#4CAF50',  // Same as success
+    verificationFailed: '#992D22',   // Same as danger
+    verificationPending: '#6699ff',  // Same as primary
+    accountUnlinked: '#FFA726'       // Same as warning
 };
 
 export function createBaseEmbed(color: keyof typeof embedColors | string = 'normal'): EmbedBuilder {

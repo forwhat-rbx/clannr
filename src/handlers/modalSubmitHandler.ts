@@ -2,7 +2,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, ModalSubmi
 import { robloxClient, robloxGroup } from '../main'; // Added robloxGroup
 import { createBaseEmbed } from '../utils/embedUtils';
 import { processInChunks, ProcessingOptions } from '../utils/processingUtils';
-import { logAction } from './handleLogging';
+import { logAction, logVerificationEvent } from './handleLogging';
 import { config } from '../config';
 import { addRoleBinding, getRoleBindings } from '../handlers/roleBindHandler'; // Added this import
 import { Logger } from '../utils/logger';
@@ -49,6 +49,14 @@ async function handleVerifyUsernameModal(interaction: ModalSubmitInteraction): P
         // Check if user is already verified
         const existingLink = await getLinkedRobloxUser(interaction.user.id);
         if (existingLink) {
+            // Log verification attempt when already verified
+            await logVerificationEvent(
+                interaction.user,
+                'Verification Started',
+                { id: existingLink.id, username: existingLink.name },
+                `User attempted to verify but is already verified as ${existingLink.name}`
+            );
+
             await interaction.editReply({
                 embeds: [
                     createBaseEmbed('primary')
@@ -63,6 +71,14 @@ async function handleVerifyUsernameModal(interaction: ModalSubmitInteraction): P
         try {
             const robloxUsers = await robloxClient.getUsersByUsernames([username]);
             if (robloxUsers.length === 0) {
+                // Log failed verification - username not found
+                await logVerificationEvent(
+                    interaction.user,
+                    'Verification Failed',
+                    null,
+                    `Roblox username "${username}" not found`
+                );
+
                 await interaction.editReply({
                     embeds: [
                         createBaseEmbed('danger')
@@ -75,8 +91,18 @@ async function handleVerifyUsernameModal(interaction: ModalSubmitInteraction): P
 
             const robloxUser = robloxUsers[0];
 
+            // Log verification started
+            await logVerificationEvent(
+                interaction.user,
+                'Verification Started',
+                { id: robloxUser.id, username: robloxUser.name },
+                `Verification process started for ${robloxUser.name}`
+            );
+
             // Generate a verification code
             const verificationCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+            // Rest of the function remains the same...
 
             // Store the verification data in global map with consistent ID format
             global.pendingVerifications.set(interaction.user.id, {

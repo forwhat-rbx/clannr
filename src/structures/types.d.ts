@@ -81,6 +81,7 @@ export interface BotConfig {
      * Should actions be logged, and if so, where?
      */
     logChannels: {
+        verification: any;
         /**
          * The ID of the channel where you would like all actions done through commands on this bot to be logged.
          */

@@ -21,6 +21,7 @@ export const config: BotConfig = {
         actions: '1117017221873537085',
         shout: '1117017221873537085',
         rankup: '1117017221873537085',
+        verification: '1376064679742410803',
     },
     api: true,
     maximumRank: 255,

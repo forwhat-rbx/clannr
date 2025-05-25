@@ -6,6 +6,7 @@ import { config } from '../config';
 import { recordAction as recordAbuseAction } from './abuseDetection'; // Renamed to avoid confusion
 import { ActivityLogger, ModAction } from '../utils/activityLogger'; // Ensure ModAction is exported
 import { embedColors, createBaseEmbed } from '../utils/embedUtils';
+import { Logger } from '../utils/logger';
 
 let actionLogChannel: TextChannel | null = null;
 let verificationLogChannel: TextChannel | null = null;
@@ -21,17 +22,17 @@ const getLogChannels = async () => {
             const channel = await discordClient.channels.fetch(config.logChannels.actions);
             if (channel && channel.isTextBased()) {
                 actionLogChannel = channel as TextChannel;
-                console.log(`[LOG_INIT] Action log channel "${actionLogChannel.name}" fetched successfully.`);
+                Logger.info(`Action log channel "${actionLogChannel.name}" fetched successfully.`, 'LogInit');
             } else {
-                console.error('[LOG_INIT] Failed to fetch action log channel or it is not a text channel.');
+                Logger.error('Failed to fetch action log channel or it is not a text channel.', 'LogInit');
                 actionLogChannel = null;
             }
         } catch (error) {
-            console.error(`[LOG_INIT] Error fetching action log channel: ${error.message}`);
+            Logger.error(`Error fetching action log channel: ${error.message}`, 'LogInit', error);
             actionLogChannel = null;
         }
     } else {
-        console.warn('[LOG_INIT] No action log channel ID configured.');
+        Logger.warn('No action log channel ID configured.', 'LogInit');
     }
 
     // Add this new code for verification log channel
@@ -40,17 +41,17 @@ const getLogChannels = async () => {
             const channel = await discordClient.channels.fetch(config.logChannels.verification);
             if (channel && channel.isTextBased()) {
                 verificationLogChannel = channel as TextChannel;
-                console.log(`[LOG_INIT] Verification log channel "${verificationLogChannel.name}" fetched successfully.`);
+                Logger.info(`Verification log channel "${verificationLogChannel.name}" fetched successfully.`, 'LogInit');
             } else {
-                console.error('[LOG_INIT] Failed to fetch verification log channel or it is not a text channel.');
+                Logger.error('Failed to fetch verification log channel or it is not a text channel.', 'LogInit');
                 verificationLogChannel = null;
             }
         } catch (error) {
-            console.error(`[LOG_INIT] Error fetching verification log channel: ${error.message}`);
+            Logger.error(`Error fetching verification log channel: ${error.message}`, 'LogInit', error);
             verificationLogChannel = null;
         }
     } else {
-        console.warn('[LOG_INIT] No verification log channel ID configured.');
+        Logger.warn('No verification log channel ID configured.', 'LogInit');
     }
 };
 
@@ -61,7 +62,7 @@ const logVerificationEvent = async (
     details?: string
 ): Promise<void> => {
     if (!verificationLogChannel) {
-        console.warn(`[LOG] Verification log channel not available. Event not logged.`);
+        Logger.warn(`Verification log channel not available. Event not logged.`, 'VerificationLog');
         return;
     }
 
@@ -109,11 +110,11 @@ const logVerificationEvent = async (
     try {
         await verificationLogChannel.send({ embeds: [embed] });
     } catch (error) {
-        console.error(`[LOG] Failed to send verification log to Discord: ${error.message}`);
+        Logger.error(`Failed to send verification log to Discord: ${error.message}`, 'VerificationLog', error);
     }
 
     // Also log to console for backup
-    console.log(`[VERIFICATION] ${eventType} | Discord: ${discordUser.tag} (${discordUser.id}) | Roblox: ${robloxInfo?.username || 'N/A'} (${robloxInfo?.id || 'N/A'}) | ${details || ''}`);
+    Logger.info(`${eventType} | Discord: ${discordUser.tag} (${discordUser.id}) | Roblox: ${robloxInfo?.username || 'N/A'} (${robloxInfo?.id || 'N/A'}) | ${details || ''}`, 'VerificationEvent');
 };
 
 /**

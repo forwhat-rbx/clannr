@@ -420,8 +420,9 @@ async function handleRoleBindingConfirmation(interaction: ButtonInteraction) {
         // Create each binding
         const results = [];
         for (const roleId of discordRoleIds) {
+            let role;
             try {
-                const role = interaction.guild.roles.cache.get(roleId);
+                role = interaction.guild.roles.cache.get(roleId);
                 await addRoleBinding(
                     interaction.guild.id,
                     roleId,
@@ -433,7 +434,7 @@ async function handleRoleBindingConfirmation(interaction: ButtonInteraction) {
                 results.push(`<@&${roleId}> (${role ? role.name : 'Unknown Role'})`);
             } catch (bindError) {
                 console.error(`Error adding binding for role ${roleId}:`, bindError);
-                results.push(`<@&${roleId}> - Error: ${bindError.message}`);
+                results.push(`<@&${String(roleId)}> (${role ? role.name : 'Unknown Role'})`);
             }
         }
 

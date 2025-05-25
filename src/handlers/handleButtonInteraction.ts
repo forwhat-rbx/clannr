@@ -39,13 +39,15 @@ if (!global.pendingVerifications) {
 export async function handleButtonInteraction(interaction: ButtonInteraction): Promise<void> {
     const customId = interaction.customId;
 
-    // Handle different button types
-    if (customId === 'promote_all') {
-        await handlePromoteAllButton(interaction);
+    // Handle different button types 
+    if (customId === 'verify_start') {
+        await handleVerifyStartButton(interaction);
     } else if (customId === 'check_promotions') {
         await handleCheckPromotionsButton(interaction);
     } else if (customId.startsWith('purge_members:')) {
-        await handlePurgeMembersButton(interaction);
+        await handleCheckPromotionsButton(interaction);
+    } else if (customId.startsWith('promote_all')) {
+        await handlePromoteAllButton(interaction);
     } else if (customId.startsWith('dm_members:')) {
         await handleDmMembersButton(interaction);
     } else if (customId.startsWith('dm_matched_members:')) {
@@ -173,6 +175,31 @@ export async function handleModalSubmit(interaction) {
 }
 
 // Add these new handler functions for verification
+
+async function handleVerifyStartButton(interaction: ButtonInteraction): Promise<void> {
+    // Create a modal for the user to enter their Roblox username
+    const modal = new ModalBuilder()
+        .setCustomId('verify_modal')
+        .setTitle('Verify with Roblox');
+
+    // Add the username input to the modal
+    const usernameInput = new TextInputBuilder()
+        .setCustomId('username')
+        .setLabel('Enter your Roblox username')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Your Roblox username')
+        .setRequired(true);
+
+    // Add the input to an action row
+    const firstActionRow = new ActionRowBuilder<TextInputBuilder>()
+        .addComponents(usernameInput);
+
+    // Add the action row to the modal
+    modal.addComponents(firstActionRow);
+
+    // Show the modal
+    await interaction.showModal(modal);
+}
 
 async function handleVerifyButton(interaction: ButtonInteraction): Promise<void> {
     await interaction.deferUpdate();

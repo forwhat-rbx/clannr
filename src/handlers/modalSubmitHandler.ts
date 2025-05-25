@@ -40,19 +40,21 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction): Pr
 
 async function handleVerifyUsernameModal(interaction: ModalSubmitInteraction): Promise<void> {
     try {
+        // IMMEDIATELY defer the reply to buy more time (3-second limit is too short)
+        await interaction.deferReply({ ephemeral: true });
+
         // Get the username from the modal
         const username = interaction.fields.getTextInputValue('username');
 
         // Check if user is already verified
         const existingLink = await getLinkedRobloxUser(interaction.user.id);
         if (existingLink) {
-            await interaction.reply({
+            await interaction.editReply({
                 embeds: [
                     createBaseEmbed('primary')
                         .setTitle('Already Verified')
                         .setDescription(`You are already verified as [${existingLink.name}](https://www.roblox.com/users/${existingLink.id}/profile).\n\nTo change your account, use \`/unverify\` first.`)
-                ],
-                ephemeral: true
+                ]
             });
             return;
         }
@@ -61,13 +63,12 @@ async function handleVerifyUsernameModal(interaction: ModalSubmitInteraction): P
         try {
             const robloxUsers = await robloxClient.getUsersByUsernames([username]);
             if (robloxUsers.length === 0) {
-                await interaction.reply({
+                await interaction.editReply({
                     embeds: [
                         createBaseEmbed('danger')
                             .setTitle('User Not Found')
                             .setDescription(`Could not find a Roblox user with the username "${username}".`)
-                    ],
-                    ephemeral: true
+                    ]
                 });
                 return;
             }
@@ -120,49 +121,70 @@ async function handleVerifyUsernameModal(interaction: ModalSubmitInteraction): P
                     components: [row]
                 });
 
-                // Confirm that DM was sent
-                await interaction.reply({
+                // Confirm that DM was sent - use editReply instead of reply
+                await interaction.editReply({
                     embeds: [
                         createBaseEmbed('success')
                             .setTitle('Verification Started')
                             .setDescription('Please check your DMs for verification instructions!')
-                    ],
-                    ephemeral: true
+                    ]
                 });
             } catch (dmErr) {
                 // Handle case where DMs are closed
                 Logger.error('Failed to send verification DM', 'VerifyDM', dmErr);
-                await interaction.reply({
+
+                // Use editReply instead of reply since we've already deferred
+                await interaction.editReply({
                     embeds: [
                         createBaseEmbed('danger')
                             .setTitle('Cannot Send DM')
                             .setDescription('I couldn\'t send you a DM. Please enable DMs from server members and try again.')
-                    ],
-                    ephemeral: true
+                    ]
                 });
             }
         } catch (err) {
             Logger.error('Error in verify username modal', 'VerifyUsernameModal', err);
-            await interaction.reply({
+
+            // Use editReply instead of reply since we've already deferred
+            await interaction.editReply({
                 embeds: [
                     createBaseEmbed('danger')
                         .setTitle('Verification Error')
                         .setDescription('An error occurred while starting verification. Please try again later.')
-                ],
-                ephemeral: true
+                ]
             });
         }
     } catch (err) {
         Logger.error('Error in verify username modal', 'VerifyUsernameModal', err);
-        if (!interaction.replied) {
-            await interaction.reply({
-                embeds: [
-                    createBaseEmbed('danger')
-                        .setTitle('Verification Error')
-                        .setDescription('An error occurred while processing your verification. Please try again later.')
-                ],
-                ephemeral: true
-            });
+
+        // Only try to respond if we haven't replied and haven't deferred
+        if (!interaction.replied && !interaction.deferred) {
+            try {
+                await interaction.reply({
+                    embeds: [
+                        createBaseEmbed('danger')
+                            .setTitle('Verification Error')
+                            .setDescription('An error occurred while processing your verification. Please try again later.')
+                    ],
+                    ephemeral: true
+                });
+            } catch (replyErr) {
+                // If this fails too, just log it - we can't do anything else
+                Logger.error('Failed to send error response', 'VerifyUsernameModal', replyErr);
+            }
+        } else if (interaction.deferred) {
+            // If we deferred but didn't reply yet, use editReply
+            try {
+                await interaction.editReply({
+                    embeds: [
+                        createBaseEmbed('danger')
+                            .setTitle('Verification Error')
+                            .setDescription('An error occurred while processing your verification. Please try again later.')
+                    ]
+                });
+            } catch (editErr) {
+                Logger.error('Failed to edit reply with error', 'VerifyUsernameModal', editErr);
+            }
         }
     }
 }

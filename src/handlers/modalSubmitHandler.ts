@@ -290,7 +290,7 @@ async function handleMultiBindsAddModalSubmit(interaction: ModalSubmitInteractio
                     .setTitle('Select Roles to Remove')
                     .setDescription(
                         `You're binding **${workflowData.discordRoleIds.length} role(s)** to Roblox rank "${rankName}".\n\n` +
-                        `**Roles being bound:**\n${workflowData.discordRoleIds.map(id => `• <@&${id}> (${interaction.guild.roles.cache.get(id)?.name || 'Unknown Role'})`).join('\n')}\n\n` +
+                        `**Roles being bound:**\n${workflowData.discordRoleIds.map(id => `• <@&${String(id)}> (${interaction.guild.roles.cache.get(id)?.name || 'Unknown Role'})`).join('\n')}\n\n` +
                         `Now, select any Discord roles that should be **removed** when a member has this rank.\n\n` +
                         `For example, if you're binding the "Officer" role, you might want to remove the "NCO" role when someone gets promoted.`
                     )

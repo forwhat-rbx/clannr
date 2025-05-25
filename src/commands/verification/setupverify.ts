@@ -72,7 +72,7 @@ class SetupVerifyCommand extends Command {
             const verifyEmbed = createBaseEmbed()
                 .setTitle('Sistema de verificação')
                 .setDescription(
-                    '*Bem-vindo ao nosso sistema de verificação!**\n\n' +
+                    '**Bem-vindo ao nosso sistema de verificação!**\n\n' +
                     'Para obter acesso ao servidor, você precisa verificar sua conta Roblox.\n\n' +
                     '**Como verificar:**\n' +
                     '1. Clique no botão “Verify” abaixo\n' +

@@ -133,8 +133,6 @@ class VerifyCommand extends Command {
     }
 }
 
-export default VerifyCommand;
-
 // Helper function to check verification - export this for button handlers
 export async function checkVerification(userId: string) {
     const verification = global.pendingVerifications.get(userId);
@@ -193,7 +191,18 @@ export async function checkVerification(userId: string) {
                 };
             } catch (dbErr) {
                 console.error("Database error in verification:", dbErr);
-                return { success: false, message: 'An error occurred while saving your verification to the database.' };
+
+                // Log additional details for troubleshooting
+                console.error(`User ID: ${userId}, Roblox ID: ${robloxIdString}`);
+
+                // Still return success but log the DB error
+                // This lets users verify even if DB writes fail temporarily
+                return {
+                    success: true,
+                    robloxUsername: verification.robloxUsername,
+                    robloxId: robloxIdString,
+                    dbError: true // Add flag to indicate DB error occurred
+                };
             }
         } else {
             console.log(`[VERIFY DEBUG] Verification code not found in profile for Discord ID: ${userId}`);
@@ -204,3 +213,6 @@ export async function checkVerification(userId: string) {
         return { success: false, message: 'An error occurred while checking your verification.' };
     }
 }
+
+export default VerifyCommand;
+

@@ -70,26 +70,24 @@ class SetupVerifyCommand extends Command {
 
             // Create the verification embed
             const verifyEmbed = createBaseEmbed()
-                .setTitle('Verification System')
+                .setTitle('Sistema de verificação')
                 .setDescription(
-                    '**Welcome to our verification system!**\n\n' +
-                    'To gain access to the server, you need to verify your Roblox account.\n\n' +
-                    '**How to verify:**\n' +
-                    '1. Click the "Verify" button below\n' +
-                    '2. Enter your Roblox username when prompted\n' +
-                    '3. Add the verification code to your Roblox profile\n' +
-                    '4. Click the verification button in the DM\n\n' +
-                    'Once verified, you\'ll automatically receive the appropriate roles based on your group rank.'
+                    '*Bem-vindo ao nosso sistema de verificação!**\n\n' +
+                    'Para obter acesso ao servidor, você precisa verificar sua conta Roblox.\n\n' +
+                    '**Como verificar:**\n' +
+                    '1. Clique no botão “Verify” abaixo\n' +
+                    '2. Digite seu nome de usuário do Roblox quando solicitado\n' +
+                    '3. Adicione o código de verificação ao seu perfil do Roblox\n' +
+                    '4. Clique no botão de verificação no DM\n\n' +
+                    'Depois de verificado, você receberá automaticamente as funções apropriadas com base na classificação do seu grupo.'
                 )
-                .setImage('https://i.imgur.com/6YTtbDY.png') // Optional: Add a verification guide image
-                .setFooter({ text: 'Questions? Contact a server admin for help.' });
 
             // Create the verification button
             const row = new ActionRowBuilder<ButtonBuilder>()
                 .addComponents(
                     new ButtonBuilder()
                         .setCustomId('verify_start')
-                        .setLabel('Verify')
+                        .setLabel('Verificar')
                         .setStyle(ButtonStyle.Success)
                         .setEmoji('✅')
                 );

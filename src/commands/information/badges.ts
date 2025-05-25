@@ -4,6 +4,7 @@ import { Command } from '../../structures/Command';
 import { createCanvas } from 'canvas';
 import { AttachmentBuilder } from 'discord.js';
 import { getUnexpectedErrorEmbed } from '../../handlers/locale';
+import { Logger } from '../../utils/logger';
 
 class BadgeCommand extends Command {
     constructor() {
@@ -61,7 +62,7 @@ class BadgeCommand extends Command {
                     break;
                 }
             } catch (error) {
-                console.error(`Error fetching badges: ${error.message}`);
+                Logger.error(`Error fetching badges: ${error.message}`, 'Badges');
                 if (error.response && error.response.status === 429) {
                     // If rate limited, wait the specified time before retrying
                     const retryAfter = error.response.headers['retry-after'] || 5;
@@ -105,7 +106,7 @@ class BadgeCommand extends Command {
                 const delayMs = badges.length > 500 ? 500 : 300;
                 await new Promise(resolve => setTimeout(resolve, delayMs));
             } catch (error) {
-                console.error(`Error fetching award dates (batch ${currentBatch}/${totalBatches}): ${error.message}`);
+                Logger.error(`Error fetching award dates (batch ${currentBatch}/${totalBatches}): ${error.message}`, 'Badges');
 
                 if (error.response && error.response.status === 429) {
                     // If rate limited, wait the specified time before retrying
@@ -214,7 +215,7 @@ class BadgeCommand extends Command {
                 try {
                     await initialMessage.edit({ content: message });
                 } catch (e) {
-                    console.error("Failed to update progress message:", e);
+                    Logger.error("Failed to update progress message:", 'Badges', e);
                 }
             };
 
@@ -270,10 +271,10 @@ class BadgeCommand extends Command {
                     content: null,
                     embeds: [getUnexpectedErrorEmbed()],
                 });
-                console.error('Badge command error:', error);
+                Logger.error('Badge command error:', 'Badges', error);
             }
         } catch (error) {
-            console.error(error);
+            Logger.error('Unknown error occured.', 'Badges', error);
             await ctx.reply({ embeds: [getUnexpectedErrorEmbed()] });
         }
     }

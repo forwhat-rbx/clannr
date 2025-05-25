@@ -9,6 +9,7 @@ import {
 import { discordClient, robloxClient } from '../../main';
 import { getLinkedRobloxUser } from '../../handlers/accountLinks';
 import { User, PartialUser } from 'bloxy/dist/structures';
+import { Logger } from '../../utils/logger';
 
 class RemoveUserCommand extends Command {
     constructor() {
@@ -80,7 +81,7 @@ class RemoveUserCommand extends Command {
                 await provider.safeDeleteUser(robloxUser.id.toString());
                 results.push(`Removed user ID ${robloxUser.id}`);
             } catch (err) {
-                console.error(`Error removing user ${robloxUser.id}:`, err);
+                Logger.error(`Error removing user ${robloxUser.id}:`, 'RemoveUser', err);
                 results.push(`Error removing user ID ${robloxUser.id}: Foreign key constraint`);
             }
         }

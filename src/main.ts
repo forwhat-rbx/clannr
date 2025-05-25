@@ -24,7 +24,7 @@ require('dotenv').config();
 
 // [Ensure Setup]
 if (!process.env.ROBLOX_COOKIE) {
-    console.error('ROBLOX_COOKIE is not set in the .env file.');
+    Logger.error('ROBLOX_COOKIE is not set in the .env file.', 'Auth', null);
     process.exit(1);
 }
 
@@ -75,7 +75,7 @@ let robloxGroup: Group = null;
             // Initialize promotion service AFTER we've confirmed authentication
             schedulePromotionChecks();
         } catch (err) {
-            console.error('❌ Failed to fetch initial XSRF token:', err);
+            Logger.error('❌ Failed to fetch initial XSRF token:', 'Auth', err);
             console.log('⚠️ Continuing startup despite token fetch failure');
 
             // Try to initialize promotion service anyway after a delay

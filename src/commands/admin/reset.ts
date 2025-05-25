@@ -11,6 +11,7 @@ import {
     getUnexpectedErrorEmbed
 } from '../../handlers/locale';
 import { createBaseEmbed } from '../../utils/embedUtils';
+import { Logger } from '../../utils/logger';
 
 class ResetStatsCommand extends Command {
     constructor() {
@@ -85,7 +86,7 @@ class ResetStatsCommand extends Command {
 
             return ctx.reply({ embeds: [embed] });
         } catch (err) {
-            console.error(err);
+            Logger.error('Failed to reset user stats:', 'ResetStats', err);
             return ctx.reply({ embeds: [getUnexpectedErrorEmbed()] });
         }
     }

@@ -4,6 +4,7 @@ import { config } from '../../config';
 import { provider } from '../../database';
 import { robloxClient, robloxGroup } from '../../main';
 import { processInChunks, ProcessingOptions } from '../../utils/processingUtils';
+import { Logger } from '../../utils/logger';
 
 // Define user data interface to avoid type errors
 interface UserData {
@@ -63,7 +64,7 @@ class CheckDBCommand extends Command {
 
                         const robloxID = Number(userData.robloxId);
                         if (isNaN(robloxID)) {
-                            console.error(`Invalid Roblox ID: ${userData.robloxId}`);
+                            Logger.error(`Invalid Roblox ID: ${userData.robloxId}`, 'CheckDB', null);
                             return;
                         }
 
@@ -88,7 +89,7 @@ class CheckDBCommand extends Command {
                             userIds.push(robloxUser.id.toString());
                         }
                     } catch (err) {
-                        console.error(`Failed to fetch user ${userData.robloxId}:`, err);
+                        Logger.error(`Failed to fetch user ${userData.robloxId}`, 'UserFetch', err);
                         totalXP += userData.xp || 0;
                         nonGroupMembers.push(
                             `**Unknown User** (\`${userData.robloxId}\`) - **${userData.xp || 0}** XP`
@@ -124,8 +125,8 @@ class CheckDBCommand extends Command {
                     'User list is too long to display. Check console for full list.'
                 ].join('\n');
 
-                console.log('Full list of users no longer in group:');
-                console.log(response);
+                Logger.info('Full list of users no longer in group (details in next log entry)', 'CheckDB');
+                Logger.info(`User list details:\n${response}`, 'CheckDB');
 
                 return ctx.reply({ content: mainResponse });
             } else {
@@ -133,7 +134,7 @@ class CheckDBCommand extends Command {
             }
 
         } catch (err) {
-            console.error('CheckDB command error:', err);
+            Logger.error('CheckDB command error', 'Command', err);
             return ctx.reply({ content: 'An error occurred while checking the database.' });
         }
     }

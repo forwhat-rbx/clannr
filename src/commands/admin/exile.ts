@@ -17,6 +17,7 @@ import { checkActionEligibility } from '../../handlers/verificationChecks';
 import { logAction } from '../../handlers/handleLogging';
 import { getLinkedRobloxUser } from '../../handlers/accountLinks';
 import { provider } from '../../database';
+import { Logger } from '../../utils/logger';
 
 class ExileCommand extends Command {
     constructor() {
@@ -94,7 +95,7 @@ class ExileCommand extends Command {
             ctx.reply({ embeds: [await getSuccessfulExileEmbed(robloxUser)] })
             logAction('Exile', ctx.user, ctx.args['reason'], robloxUser);
         } catch (err) {
-            console.log(err);
+            Logger.error('Failed to exile user:', 'Exile', err);
             return ctx.reply({ embeds: [getUnexpectedErrorEmbed()] });
         }
     }

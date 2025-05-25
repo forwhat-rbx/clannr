@@ -6,6 +6,7 @@ import { ActivityLogger } from '../../utils/activityLogger';
 import * as fs from 'fs';
 import * as path from 'path';
 import { createBaseEmbed } from '../../utils/embedUtils';
+import { Logger } from '../../utils/logger';
 
 class WeeklyReportCommand extends Command {
     constructor() {
@@ -79,7 +80,7 @@ class WeeklyReportCommand extends Command {
                 files: [attachment]
             });
         } catch (err) {
-            console.error('Error generating weekly report:', err);
+            Logger.error('Error generating weekly report:', 'WeeklyReport', err);
             return ctx.reply({ content: 'An error occurred while generating the weekly report.' });
         }
     }

@@ -49,8 +49,8 @@ class VerifyCommand extends Command {
             return ctx.reply({
                 embeds: [
                     createBaseEmbed('primary')
-                        .setTitle('Already Verified')
-                        .setDescription(`You are already verified as [${existingLink.name}](https://www.roblox.com/users/${existingLink.id}/profile).\n\nTo change your account, use \`/unverify\` first.`)
+                        .setTitle('Já verificado')
+                        .setDescription(`Você já foi verificado como [${existingLink.name}](https://www.roblox.com/users/${existingLink.id}/profile).\n\nTo change your account, use \`/unverify\` first.`)
                 ],
                 ephemeral: true
             });
@@ -65,8 +65,8 @@ class VerifyCommand extends Command {
                 return ctx.reply({
                     embeds: [
                         createBaseEmbed('danger')
-                            .setTitle('User Not Found')
-                            .setDescription(`Could not find a Roblox user with the username "${username}".`)
+                            .setTitle('Usuário não encontrado')
+                            .setDescription(`Não foi possível encontrar um usuário Roblox com o nome de usuário "${username}".`)
                             .setColor(0xff0000)
                     ],
                     ephemeral: true
@@ -106,11 +106,11 @@ class VerifyCommand extends Command {
                 .addComponents(
                     new ButtonBuilder()
                         .setCustomId(`verify_${ctx.user.id}`)
-                        .setLabel('Verify')
+                        .setLabel('Verificar')
                         .setStyle(ButtonStyle.Success),
                     new ButtonBuilder()
                         .setCustomId(`cancel_verify_${ctx.user.id}`)
-                        .setLabel('Cancel')
+                        .setLabel('Cancelar')
                         .setStyle(ButtonStyle.Danger)
                 );
 
@@ -124,8 +124,8 @@ class VerifyCommand extends Command {
             return ctx.reply({
                 embeds: [
                     createBaseEmbed('danger')
-                        .setTitle('Verification Error')
-                        .setDescription('An error occurred while trying to verify your account. Please try again later.')
+                        .setTitle('Erro de verificação')
+                        .setDescription('Ocorreu um erro ao tentar verificar sua conta. Tente novamente mais tarde.')
                         .setColor(0xff0000)
                 ],
                 ephemeral: true

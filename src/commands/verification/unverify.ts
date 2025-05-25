@@ -22,10 +22,9 @@ class UnverifyCommand extends Command {
             if (!linkedUser) {
                 return ctx.reply({
                     embeds: [
-                        createBaseEmbed('primary')
-                            .setTitle('Not Verified')
-                            .setDescription('You do not have a Roblox account linked to your Discord account.')
-                            .setColor(0xff0000)
+                        createBaseEmbed('danger')
+                            .setTitle('Não verificado')
+                            .setDescription('Você não tem uma conta Roblox vinculada à sua conta Discord.')
                     ],
                     ephemeral: true
                 });
@@ -49,9 +48,9 @@ class UnverifyCommand extends Command {
 
             return ctx.reply({
                 embeds: [
-                    createBaseEmbed('primary')
-                        .setTitle('Unverified Successfully')
-                        .setDescription(`Your Discord account has been unlinked from [${linkedUser.name}](https://www.roblox.com/users/${linkedUser.id}/profile).`)
+                    createBaseEmbed('accountUnlinked')
+                        .setTitle('Não verificado com sucesso')
+                        .setDescription(`Sua conta do Discord foi desvinculada de [${linkedUser.name}](https://www.roblox.com/users/${linkedUser.id}/profile).`)
                 ],
                 ephemeral: true
             });
@@ -74,9 +73,8 @@ class UnverifyCommand extends Command {
             return ctx.reply({
                 embeds: [
                     createBaseEmbed('danger')
-                        .setTitle('Error')
-                        .setDescription('An error occurred while trying to unverify your account. Please try again later.')
-                        .setColor(0xff0000)
+                        .setTitle('Erro')
+                        .setDescription('Ocorreu um erro ao tentar cancelar a verificação de sua conta. Tente novamente mais tarde.')
                 ],
                 ephemeral: true
             });

@@ -2,7 +2,7 @@ import { CommandContext } from '../../structures/addons/CommandAddons';
 import { Command } from '../../structures/Command';
 import { discordClient } from '../../main';
 
-import { mainColor, infoIconUrl } from '../../handlers/locale';
+import { infoIconUrl } from '../../handlers/locale';
 import { createBaseEmbed } from '../../utils/embedUtils';
 
 class UptimeCommand extends Command {

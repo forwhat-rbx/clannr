@@ -416,8 +416,8 @@ async function handleRoleBindingConfirmation(interaction: ButtonInteraction) {
             components: [],
             embeds: []
         });
+        // In handleRoleBindingConfirmation:
 
-        // Create each binding
         const results = [];
         for (const roleId of discordRoleIds) {
             let role;
@@ -431,7 +431,7 @@ async function handleRoleBindingConfirmation(interaction: ButtonInteraction) {
                     rankName,
                     rolesToRemove || []
                 );
-                results.push(`<@&${roleId}> (${role ? role.name : 'Unknown Role'})`);
+                results.push(`<@&${String(roleId)}> (${role ? role.name : 'Unknown Role'})`);
             } catch (bindError) {
                 console.error(`Error adding binding for role ${roleId}:`, bindError);
                 results.push(`<@&${String(roleId)}> (${role ? role.name : 'Unknown Role'})`);
@@ -446,6 +446,8 @@ async function handleRoleBindingConfirmation(interaction: ButtonInteraction) {
             ? `Roblox rank "${rankName}" (${minRankId})`
             : `Roblox ranks from "${rankName}" (${minRankId} to ${maxRankId})`;
 
+        // In handleRoleBindingConfirmation:
+
         // Format roles to remove display
         let removalText = '';
         if (rolesToRemove && rolesToRemove.length > 0) {
@@ -453,6 +455,8 @@ async function handleRoleBindingConfirmation(interaction: ButtonInteraction) {
         }
 
         // Send success message
+        // In handleRoleBindingConfirmation:
+
         await interaction.editReply({
             embeds: [
                 createBaseEmbed('success')

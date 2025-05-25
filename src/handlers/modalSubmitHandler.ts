@@ -318,6 +318,7 @@ async function handleMultiBindsAddModalSubmit(interaction: ModalSubmitInteractio
             time: 300000, // 5 minutes
         });
 
+        // Fixed collector.on('collect') function:
         collector.on('collect', async (i) => {
             if (i.user.id !== interaction.user.id) {
                 await i.reply({
@@ -344,22 +345,22 @@ async function handleMultiBindsAddModalSubmit(interaction: ModalSubmitInteractio
                             .setStyle(ButtonStyle.Danger)
                     );
 
-                // Format roles to remove display
-                let removalText = '';
-                if (i.values && i.values.length > 0) {
-                    removalText = `\n\n**Will remove:** ${i.values.map(id => `<@&${String(id)}>`).join(' ')}`;
+                // Format roles to remove display - FIXED: using workflowData.rolesToRemove
+                let roleRemovalText = '';
+                if (workflowData.rolesToRemove && workflowData.rolesToRemove.length > 0) {
+                    roleRemovalText = `\n\n**Will remove:** ${workflowData.rolesToRemove.map(id => `<@&${String(id)}>`).join(' ')}`;
                 } else {
-                    removalText = '\n\nNo roles will be removed when this binding is active.';
+                    roleRemovalText = '\n\nNo roles will be removed when this binding is active.';
                 }
 
-                // Update the message for confirmation
+                // Update the message for confirmation - FIXED: using roleRemovalText
                 await i.update({
                     embeds: [
                         createBaseEmbed()
                             .setTitle('Confirm Role Bindings')
                             .setDescription(
                                 `You're about to create **${workflowData.discordRoleIds.length} binding(s)** to Roblox rank "${rankName}".\n\n` +
-                                `**Roles being bound:**\n${workflowData.discordRoleIds.map(id => `• <@&${String(id)}>`).join('\n')}${removalText}\n\n` +
+                                `**Roles being bound:**\n${workflowData.discordRoleIds.map(id => `• <@&${String(id)}>`).join('\n')}${roleRemovalText}\n\n` +
                                 `Please confirm that you want to create these bindings.`
                             )
                     ],
@@ -406,8 +407,7 @@ async function handleMultiBindsAddModalSubmit(interaction: ModalSubmitInteractio
     }
 }
 
-// Replace the existing handleBindsAddModalSubmit function:
-
+// Fixed handleBindsAddModalSubmit function:
 async function handleBindsAddModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
     // Extract role ID from modal custom ID
     const discordRoleId = interaction.customId.replace('binds_add_', '');
@@ -510,17 +510,27 @@ async function handleBindsAddModalSubmit(interaction: ModalSubmitInteraction): P
                     .setMaxValues(25)
             );
 
+        // Create confirmation buttons
+        const buttonRow = new ActionRowBuilder<ButtonBuilder>()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId('role_binding_cancel')
+                    .setLabel('Cancel')
+                    .setStyle(ButtonStyle.Secondary),
+            );
+
+        // FIXED: Removed reference to workflowData in this context and created a simpler description
         await interaction.reply({
             embeds: [
                 createBaseEmbed()
                     .setTitle('Select Roles to Remove')
                     .setDescription(
-                        `You're binding <@&${discordRoleId}> to Roblox rank "${rankName}".\n\n` +
+                        `You're binding Discord role **${discordRole.name}** to Roblox rank "${rankName}".\n\n` +
                         `Now, select any Discord roles that should be **removed** when a member has this rank.\n\n` +
                         `For example, if you're binding the "Officer" role, you might want to remove the "NCO" role when someone gets promoted.`
                     )
             ],
-            components: [row],
+            components: [row, buttonRow],
             ephemeral: true
         });
 

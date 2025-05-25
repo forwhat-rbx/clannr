@@ -75,10 +75,10 @@ class SetupVerifyCommand extends Command {
                     '**Bem-vindo ao nosso sistema de verificação!**\n\n' +
                     'Para obter acesso ao servidor, você precisa verificar sua conta Roblox.\n\n' +
                     '**Como verificar:**\n' +
-                    '1. Clique no botão “Verify” abaixo\n' +
+                    '1. Clique no botão "Verify" abaixo\n' +
                     '2. Digite seu nome de usuário do Roblox quando solicitado\n' +
                     '3. Adicione o código de verificação ao seu perfil do Roblox\n' +
-                    '4. Clique no botão de verificação no DM\n\n' +
+                    '4. Clique no botão de verificação na DM\n\n' +
                     'Depois de verificado, você receberá automaticamente as funções apropriadas com base na classificação do seu grupo.'
                 )
 
@@ -86,7 +86,8 @@ class SetupVerifyCommand extends Command {
             const row = new ActionRowBuilder<ButtonBuilder>()
                 .addComponents(
                     new ButtonBuilder()
-                        .setCustomId('verify_start')
+                        // IMPORTANT: Use 'verify' instead of 'verify_start'
+                        .setCustomId('verify')
                         .setLabel('Verificar')
                         .setStyle(ButtonStyle.Success)
                         .setEmoji('✅')
@@ -99,7 +100,6 @@ class SetupVerifyCommand extends Command {
             });
 
             // Store the verification channel and message ID in the database
-            // First update the guild config schema to include these fields
             await prisma.guildConfig.upsert({
                 where: {
                     guildId: ctx.guild.id

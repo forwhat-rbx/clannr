@@ -17,6 +17,7 @@ import { checkVerification } from '../commands/verification/verify';
 import { robloxClient } from '../main';
 import { updateUserRoles } from './roleBindHandler';
 import { updateNickname } from './nicknameHandler';
+import { Logger } from '../utils/logger';
 
 // For managing binding workflow state
 interface BindingWorkflowData {
@@ -50,17 +51,24 @@ export async function handleComponentInteraction(interaction) {
     }
 }
 
+// Only including the relevant parts that need to be fixed
+
+// Find the handleButtonInteraction function and update it:
 async function handleButtonInteraction(interaction: ButtonInteraction) {
     const customId = interaction.customId;
 
     try {
-        // Handle verification buttons
-        if (customId.startsWith('verify_')) {
+        // Universal verification button - works anywhere
+        if (customId === 'verify' || customId === 'verify_start') {
+            await handleVerifyStartButton(interaction);
+        }
+        // Handle verification buttons in DMs
+        else if (customId.startsWith('verify_')) {
             await handleVerifyButton(interaction);
         } else if (customId.startsWith('cancel_verify_')) {
             await handleCancelVerifyButton(interaction);
         }
-        // Handle role binding confirmation/cancel
+        // Add other button handlers as needed
         else if (customId === 'role_binding_confirm') {
             await handleRoleBindingConfirmation(interaction);
         } else if (customId === 'role_binding_cancel') {
@@ -72,9 +80,9 @@ async function handleButtonInteraction(interaction: ButtonInteraction) {
                 components: []
             });
         }
-        // Add other button handlers as needed
+        // Handle other button types here...
     } catch (err) {
-        console.error('Error handling button interaction:', err);
+        Logger.error('Error handling button interaction:', 'ButtonInteraction', err);
         try {
             // Proper error handling based on interaction state
             if (interaction.deferred) {
@@ -97,7 +105,47 @@ async function handleButtonInteraction(interaction: ButtonInteraction) {
                 });
             }
         } catch (e) {
-            console.error('Failed to send error message:', e);
+            Logger.error('Failed to send error message:', 'ButtonInteraction', e);
+        }
+    }
+}
+
+// Update the handleVerifyStartButton function to use a simpler approach
+async function handleVerifyStartButton(interaction: ButtonInteraction): Promise<void> {
+    // Create a modal for the user to enter their Roblox username
+    const modal = new ModalBuilder()
+        .setCustomId('verify_modal')
+        .setTitle('Verify with Roblox');
+
+    // Add the username input to the modal
+    const usernameInput = new TextInputBuilder()
+        .setCustomId('username')
+        .setLabel('Enter your Roblox username')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Your Roblox username')
+        .setRequired(true);
+
+    // Add the input to an action row
+    const firstActionRow = new ActionRowBuilder<TextInputBuilder>()
+        .addComponents(usernameInput);
+
+    // Add the action row to the modal
+    modal.addComponents(firstActionRow);
+
+    // Show the modal
+    try {
+        await interaction.showModal(modal);
+    } catch (err) {
+        Logger.error('Error showing verification modal', 'Verification', err);
+        if (!interaction.replied) {
+            await interaction.reply({
+                embeds: [
+                    createBaseEmbed('danger')
+                        .setTitle('Error')
+                        .setDescription('An error occurred while starting verification. Please try again.')
+                ],
+                ephemeral: true
+            });
         }
     }
 }

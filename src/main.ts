@@ -11,7 +11,6 @@ import { recordMemberCount } from './events/member';
 import { clearActions } from './handlers/abuseDetection';
 import { checkBans } from './events/bans';
 import { checkWallForAds } from './events/wall';
-import { handleButtonInteraction } from './handlers/handleButtonInteraction';
 import { schedulePromotionChecks } from './services/promotionService';
 import { fetchWithRetry } from './utils/robloxUtils';
 import { handleModalSubmit } from './handlers/modalSubmitHandler';
@@ -39,48 +38,48 @@ let robloxGroup: Group = null;
 
 (async () => {
     try {
-        console.log('Attempting to login to Roblox...');
+        Logger.info('Attempting to login to Roblox...', 'Auth');
         await robloxClient.login();
 
         // Instead of getCurrentUser (which doesn't exist), verify authentication by getting user info
         try {
             // This is the typical way to get authenticated user info in Bloxy
             const userInfo = await robloxClient.apis.usersAPI.getAuthenticatedUserInformation();
-            console.log(`✅ Successfully logged in as: ${userInfo.name} (${userInfo.id})`);
+            Logger.info(`Successfully logged in as: ${userInfo.name} (${userInfo.id})`, 'Auth');
         } catch (userErr) {
-            console.log('⚠️ Authenticated, but couldn\'t fetch user details');
+            Logger.warn('Authenticated, but couldn\'t fetch user details', 'Auth', userErr);
         }
 
         await initializeLogChannels();
 
         // Get the group (this will fail if not authenticated)
         robloxGroup = await robloxClient.getGroup(config.groupId);
-        console.log(`✅ Found group: ${robloxGroup.name} (${robloxGroup.id})`);
+        Logger.info(`Found group: ${robloxGroup.name} (${robloxGroup.id})`, 'Auth');
 
         // Validate group access by fetching roles (crucial for ranking permissions)
         const roles = await robloxGroup.getRoles();
-        console.log(`✅ Authentication confirmed - found ${roles.length} group roles`);
+        Logger.info(`Authentication confirmed - found ${roles.length} group roles`, 'Auth');
 
         // Grab a CSRF token to use for future requests
         try {
-            console.log('Fetching initial XSRF token...');
+            Logger.info('Fetching initial XSRF token...', 'Auth');
             const response = await fetchWithRetry('https://auth.roblox.com/v2/logout', {
                 method: 'POST',
                 headers: {
                     'Cookie': `.ROBLOSECURITY=${process.env.ROBLOX_COOKIE}`
                 }
             }, 3, 5000);
-            console.log('✅ Initial XSRF token fetched successfully');
+            Logger.info('Initial XSRF token fetched successfully', 'Auth');
 
             // Initialize promotion service AFTER we've confirmed authentication
             schedulePromotionChecks();
         } catch (err) {
-            Logger.error('❌ Failed to fetch initial XSRF token:', 'Auth', err);
-            console.log('⚠️ Continuing startup despite token fetch failure');
+            Logger.error('Failed to fetch initial XSRF token:', 'Auth', err);
+            Logger.warn('Continuing startup despite token fetch failure', 'Auth');
 
             // Try to initialize promotion service anyway after a delay
             setTimeout(() => {
-                console.log('Attempting to initialize promotion service after XSRF token failure');
+                Logger.info('Attempting to initialize promotion service after XSRF token failure', 'Auth');
                 schedulePromotionChecks();
             }, 20000);
         }
@@ -94,7 +93,7 @@ let robloxGroup: Group = null;
         if (config.antiAbuse.enabled) clearActions();
         if (config.deleteWallURLs) checkWallForAds();
     } catch (error) {
-        Logger.error('❌ AUTHENTICATION FAILED - Your Roblox cookie may be invalid or expired', 'Auth', error);
+        Logger.error('AUTHENTICATION FAILED - Your Roblox cookie may be invalid or expired', 'Auth', error);
         process.exit(1);
     }
 })();
@@ -102,13 +101,14 @@ let robloxGroup: Group = null;
 // [Handlers]
 discordClient.on('interactionCreate', async (interaction) => {
     // Log minimal info about interaction type
-    console.log('Interaction received:', interaction.type);
+    Logger.info(`Interaction received: ${interaction.type}`, 'Interaction');
 
     // Handle each interaction type
     try {
         if (interaction.isCommand()) {
             await handleInteraction(interaction);
         } else if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isRoleSelectMenu()) {
+            // IMPORTANT: Use only ONE handler for component interactions
             await handleComponentInteraction(interaction);
         } else if (interaction.isModalSubmit()) {
             await handleModalSubmit(interaction);

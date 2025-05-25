@@ -8,7 +8,6 @@ import { addRoleBinding, getRoleBindings } from '../handlers/roleBindHandler'; /
 import { Logger } from '../utils/logger';
 import { getLinkedRobloxUser } from './accountLinks';
 
-
 export async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
     const customId = interaction.customId;
 
@@ -21,22 +20,23 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction): Pr
             await handleDmMatchedMembersModalSubmit(interaction);
         } else if (customId.startsWith('binds_add_')) {
             await handleBindsAddModalSubmit(interaction);
-        } else if (customId.startsWith('verify_modal')) {
+        } else if (customId === 'verify_modal') {
             await handleVerifyUsernameModal(interaction);
         } else if (customId === 'binds_multi_add_modal') {
             await handleMultiBindsAddModalSubmit(interaction);
         } else {
-            console.warn(`Unknown modal type: ${customId}`);
-            await interaction.reply({
+            Logger.warn(`Unknown modal type: ${customId}`, 'ModalSubmit');
+            void interaction.reply({
                 content: 'Unknown form type. Please try again.',
                 ephemeral: true
             });
         }
     } catch (error) {
-        console.error('Error in modal submit handler:', error);
-        // Rest of error handling
+        Logger.error('Error in modal submit handler:', 'ModalSubmit', error);
+        // Error handling...
     }
 }
+
 
 async function handleVerifyUsernameModal(interaction: ModalSubmitInteraction): Promise<void> {
     try {
@@ -46,7 +46,7 @@ async function handleVerifyUsernameModal(interaction: ModalSubmitInteraction): P
         // Check if user is already verified
         const existingLink = await getLinkedRobloxUser(interaction.user.id);
         if (existingLink) {
-            void interaction.reply({
+            await interaction.reply({
                 embeds: [
                     createBaseEmbed('primary')
                         .setTitle('Already Verified')
@@ -54,13 +54,14 @@ async function handleVerifyUsernameModal(interaction: ModalSubmitInteraction): P
                 ],
                 ephemeral: true
             });
+            return;
         }
 
         // Try to find the Roblox user
         try {
             const robloxUsers = await robloxClient.getUsersByUsernames([username]);
             if (robloxUsers.length === 0) {
-                void interaction.reply({
+                await interaction.reply({
                     embeds: [
                         createBaseEmbed('danger')
                             .setTitle('User Not Found')
@@ -68,6 +69,7 @@ async function handleVerifyUsernameModal(interaction: ModalSubmitInteraction): P
                     ],
                     ephemeral: true
                 });
+                return;
             }
 
             const robloxUser = robloxUsers[0];
@@ -84,7 +86,7 @@ async function handleVerifyUsernameModal(interaction: ModalSubmitInteraction): P
             });
 
             // Create verification embed
-            const embed = createBaseEmbed()
+            const embed = createBaseEmbed('primary')
                 .setTitle('Verification Started')
                 .setDescription(
                     `Please put this code in your Roblox profile description to verify: \n\n` +
@@ -119,7 +121,7 @@ async function handleVerifyUsernameModal(interaction: ModalSubmitInteraction): P
                 });
 
                 // Confirm that DM was sent
-                void interaction.reply({
+                await interaction.reply({
                     embeds: [
                         createBaseEmbed('success')
                             .setTitle('Verification Started')
@@ -130,7 +132,7 @@ async function handleVerifyUsernameModal(interaction: ModalSubmitInteraction): P
             } catch (dmErr) {
                 // Handle case where DMs are closed
                 Logger.error('Failed to send verification DM', 'VerifyDM', dmErr);
-                void interaction.reply({
+                await interaction.reply({
                     embeds: [
                         createBaseEmbed('danger')
                             .setTitle('Cannot Send DM')
@@ -141,12 +143,29 @@ async function handleVerifyUsernameModal(interaction: ModalSubmitInteraction): P
             }
         } catch (err) {
             Logger.error('Error in verify username modal', 'VerifyUsernameModal', err);
+            await interaction.reply({
+                embeds: [
+                    createBaseEmbed('danger')
+                        .setTitle('Verification Error')
+                        .setDescription('An error occurred while starting verification. Please try again later.')
+                ],
+                ephemeral: true
+            });
         }
     } catch (err) {
         Logger.error('Error in verify username modal', 'VerifyUsernameModal', err);
+        if (!interaction.replied) {
+            await interaction.reply({
+                embeds: [
+                    createBaseEmbed('danger')
+                        .setTitle('Verification Error')
+                        .setDescription('An error occurred while processing your verification. Please try again later.')
+                ],
+                ephemeral: true
+            });
+        }
     }
 }
-
 
 async function handleMultiBindsAddModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
     // Get workflow data

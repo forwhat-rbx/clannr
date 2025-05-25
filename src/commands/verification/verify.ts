@@ -87,16 +87,16 @@ class VerifyCommand extends Command {
 
             // Create verification embed
             const embed = createBaseEmbed()
-                .setTitle('Verification Started')
+                .setTitle('Verificação iniciada')
                 .setDescription(
-                    `Please put this code in your Roblox profile description to verify: \n\n` +
+                    `Por favor, coloque este código na descrição de seu perfil no Roblox para verificar: \n\n` +
                     `\`\`\`\n${verificationCode}\n\`\`\`\n\n` +
-                    `1. Go to [your profile](https://www.roblox.com/users/${robloxUser.id}/profile)\n` +
-                    `2. Click the pencil icon next to your description\n` +
-                    `3. Paste the code anywhere in your description\n` +
-                    `4. Click Save\n` +
-                    `5. Come back and click the "Verify" button below\n\n` +
-                    `This verification will expire in 10 minutes.`
+                    `1. Vá para [seu perfil](https://www.roblox.com/users/${robloxUser.id}/profile)\n` +
+                    `2. Clique no ícone de lápis ao lado de sua descrição\n` +
+                    `3. Cole o código em qualquer lugar de sua descrição\n` +
+                    `4. Clique em Save\n` +
+                    `5. Volte e clique no botão “Verify” abaixo\n\n` +
+                    `Esta verificação expirará em 10 minutos.`
                 )
                 .setThumbnail(`https://www.roblox.com/headshot-thumbnail/image?userId=${robloxUser.id}&width=420&height=420&format=png`);
 

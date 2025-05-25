@@ -349,7 +349,7 @@ async function handleRolesToRemoveSelection(interaction: RoleSelectMenuInteracti
         // Format message
         let roleRemovalText = '';
         if (rolesToRemove.length > 0) {
-            roleRemovalText = `\n\n**Will remove:** ${rolesToRemove.map(id => `<@&${id}>`).join(' ')}`;
+            roleRemovalText = `\n\n**Will remove:** ${rolesToRemove.map(id => `<@&${String(id)}>`).join(' ')}`;
         } else {
             roleRemovalText = '\n\nNo roles will be removed when this binding is active.';
         }
@@ -448,7 +448,7 @@ async function handleRoleBindingConfirmation(interaction: ButtonInteraction) {
         // Format roles to remove display
         let removalText = '';
         if (rolesToRemove && rolesToRemove.length > 0) {
-            removalText = `\n\n**Will remove:** ${rolesToRemove.map(id => `<@&${id}>`).join(' ')}`;
+            removalText = `\n\n**Will remove:** ${rolesToRemove.map(id => `<@&${String(id)}>`).join(' ')}`;
         }
 
         // Send success message

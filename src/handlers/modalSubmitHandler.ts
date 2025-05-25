@@ -329,7 +329,7 @@ async function handleMultiBindsAddModalSubmit(interaction: ModalSubmitInteractio
 
             if (i.customId.startsWith('binds_select_remove_roles_multi')) {
                 // Store the selected roles to remove
-                workflowData.rolesToRemove = i.values;
+                workflowData.rolesToRemove = i.values.map(id => String(id)); // Cast to string array
 
                 // Create final confirmation buttons
                 const finalButtonRow = new ActionRowBuilder<ButtonBuilder>()
@@ -347,7 +347,7 @@ async function handleMultiBindsAddModalSubmit(interaction: ModalSubmitInteractio
                 // Format roles to remove display
                 let removalText = '';
                 if (i.values && i.values.length > 0) {
-                    removalText = `\n\n**Will remove:** ${i.values.map(id => `<@&${id}>`).join(' ')}`;
+                    removalText = `\n\n**Will remove:** ${i.values.map(id => `<@&${String(id)}>`).join(' ')}`;
                 } else {
                     removalText = '\n\nNo roles will be removed when this binding is active.';
                 }
@@ -359,7 +359,7 @@ async function handleMultiBindsAddModalSubmit(interaction: ModalSubmitInteractio
                             .setTitle('Confirm Role Bindings')
                             .setDescription(
                                 `You're about to create **${workflowData.discordRoleIds.length} binding(s)** to Roblox rank "${rankName}".\n\n` +
-                                `**Roles being bound:**\n${workflowData.discordRoleIds.map(id => `• <@&${id}>`).join('\n')}${removalText}\n\n` +
+                                `**Roles being bound:**\n${workflowData.discordRoleIds.map(id => `• <@&${String(id)}>`).join('\n')}${removalText}\n\n` +
                                 `Please confirm that you want to create these bindings.`
                             )
                     ],

@@ -389,13 +389,13 @@ async function handleMultiBindsAddModalSubmit(interaction: ModalSubmitInteractio
                         }).catch(() => { });
                     }
                 } catch (e) {
-                    console.error('Error cleaning up timed out binding session:', e);
+                    Logger.error('Error cleaning up timed out binding session:', 'handleModalSubmitHandler', e);
                 }
             }
         });
 
     } catch (err) {
-        console.error('Error in handleMultiBindsAddModalSubmit:', err);
+        Logger.error('Error in handleMultiBindsAddModalSubmit:', 'handleModalSubmitHandler', err);
         await interaction.reply({
             embeds: [
                 createBaseEmbed('danger')
@@ -535,7 +535,7 @@ async function handleBindsAddModalSubmit(interaction: ModalSubmitInteraction): P
         });
 
     } catch (err) {
-        console.error('Error in handleBindsAddModalSubmit:', err);
+        Logger.error('Error in handleBindsAddModalSubmit:', 'handleModalSubmitHandler', err);
         await interaction.reply({
             embeds: [
                 createBaseEmbed('primary')
@@ -641,7 +641,7 @@ async function handleDmRoleModalSubmit(interaction: ModalSubmitInteraction): Pro
                     }
                 }
             } catch (err) {
-                console.error(`Error processing member ${guildMember.user.tag}:`, err);
+                Logger.error(`Error processing member ${guildMember.user.tag}:`, 'handleModalSubmitHandler', err);
                 results.failed++;
             }
 
@@ -752,7 +752,7 @@ async function handleDmMatchedMembersModalSubmit(interaction: ModalSubmitInterac
             // Add a small delay to avoid rate limits
             await new Promise(r => setTimeout(r, 500));
         } catch (err) {
-            console.error(`Error processing discord ID ${discordId}:`, err);
+            Logger.error(`Error processing discord ID ${discordId}:`, 'handleModalSubmitHandler', err);
             results.failed++;
         }
     }
@@ -777,6 +777,8 @@ async function handleDmMatchedMembersModalSubmit(interaction: ModalSubmitInterac
 }
 
 // Original DM modal for Roblox user DMs (keep if needed)
+// Update the entire handleDmModalSubmit function:
+
 async function handleDmModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
     // Check permissions
     const member = interaction.guild?.members.cache.get(interaction.user.id);
@@ -836,7 +838,7 @@ async function handleDmModalSubmit(interaction: ModalSubmitInteraction): Promise
                 await new Promise(r => setTimeout(r, 1000 * (index % 3)));
 
                 // Get Roblox user info
-                const robloxUser = await robloxClient.getUser(userId);
+                const robloxUser = await robloxClient.getUser(Number(userId));
 
                 // Create a nice embed for the DM
                 const dmEmbed = createBaseEmbed('primary')
@@ -850,7 +852,8 @@ async function handleDmModalSubmit(interaction: ModalSubmitInteraction): Promise
                 // This is a placeholder for that implementation
                 results.notFound++;
             } catch (err) {
-                console.error(`Error processing user ${userId}:`, err);
+                // Fix here - convert userId to string in template literal
+                Logger.error(`Error processing user ${String(userId)}:`, 'modalSubmitHandler', err);
                 results.failed++;
             }
 

@@ -14,6 +14,11 @@ import { getMissingArgumentsEmbed } from '../../handlers/locale';
 import { config } from '../../config';
 
 export class CommandContext {
+    channel: any;
+    interaction: any;
+    editReply(arg0: { content: string; }) {
+        throw new Error('Method not implemented.');
+    }
     followUp(arg0: { content: string; }) {
         throw new Error('Method not implemented.');
     }

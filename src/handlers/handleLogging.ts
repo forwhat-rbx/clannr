@@ -133,7 +133,7 @@ const logVerificationEvent = async (
  */
 const _internalLog = async (
     actionType: string,
-    actor: DiscordUser | RobloxUser | GroupMember | string,
+    actor: DiscordUser | RobloxUser | GroupMember | any,
     reason?: string,
     targetRobloxUser?: RobloxUser | PartialUser,
     generalDetails?: string,
@@ -147,32 +147,57 @@ const _internalLog = async (
     let actorName: string = 'System';
     let isBotItself = false;
 
+    // Handle different actor types safely
     if (typeof actor === 'string') {
+        // String actor (like "System" or "Promotion Service")
         actorName = actor;
         actorId = actor.replace(/\s+/g, '_').toUpperCase();
-    } else if ('tag' in actor) { // DiscordUser
-        actorId = actor.id;
-        actorName = actor.tag;
-        if (actor.id === discordClient.user?.id) {
-            isBotItself = true;
+    } else if (actor && typeof actor === 'object') {
+        if ('tag' in actor) {
+            // Discord User
+            actorId = actor.id;
+            actorName = actor.tag;
+            if (actor.id === discordClient.user?.id) {
+                isBotItself = true;
+            }
+            if (!isBotItself) {
+                recordAbuseAction(actor as DiscordUser);
+            }
+        } else if ('name' in actor && 'id' in actor) {
+            // Standard Roblox User or GroupMember object
+            actorId = String(actor.id);
+            actorName = actor.name;
+        } else if ('username' in actor || 'displayName' in actor) {
+            // Handle alternative Roblox user formats
+            if ('userId' in actor) {
+                actorId = String(actor.userId);
+                actorName = actor.username || actor.displayName || 'Unknown Roblox User';
+            } else if ('user_id' in actor) {
+                actorId = String(actor.user_id);
+                actorName = actor.username || actor.displayName || 'Unknown Roblox User';
+            } else {
+                // Try to extract any ID-like field
+                actorId = String(actor.id || actor.userId || actor.user_id || 'UNKNOWN_ID');
+                actorName = actor.username || actor.displayName || actor.name || 'Unknown Roblox User';
+            }
+        } else {
+            // Unknown object format - extract what we can
+            actorId = String(actor.id || actor.userId || actor.user_id || 'UNKNOWN_ID');
+            actorName = actor.name || actor.username || actor.displayName || 'Unknown Actor';
+
+            // Log the unexpected structure for debugging
+            Logger.warn(`Unknown actor structure for action "${actionType}": ${JSON.stringify(actor)}`, 'Logging');
         }
-        if (!isBotItself) {
-            recordAbuseAction(actor as DiscordUser); // Cast actor to DiscordUser
-        }
-    } else if ('name' in actor && 'id' in actor) { // RobloxUser or GroupMember
-        actorId = actor.id.toString();
-        actorName = actor.name;
     } else {
-        actorId = (actor as any)?.id?.toString() || 'UNKNOWN_ACTOR';
-        actorName = (actor as any)?.name || 'Unknown Actor';
-        console.warn(`[LOG_ACTION] Unknown actor type for action "${actionType}":`, actor);
+        // If actor is null/undefined or an unexpected type
+        Logger.warn(`Invalid actor type for action "${actionType}": ${typeof actor}`, 'Logging');
     }
 
     const timestamp = new Date();
     const logPrefix = `[${actionType.toUpperCase()}] by ${actorName}(${actorId})`;
 
     // Log to console (uses generalDetails)
-    console.log(`${timestamp.toISOString()} ${logPrefix} - Target: ${targetRobloxUser?.name || 'N/A'} - Details: ${generalDetails || 'N/A'} - Reason: ${reason || 'N/A'}`);
+    Logger.info(`${logPrefix} - Target: ${targetRobloxUser?.name || 'N/A'} - Details: ${generalDetails || 'N/A'} - Reason: ${reason || 'N/A'}`, 'ActionLog');
 
     // Log to Discord channel
     if (sendToDiscordChannel && actionLogChannel && (!isBotItself || actionType.startsWith("User Action"))) {
@@ -190,32 +215,32 @@ const _internalLog = async (
             );
             await actionLogChannel.send({ embeds: [logEmbed] });
         } catch (error) {
-            console.error(`${logPrefix} Failed to send Discord log embed: ${error.message}`);
+            Logger.error(`${logPrefix} Failed to send Discord log embed: ${error.message}`, 'LogAction', error);
         }
     } else if (sendToDiscordChannel && !actionLogChannel && (!isBotItself || actionType.startsWith("User Action"))) {
-        console.warn(`${logPrefix} Discord action log channel not available. Action not logged to Discord.`);
+        Logger.warn(`${logPrefix} Discord action log channel not available. Action not logged to Discord.`, 'LogAction');
     }
 
-    // Log to ActivityLogger (uses generalDetails)
-    const activityLogActorId = (typeof actor === 'string') ? actorId : actor.id.toString();
-    const activityLogActorName = actorName;
-
-    const modActionEntry: ModAction = {
-        timestamp: timestamp,
-        action: actionType,
-        target: targetRobloxUser?.id?.toString(),
-        targetName: targetRobloxUser?.name,
-        details: generalDetails,
-        reason: reason,
-    };
-
+    // Log to ActivityLogger (uses generalDetails) - handle this safely
     try {
-        await ActivityLogger.logAction(activityLogActorId, activityLogActorName, modActionEntry);
+        // Safely get actorId for ActivityLogger
+        let activityLogActorId = actorId;
+
+        // Create mod action entry with safe values
+        const modActionEntry: ModAction = {
+            timestamp: timestamp,
+            action: actionType,
+            target: targetRobloxUser?.id ? String(targetRobloxUser.id) : undefined,
+            targetName: targetRobloxUser?.name,
+            details: generalDetails,
+            reason: reason,
+        };
+
+        await ActivityLogger.logAction(activityLogActorId, actorName, modActionEntry);
     } catch (error) {
-        console.error(`${logPrefix} Failed to write to ActivityLogger: ${error.message}`);
+        Logger.error(`${logPrefix} Failed to write to ActivityLogger: ${error.message}`, 'ActivityLogger', error);
     }
 };
-
 
 /**
  * Logs an action to the designated action log channel. (Backward compatible)

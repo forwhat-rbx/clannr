@@ -15,7 +15,7 @@ class RemoveUserCommand extends Command {
     constructor() {
         super({
             trigger: 'removeuser',
-            description: 'Removes one or more users from the database. Separate multiple IDs/usernames/links with commas.',
+            description: 'Removes one or more users from the database.',
             type: 'ChatInput',
             module: 'admin',
             args: [

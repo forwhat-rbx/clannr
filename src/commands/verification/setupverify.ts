@@ -10,7 +10,7 @@ class SetupVerifyCommand extends Command {
     constructor() {
         super({
             trigger: 'setupverify',
-            description: 'Set up a verification channel with persistent embed',
+            description: 'Set up a verification channel.',
             type: 'ChatInput',
             module: 'verification',
             args: [

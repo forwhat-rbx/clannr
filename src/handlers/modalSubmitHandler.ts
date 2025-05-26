@@ -60,8 +60,8 @@ async function handleVerifyUsernameModal(interaction: ModalSubmitInteraction): P
             await interaction.editReply({
                 embeds: [
                     createBaseEmbed('primary')
-                        .setTitle('Already Verified')
-                        .setDescription(`You are already verified as [${existingLink.name}](https://www.roblox.com/users/${existingLink.id}/profile).\n\nTo change your account, use \`/unverify\` first.`)
+                        .setTitle('Já verificado')
+                        .setDescription(`Você já foi verificado como [${existingLink.name}](https://www.roblox.com/users/${existingLink.id}/profile).\n\nPara alterar sua conta, use \`/unverify\` primeiro.`)
                 ]
             });
             return;

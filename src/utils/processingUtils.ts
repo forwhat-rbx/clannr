@@ -20,11 +20,13 @@ async function sendUpdate(
         // Handle CommandContext differently
         if ('subject' in interaction) {
             if (interaction.subject) {
-                const subject = interaction.subject;
+                // Cast subject to a type that has the methods we need
+                const subject = interaction.subject as CommandInteraction;
+
                 if ('deferred' in subject && subject.deferred) {
-                    await subject.followUp({ content: message });
+                    await subject.editReply({ content: message });
                 } else if ('replied' in subject && subject.replied) {
-                    await subject.followUp({ content: message });
+                    await subject.followUp({ content: message, ephemeral: true });
                 } else if ('reply' in subject) {
                     await subject.reply({ content: message, ephemeral: true });
                 }
@@ -32,7 +34,7 @@ async function sendUpdate(
             return;
         }
 
-        // For regular interactions
+        // For regular interactions - rest of the code remains the same
         if ('deferred' in interaction && interaction.deferred) {
             if ('editReply' in interaction) {
                 await interaction.editReply({ content: message });

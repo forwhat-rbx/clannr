@@ -349,16 +349,46 @@ async function handleMultiBindsAddModalSubmit(interaction: ModalSubmitInteractio
 
         // Update the select menu ID to include the user ID for state management
         const message = await interaction.fetchReply();
-        const updatedRow = new ActionRowBuilder<RoleSelectMenuBuilder>()
-            .addComponents(
-                RoleSelectMenuBuilder.from(
-                    (message.components[0].components[0] as any).data
-                ).setCustomId(`binds_select_remove_roles_multi:${interaction.user.id}`)
-            );
 
-        await interaction.editReply({
-            components: [updatedRow, buttonRow]
-        });
+        // Type assertion to ensure TypeScript recognizes the components structure
+        const messageComponents = message.components as unknown as {
+            components: Array<{
+                data: any;
+                customId?: string;
+            }>
+        }[];
+
+        if (messageComponents && messageComponents.length > 0 &&
+            messageComponents[0].components && messageComponents[0].components.length > 0) {
+
+            const updatedRow = new ActionRowBuilder<RoleSelectMenuBuilder>()
+                .addComponents(
+                    RoleSelectMenuBuilder.from(
+                        messageComponents[0].components[0].data
+                    ).setCustomId(`binds_select_remove_roles_multi:${interaction.user.id}`)
+                );
+
+            await interaction.editReply({
+                components: [updatedRow, buttonRow]
+            });
+        } else {
+            // Handle the case where components aren't available
+            Logger.warn('Message components structure is not as expected', 'handleMultiBindsAddModalSubmit');
+
+            // Create a new row instead of trying to modify the existing one
+            const newRow = new ActionRowBuilder<RoleSelectMenuBuilder>()
+                .addComponents(
+                    new RoleSelectMenuBuilder()
+                        .setCustomId(`binds_select_remove_roles_multi:${interaction.user.id}`)
+                        .setPlaceholder('Select roles to remove when this binding is active (optional)')
+                        .setMinValues(0)
+                        .setMaxValues(25)
+                );
+
+            await interaction.editReply({
+                components: [newRow, buttonRow]
+            });
+        }
 
         // Setup collector for the role selection menu
         const collector = message.createMessageComponentCollector({

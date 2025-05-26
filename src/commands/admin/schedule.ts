@@ -14,7 +14,7 @@ import {
 import { config } from '../../config';
 import { Logger } from '../../utils/logger';
 import { createBaseEmbed } from '../../utils/embedUtils';
-import * as chrono from 'chrono-node';
+import { parseDate, en } from 'chrono-node';
 
 class ScheduleEventCommand extends Command {
     constructor() {
@@ -123,7 +123,10 @@ class ScheduleEventCommand extends Command {
                     } else {
                         // Try parsing as YYYY-MM-DD HH:MM
                         try {
-                            const parsedDate = chrono.parseDate(eventTimeInput);
+                            const parsedDate = en.parse(eventTimeInput, new Date(), {
+                                forwardDate: true
+                            })[0]?.date();
+
                             if (!parsedDate) {
                                 throw new Error('Could not understand the date format');
                             }

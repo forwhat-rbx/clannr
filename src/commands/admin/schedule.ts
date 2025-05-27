@@ -83,13 +83,12 @@ class ScheduleEventCommand extends Command {
             modal.addComponents(firstRow, secondRow, thirdRow, fourthRow);
 
             // Check if we're using slash commands and have access to modal functionality
-            if (ctx.type === 'interaction' && ctx.interaction) {
+            if (ctx.interaction && typeof ctx.interaction.showModal === 'function') {
                 // Cast to CommandInteraction to access showModal
                 const interaction = ctx.interaction as CommandInteraction;
 
                 // Show the modal
                 await interaction.showModal(modal);
-
                 try {
                     // Wait for modal submission
                     const filter = i => i.customId === `event_create_modal:${ctx.user.id}`;

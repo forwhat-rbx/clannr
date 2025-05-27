@@ -201,7 +201,16 @@ export default class XPCommand extends Command {
                 Logger.warn('Failed to load logo image', 'XPCard');
             }
 
-            const imageBuffer = await cardBuilder.build();
+            const imageBuffer = await cardBuilder.build({
+                backgroundUrl: 'https://i.ibb.co/Z68bgDS8/NEW-SOH-BACK.png',
+                avatarUrl: avatarUrl,
+                username: robloxUser.name,
+                rank: robloxMember.role.name,
+                currentXP: userData.xp,
+                nextXP: nextXp,
+                stats: stats,
+                logoUrl: 'https://i.ibb.co/zhtwc0np/NEW-SOH-FRONT.png'
+            });
 
             // Create Discord attachment
             const imageAttachment = new AttachmentBuilder(imageBuffer, { name: 'xp-progress.png' });

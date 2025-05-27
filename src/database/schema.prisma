@@ -37,10 +37,9 @@ model XpLog {
 }
 
 model UserLink {
-  id            String   @id @default(uuid())
-  discordId     String   @unique
-  robloxId      String
-  verifiedAt    DateTime @default(now())
+  discordId    String   @id
+  robloxId     String
+  verifiedAt   DateTime? @default(now())
 }
 
 model RoleBind {

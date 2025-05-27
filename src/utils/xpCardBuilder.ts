@@ -139,31 +139,29 @@ export class XPCardBuilder {
     }
 
     private addTechPatternOverlay(): void {
-        // Add vertical lines - FIX: Much more subtle
+        // Very subtle grid lines - much lower opacity
         for (let i = 0; i < this.width; i += 60) {
-            const lineColor = i % 180 === 0 ? 0x90A0FF08 : 0xAAAAAA08; // Reduced opacity
+            const lineColor = i % 180 === 0 ? 0x90A0FF04 : 0xAAAAAA04; // Ultra low opacity (04)
 
             for (let y = 0; y < this.height; y++) {
                 this.image.setPixelColor(lineColor, i, y);
             }
         }
 
-        // Add horizontal lines - FIX: Much more subtle
         for (let i = 0; i < this.height; i += 60) {
-            const lineColor = i % 180 === 0 ? 0x90A0FF08 : 0xAAAAAA08; // Reduced opacity
+            const lineColor = i % 180 === 0 ? 0x90A0FF04 : 0xAAAAAA04; // Ultra low opacity (04)
 
             for (let x = 0; x < this.width; x++) {
                 this.image.setPixelColor(lineColor, x, i);
             }
 
-            // Add data points at intersections - only at major grid points
+            // Only add dots at major intersections with very low visibility
             if (i % 180 === 0) {
                 for (let j = 0; j < this.width; j += 180) {
-                    // Draw small blue dots at intersections
                     for (let dx = -1; dx <= 1; dx++) {
                         for (let dy = -1; dy <= 1; dy++) {
                             if (j + dx >= 0 && j + dx < this.width && i + dy >= 0 && i + dy < this.height) {
-                                this.image.setPixelColor(0x78B4FF80, j + dx, i + dy); // Less transparent
+                                this.image.setPixelColor(0x78B4FF40, j + dx, i + dy); // Less visible
                             }
                         }
                     }
@@ -332,41 +330,25 @@ export class XPCardBuilder {
         const margin = 40;
         const avatarSize = 100;
         const nameX = margin + 60 + avatarSize + 30;
-        const nameY = margin + 35;
-
-        // Determine rank level for decorative elements
-        const rankLevel = rank.toLowerCase().includes('commander') ? 5 :
-            rank.toLowerCase().includes('officer') ? 4 :
-                rank.toLowerCase().includes('captain') ? 3 :
-                    rank.toLowerCase().includes('sergeant') ? 2 : 1;
+        const nameY = margin + 40; // Adjusted for better positioning
 
         // Load fonts
         const usernameFont = await loadFont(38, true);
-        const rankFont = await loadFont(20); // SMALLER FONT SIZE
+        const rankFont = await loadFont(20);
 
-        // FIX: Position username text higher to avoid overlap
-        await printTextWithShadow(this.image, usernameFont, username, nameX, nameY - 35);
+        // Draw username - positioned higher
+        await printTextWithShadow(this.image, usernameFont, username, nameX, nameY);
 
-        // Add rank stars for higher ranks
-        if (rankLevel > 2) {
-            const textWidth = username.length * 20; // Approximate width
-
-            for (let i = 0; i < rankLevel - 2; i++) {
-                const emblemX = nameX + textWidth + 20 + (i * 25);
-                await drawStar(this.image, emblemX, nameY - 20, 10, 5, 0xD0D0E0FF);
-            }
-        }
-
-        // Draw rank badge - FIX: Position below name with proper spacing
+        // Draw rank badge below username with proper spacing
         const rankText = rank;
-        const rankWidth = rankText.length * 10 + 20; // Reduced width calculation
+        const rankWidth = rankText.length * 11 + 30; // More space for rank text
         const rankX = nameX;
-        const rankY = nameY + 10; // Moved down to avoid overlap
+        const rankY = nameY + 50; // Good distance below name
 
-        // Badge background
+        // Badge background - more visible
         await drawRoundedRect(this.image, rankX, rankY, rankWidth, 30, 5, 0x1E1E26E6);
 
-        // Badge border
+        // Badge border - more defined
         const borderColor = 0x8A8A9AFF;
         for (let x = rankX; x < rankX + rankWidth; x++) {
             this.image.setPixelColor(borderColor, x, rankY);
@@ -378,8 +360,24 @@ export class XPCardBuilder {
             this.image.setPixelColor(borderColor, rankX + rankWidth - 1, y);
         }
 
-        // Print rank text - simplified to avoid complex parameter issues
-        this.image.print(rankFont, rankX + 10, rankY + 5, rankText);
+        // Print rank text
+        this.image.print(rankFont, rankX + 15, rankY + 5, rankText);
+
+        // Add rank decorations - simple hardcoded approach
+        // This can be expanded later with more detailed implementation
+        if (rank.includes("Commander")) {
+            // Add commander stars (3)
+            await drawStar(this.image, rankX + rankWidth + 15, rankY + 15, 10, 5, 0xD0D0E0FF);
+            await drawStar(this.image, rankX + rankWidth + 35, rankY + 15, 10, 5, 0xD0D0E0FF);
+            await drawStar(this.image, rankX + rankWidth + 55, rankY + 15, 10, 5, 0xD0D0E0FF);
+        } else if (rank.includes("Captain")) {
+            // Add captain stars (2)
+            await drawStar(this.image, rankX + rankWidth + 15, rankY + 15, 10, 5, 0xD0D0E0FF);
+            await drawStar(this.image, rankX + rankWidth + 35, rankY + 15, 10, 5, 0xD0D0E0FF);
+        } else if (rank.includes("Lieutenant")) {
+            // Add lieutenant star (1)
+            await drawStar(this.image, rankX + rankWidth + 15, rankY + 15, 10, 5, 0xD0D0E0FF);
+        }
 
         return this;
     }
@@ -496,9 +494,8 @@ export class XPCardBuilder {
                     }
                 }
             }
-
-            return this;
         }
+        return this;
     }
 
     async addStatistics(stats: XPStats): Promise<this> {
@@ -510,22 +507,21 @@ export class XPCardBuilder {
         const progressY = margin + 30 + avatarSize + 25;
         const statsStartY = progressY + progressBarHeight + 50;
 
-        // FIX: Improved stat box layout - larger width for each box
-        const statItemWidth = Math.min(160, (cardWidth - 40) / 4);
-        const statItemHeight = 50; // Slightly taller
+        // MUCH BIGGER stat boxes with better spacing
+        const statItemWidth = Math.min(200, (cardWidth - 80) / 4);
+        const statItemHeight = 70; // Taller boxes
 
         // Header text
-        const headerFont = await loadFont(16, true);
+        const headerFont = await loadFont(18, true); // Slightly larger
         const headerText = 'COMBAT STATISTICS';
         const headerX = margin + cardWidth / 2 - (headerText.length * 5);
         const headerY = statsStartY - 25;
 
-        // Print header - simplified to avoid parameter issues
+        // Print header
         this.image.print(headerFont, headerX, headerY, headerText);
 
         // Divider line
         for (let x = margin + 100; x < margin + cardWidth - 100; x++) {
-            // Gradient divider
             const position = (x - (margin + 100)) / (cardWidth - 200);
             let alpha;
 
@@ -547,55 +543,57 @@ export class XPCardBuilder {
             { label: 'TRAININGS', value: stats.trainings }
         ];
 
-        // FIX: Better center the stats with more space between them
-        const totalItemsWidth = statItemWidth * statsItems.length;
-        const leftPadding = (cardWidth - totalItemsWidth) / 2;
+        // More space between stat boxes
+        const spacing = 20;
+        const totalWidthNeeded = (statItemWidth * statsItems.length) + (spacing * (statsItems.length - 1));
+        const leftPadding = (cardWidth - totalWidthNeeded) / 2;
         const statsStartX = margin + leftPadding;
 
         // Load fonts
-        const statLabelFont = await loadFont(13);
-        const statValueFont = await loadFont(19, true);
+        const statLabelFont = await loadFont(16); // Larger font
+        const statValueFont = await loadFont(24, true); // Much larger font for values
 
         // Draw each stat box
         for (let i = 0; i < statsItems.length; i++) {
             const item = statsItems[i];
-            const statX = Math.round(statsStartX + i * statItemWidth);
-            const statY = Math.round(statsStartY + 10);
-            const statWidth = Math.round(statItemWidth - 20); // Add more padding
+            const statX = Math.round(statsStartX + i * (statItemWidth + spacing));
+            const statY = Math.round(statsStartY + 15);
 
-            // Background
-            const statBg = await createCanvas(statWidth, statItemHeight, 0x1A1A24FF);
+            // Background - full width of allocated space
+            const statBg = await createCanvas(statItemWidth, statItemHeight, 0x1A1A24FF);
             this.image.composite(statBg, statX, statY);
 
             // Border
             const borderColor = 0x606070FF;
-            for (let x = statX; x < statX + statWidth; x++) {
+            for (let x = statX; x < statX + statItemWidth; x++) {
                 this.image.setPixelColor(borderColor, x, statY);
                 this.image.setPixelColor(borderColor, x, statY + statItemHeight - 1);
             }
 
             for (let y = statY; y < statY + statItemHeight; y++) {
                 this.image.setPixelColor(borderColor, statX, y);
-                this.image.setPixelColor(borderColor, statX + statWidth - 1, y);
+                this.image.setPixelColor(borderColor, statX + statItemWidth - 1, y);
             }
 
-            // Top accent line
+            // Top accent line - more prominent
             const accentColor = 0x4080C0FF;
-            for (let x = statX; x < statX + statWidth; x++) {
+            for (let x = statX; x < statX + statItemWidth; x++) {
                 this.image.setPixelColor(accentColor, x, statY);
                 this.image.setPixelColor(accentColor, x, statY + 1);
+                this.image.setPixelColor(accentColor, x, statY + 2); // Thicker line
             }
 
             // Center position for text
-            const centerX = statX + statWidth / 2;
+            const centerX = statX + statItemWidth / 2;
 
-            // Print label - simplified
-            const labelText = item.label;
-            this.image.print(statLabelFont, centerX - (labelText.length * 3), statY + 6, labelText);
+            // Print label - better positioned
+            const labelY = statY + 12;
+            this.image.print(statLabelFont, centerX - (item.label.length * 4), labelY, item.label);
 
-            // Print value - simplified
+            // Print value - larger and better positioned
             const valueText = item.value.toString();
-            this.image.print(statValueFont, centerX - (valueText.length * 5), statY + 22, valueText);
+            const valueY = statY + 35; // More space between label and value
+            this.image.print(statValueFont, centerX - (valueText.length * 6), valueY, valueText);
         }
 
         return this;

@@ -29,34 +29,18 @@ const argumentTypeMappings = {
 }
 
 const mapArgument = (arg: CommandArgument) => {
-    // Base properties that all option types can have
-    const baseOptionProps = {
+    // @ts-ignore
+    const apiArgument: ApplicationCommandOptionData = {
         name: arg.trigger,
         description: arg.description || 'No description provided.',
         type: argumentTypeMappings[arg.type],
         autocomplete: arg.autocomplete || false,
         required: arg.required !== null && arg.required !== undefined ? arg.required : true,
         choices: arg.choices || [],
-    };
-
-    // Only add options for Subcommand and SubcommandGroup types
-    if (arg.type === 'Subcommand' || arg.type === 'SubcommandGroup') {
-        return {
-            ...baseOptionProps,
-            options: arg.args ? arg.args.map(mapArgument) : [],
-        } as ApplicationCommandOptionData;
+        options: arg.args ? arg.args.map(mapArgument) : [],
+        channelTypes: arg.channelTypes,
     }
-
-    // For channel type, add channelTypes if provided
-    if (arg.type === 'DiscordChannel' && arg.channelTypes) {
-        return {
-            ...baseOptionProps,
-            channelTypes: arg.channelTypes,
-        } as ApplicationCommandOptionData;
-    }
-
-    // For all other types, return base properties only
-    return baseOptionProps as ApplicationCommandOptionData;
+    return apiArgument;
 }
 
 abstract class Command {
@@ -84,7 +68,7 @@ abstract class Command {
      * Generate a command object for slash commands.
      */
     generateAPICommand() {
-        if (this.type.startsWith('Subcommand')) {
+        if(this.type.startsWith('Subcommand')) {
             return {
                 name: this.trigger,
                 description: this.description,

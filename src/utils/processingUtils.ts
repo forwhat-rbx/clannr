@@ -20,13 +20,11 @@ async function sendUpdate(
         // Handle CommandContext differently
         if ('subject' in interaction) {
             if (interaction.subject) {
-                // Cast subject to a type that has the methods we need
-                const subject = interaction.subject as CommandInteraction;
-
+                const subject = interaction.subject;
                 if ('deferred' in subject && subject.deferred) {
-                    await subject.editReply({ content: message });
+                    await subject.followUp({ content: message });
                 } else if ('replied' in subject && subject.replied) {
-                    await subject.followUp({ content: message, ephemeral: true });
+                    await subject.followUp({ content: message });
                 } else if ('reply' in subject) {
                     await subject.reply({ content: message, ephemeral: true });
                 }
@@ -38,31 +36,18 @@ async function sendUpdate(
         if ('deferred' in interaction && interaction.deferred) {
             if ('editReply' in interaction) {
                 await interaction.editReply({ content: message });
-            } else if ('followUp' in interaction) {
-                // Verify the method exists before calling
-                const interactionWithFollowUp = interaction as any;
-                if (typeof interactionWithFollowUp.followUp === 'function') {
-                    await interactionWithFollowUp.followUp({ content: message });
-                }
+            } else {
+                await interaction.followUp({ content: message });
             }
         } else if ('replied' in interaction && interaction.replied) {
             if ('followUp' in interaction) {
-                // Verify the method exists before calling
-                const interactionWithFollowUp = interaction as any;
-                if (typeof interactionWithFollowUp.followUp === 'function') {
-                    await interactionWithFollowUp.followUp({ content: message });
-                }
+                await interaction.followUp({ content: message });
             }
         } else if ('reply' in interaction) {
-            // Use type guard to ensure reply method exists
-            const interactionWithReply = interaction as any;
-            if (typeof interactionWithReply.reply === 'function') {
-                await interactionWithReply.reply({
-                    content: message,
-                    ephemeral: true,
-                    fetchReply: true
-                });
-            }
+            await interaction.reply({
+                content: message, ephemeral: true,
+                fetchReply: true
+            });
         }
     } catch (error) {
         console.error('Error sending update:', error);

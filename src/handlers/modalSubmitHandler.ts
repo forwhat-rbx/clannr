@@ -7,7 +7,6 @@ import { config } from '../config';
 import { addRoleBinding, getRoleBindings } from '../handlers/roleBindHandler'; // Added this import
 import { Logger } from '../utils/logger';
 import { getLinkedRobloxUser } from './accountLinks';
-import { directGetUsersByUsernames } from '../utils/directAuth';
 
 export async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
     const customId = interaction.customId;
@@ -34,6 +33,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction): Pr
         }
     } catch (error) {
         Logger.error('Error in modal submit handler:', 'ModalSubmit', error);
+        // Error handling...
     }
 }
 
@@ -69,7 +69,7 @@ async function handleVerifyUsernameModal(interaction: ModalSubmitInteraction): P
 
         // Try to find the Roblox user
         try {
-            const robloxUsers = await directGetUsersByUsernames(process.env.ROBLOX_COOKIE, [username]);
+            const robloxUsers = await robloxClient.getUsersByUsernames([username]);
             if (robloxUsers.length === 0) {
                 // Log failed verification - username not found
                 await logVerificationEvent(
@@ -349,46 +349,16 @@ async function handleMultiBindsAddModalSubmit(interaction: ModalSubmitInteractio
 
         // Update the select menu ID to include the user ID for state management
         const message = await interaction.fetchReply();
+        const updatedRow = new ActionRowBuilder<RoleSelectMenuBuilder>()
+            .addComponents(
+                RoleSelectMenuBuilder.from(
+                    (message.components[0].components[0] as any).data
+                ).setCustomId(`binds_select_remove_roles_multi:${interaction.user.id}`)
+            );
 
-        // Type assertion to ensure TypeScript recognizes the components structure
-        const messageComponents = message.components as unknown as {
-            components: Array<{
-                data: any;
-                customId?: string;
-            }>
-        }[];
-
-        if (messageComponents && messageComponents.length > 0 &&
-            messageComponents[0].components && messageComponents[0].components.length > 0) {
-
-            const updatedRow = new ActionRowBuilder<RoleSelectMenuBuilder>()
-                .addComponents(
-                    RoleSelectMenuBuilder.from(
-                        messageComponents[0].components[0].data
-                    ).setCustomId(`binds_select_remove_roles_multi:${interaction.user.id}`)
-                );
-
-            await interaction.editReply({
-                components: [updatedRow, buttonRow]
-            });
-        } else {
-            // Handle the case where components aren't available
-            Logger.warn('Message components structure is not as expected', 'handleMultiBindsAddModalSubmit');
-
-            // Create a new row instead of trying to modify the existing one
-            const newRow = new ActionRowBuilder<RoleSelectMenuBuilder>()
-                .addComponents(
-                    new RoleSelectMenuBuilder()
-                        .setCustomId(`binds_select_remove_roles_multi:${interaction.user.id}`)
-                        .setPlaceholder('Select roles to remove when this binding is active (optional)')
-                        .setMinValues(0)
-                        .setMaxValues(25)
-                );
-
-            await interaction.editReply({
-                components: [newRow, buttonRow]
-            });
-        }
+        await interaction.editReply({
+            components: [updatedRow, buttonRow]
+        });
 
         // Setup collector for the role selection menu
         const collector = message.createMessageComponentCollector({

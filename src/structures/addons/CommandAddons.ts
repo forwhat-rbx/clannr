@@ -7,24 +7,21 @@ import {
     GuildMember,
     BaseInteraction,
     MessageCreateOptions,
-    MessagePayload,
-    InteractionEditReplyOptions,
-    TextBasedChannel,
-    TextChannel,
-    DMChannel,
-    NewsChannel,
-    ThreadChannel
 } from 'discord.js';
 import { Command } from '../Command';
 import { Args } from 'lexure';
 import { getMissingArgumentsEmbed } from '../../handlers/locale';
 import { config } from '../../config';
-import { Logger } from '../../utils/logger';
-import { CustomReplyOptions } from '../../utils/interactionUtils';
 
 export class CommandContext {
-    channel: TextBasedChannel;
-    interaction: CommandInteraction | null;
+    channel: any;
+    interaction: any;
+    editReply(arg0: { content: string; }) {
+        throw new Error('Method not implemented.');
+    }
+    followUp(arg0: { content: string; }) {
+        throw new Error('Method not implemented.');
+    }
     type: 'interaction' | 'message';
     subject?: CommandInteraction | Message;
     user?: User;
@@ -49,11 +46,6 @@ export class CommandContext {
         this.command = new command();
         this.replied = false;
         this.deferred = false;
-        this.interaction = payload instanceof BaseInteraction ? payload as CommandInteraction : null;
-
-        // Store the channel with proper type
-        this.channel = (payload instanceof Message ? payload.channel :
-            (payload as CommandInteraction).channel) as TextBasedChannel;
 
         this.args = {};
         if (payload instanceof BaseInteraction) {
@@ -62,15 +54,10 @@ export class CommandContext {
                 this.args[arg.name] = interaction.options.get(arg.name).value;
             });
         } else {
-            // Removed sendTyping as it's deprecated in Discord.js v14+
-
-            this.command.args.forEach((arg, index) => {
-                if (!arg.isLegacyFlag) this.args[arg.trigger] = args.single()
-            });
-
+            this.subject.channel.sendTyping();
+            this.command.args.forEach((arg, index) => { if (!arg.isLegacyFlag) this.args[arg.trigger] = args.single() });
             const filledOutArgs = Object.keys(Object.fromEntries(Object.entries(this.args).filter(([_, v]) => v !== null)));
             const requiredArgs = this.command.args.filter((arg) => (arg.required === undefined || arg.required === null ? true : arg.required) && !arg.isLegacyFlag);
-
             if (filledOutArgs.length < requiredArgs.length) {
                 this.reply({ embeds: [getMissingArgumentsEmbed(this.command.trigger, this.command.args)] });
                 throw new Error('INVALID_USAGE');
@@ -125,95 +112,32 @@ export class CommandContext {
     }
 
     /**
-     * Send a message in the channel of the command message, or directly reply to a command interaction.
+     * Send a mesasge in the channel of the command message, or directly reply to a command interaction.
      * 
      * @param payload
      */
-    async reply(payload: string | MessagePayload | CustomReplyOptions) {
+    async reply(payload: string | InteractionReplyOptions | MessageCreateOptions | InteractionReplyOptions) {
         this.replied = true;
-
-        // Handle string or message payload directly
-        if (typeof payload === 'string' || payload instanceof MessagePayload) {
-            if (this.subject instanceof CommandInteraction) {
-                try {
-                    if (this.deferred) {
-                        return await this.subject.editReply(payload);
-                    } else {
-                        return await this.subject.reply({
-                            content: typeof payload === 'string' ? payload : undefined,
-                            ...(payload instanceof MessagePayload ? { payload } : {})
-                        });
-                    }
-                } catch (err) {
-                    Logger.error('Error in reply (string/MessagePayload):', 'CommandContext', err);
-                }
-            } else if (this.subject instanceof Message) {
-                if (this.channel && 'send' in this.channel) {
-                    return await this.channel.send(payload);
-                }
-            }
-            return;
-        }
-
-        // Handle object payload with potential ephemeral property
-        const { ephemeral, ...messageOptions } = payload;
-
         if (this.subject instanceof CommandInteraction) {
             try {
                 const subject = this.subject as CommandInteraction;
                 if (this.deferred) {
-                    // For deferred interactions, use editReply (remove ephemeral as it's not valid for editReply)
-                    return await subject.editReply(messageOptions as InteractionEditReplyOptions);
+                    return await subject.editReply(payload);
                 } else {
-                    // For regular interactions, use reply with ephemeral if provided
-                    return await subject.reply({
-                        ...messageOptions,
-                        ephemeral: ephemeral
-                    } as InteractionReplyOptions);
+                    return await subject.reply(payload as InteractionReplyOptions);
                 }
             } catch (err) {
-                Logger.error('Error in reply (interaction):', 'CommandContext', err);
+                const subject = this.subject as CommandInteraction;
                 try {
-                    const subject = this.subject as CommandInteraction;
                     if (this.deferred) {
-                        return await subject.editReply(messageOptions as InteractionEditReplyOptions);
+                        return await subject.editReply(payload as InteractionReplyOptions);
                     } else {
-                        return await subject.reply({
-                            ...messageOptions,
-                            ephemeral: ephemeral
-                        } as InteractionReplyOptions);
+                        return await subject.reply(payload as InteractionReplyOptions);
                     }
-                } catch (secondErr) {
-                    Logger.error('Error in reply (retry):', 'CommandContext', secondErr);
-                }
+                } catch (err) { };
             }
-        } else if (this.subject instanceof Message) {
-            // For message-based commands, use channel.send with type guard
-            if (this.channel && 'send' in this.channel) {
-                return await this.channel.send(messageOptions as MessageCreateOptions);
-            } else {
-                Logger.error('Cannot send message: channel does not support sending', 'CommandContext');
-            }
-        }
-    }
-
-    async editReply(payload: string | MessagePayload | InteractionEditReplyOptions) {
-        if (this.subject instanceof CommandInteraction) {
-            return await this.subject.editReply(payload);
-        }
-    }
-
-    async followUp(payload: string | MessagePayload | CustomReplyOptions) {
-        if (this.subject instanceof CommandInteraction) {
-            if (typeof payload === 'object' && !Buffer.isBuffer(payload) && 'ephemeral' in payload) {
-                const { ephemeral, ...messageOptions } = payload;
-                return await this.subject.followUp({
-                    ...messageOptions,
-                    ephemeral: ephemeral
-                } as InteractionReplyOptions);
-            } else {
-                return await this.subject.followUp(payload as InteractionReplyOptions);
-            }
+        } else {
+            return await this.subject.channel.send(payload as MessageCreateOptions);
         }
     }
 
@@ -226,12 +150,9 @@ export class CommandContext {
                     await this.subject.deferReply({ ephemeral: p0?.ephemeral || false });
                 }
             } else {
-                // No need to call sendTyping as it's deprecated
-                // Instead, we'll just set the deferred flag
+                await this.subject.channel.sendTyping();
             }
             this.deferred = true;
-        } catch (err) {
-            Logger.error('Error in defer:', 'CommandContext', err);
-        }
+        } catch (err) { };
     }
 }

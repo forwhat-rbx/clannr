@@ -102,6 +102,14 @@ export default class Client extends ClientBase {
             userId = parseInt(userId);
         }
 
+        // @ts-ignore
+        return this.apis.usersAPI.getUserById({
+             userId
+        }).then(data => new PartialUser(data, this));
+
+        /*
+        [Bloxy uses broken endpoint]
+        
         return this.apis.otherAPI.getUserProfileHeader({
             userId
         })
@@ -137,7 +145,7 @@ export default class Client extends ClientBase {
                 },
                 messagesDisabled: data.MessagesDisabled,
                 previousUsernames: data.PreviousUserNames
-            }, this));
+            }, this)); */
     }
 
     getUserIdFromUsername (username: string): Promise<PartialUser> {

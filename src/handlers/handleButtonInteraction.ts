@@ -347,40 +347,15 @@ async function handleCheckPromotionsButton(interaction: ButtonInteraction): Prom
         return;
     }
 
-    try {
-        await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ ephemeral: true });
 
-        // Log what we're about to do
-        console.log('Executing promotion check via button click by', interaction.user.tag);
+    // Use promotion service to check for promotions
+    const service = promotionService.getInstance();
+    await service.checkForPromotions();
 
-        // Use promotion service to check for promotions
-        const service = promotionService.getInstance();
-        await service.checkForPromotions();
-
-        console.log('Promotion check completed successfully');
-
-        await interaction.editReply({
-            content: 'Promotion check completed. The promotion embed has been updated.'
-        });
-    } catch (error) {
-        console.error('Error in handleCheckPromotionsButton:', error);
-
-        // Try to respond with the error if we can
-        try {
-            if (interaction.deferred) {
-                await interaction.editReply({
-                    content: `Error checking promotions: ${error.message || 'Unknown error'}`
-                });
-            } else {
-                await interaction.reply({
-                    content: `Error checking promotions: ${error.message || 'Unknown error'}`,
-                    ephemeral: true
-                });
-            }
-        } catch (replyError) {
-            console.error('Error replying to interaction:', replyError);
-        }
-    }
+    await interaction.editReply({
+        content: 'Promotion check completed. The promotion embed has been updated.'
+    });
 }
 
 // Moved these functions out of the handleButtonInteraction scope

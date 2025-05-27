@@ -36,7 +36,6 @@ class ScheduleEventCommand extends Command {
     async run(ctx: CommandContext) {
         try {
             // Extract the subject (interaction) from context
-            // Force cast to CommandInteraction since we know it's a slash command
             const interaction = ctx.subject as CommandInteraction;
 
             // Debug logging
@@ -100,141 +99,17 @@ class ScheduleEventCommand extends Command {
             modal.addComponents(firstRow, secondRow, thirdRow, fourthRow);
 
             try {
-                // Check if we can show a modal - if this fails, the catch block will handle it
+                // Just show the modal - the handling is now in modalSubmitHandler.ts
                 Logger.info('Attempting to show modal', 'ScheduleDebug');
                 await interaction.showModal(modal);
 
-                // Wait for modal submission
-                const filter = (i: ModalSubmitInteraction) => i.customId === `event_create_modal:${ctx.user.id}`;
-                Logger.info('Waiting for modal submission', 'ScheduleDebug');
-
-                const submission = await interaction.awaitModalSubmit({
-                    filter,
-                    time: 300000 // 5 minute timeout
-                });
-
-                Logger.info('Modal submission received', 'ScheduleDebug');
-
-                // Process the submission
-                const eventType = submission.fields.getTextInputValue('event_type').trim().toUpperCase();
-                const eventTimeInput = submission.fields.getTextInputValue('event_time').trim();
-                const eventLocation = submission.fields.getTextInputValue('event_location').trim();
-                const eventNotes = submission.fields.getTextInputValue('event_notes').trim();
-
-                // Validate event type
-                const validTypes = ['TRAINING', 'RAID', 'DEFENSE', 'SCRIM'];
-                if (!validTypes.includes(eventType)) {
-                    await submission.reply({
-                        content: 'Invalid event type. Please use TRAINING, RAID, DEFENSE, or SCRIM.',
-                        ephemeral: true
-                    });
-                    return;
-                }
-
-                // Parse time input to get Unix timestamp
-                let unixTimestamp: number;
-
-                // Try parsing as Unix timestamp first
-                if (/^\d+$/.test(eventTimeInput)) {
-                    unixTimestamp = parseInt(eventTimeInput);
-                } else {
-                    // Try parsing as natural language date
-                    try {
-                        const parsedDate = chrono.parseDate(eventTimeInput);
-                        if (!parsedDate) {
-                            throw new Error('Could not understand the date format');
-                        }
-                        unixTimestamp = Math.floor(parsedDate.getTime() / 1000);
-                    } catch (error) {
-                        await submission.reply({
-                            content: 'Could not understand your date format. Try something like "tomorrow at 8pm" or "May 30 at 3pm".',
-                            ephemeral: true
-                        });
-                        return;
-                    }
-                }
-
-                // Create the event embed
-                const eventEmbed = createBaseEmbed('primary')
-                    .setTitle(`${eventType} EVENT`)
-                    .addFields([
-                        { name: 'Host', value: `<@${ctx.user.id}>`, inline: false },
-                        { name: 'Time', value: `<t:${unixTimestamp}:F> (<t:${unixTimestamp}:R>)`, inline: false },
-                        { name: 'Location', value: eventLocation, inline: false }
-                    ]);
-
-                // Add notes if provided
-                if (eventNotes) {
-                    eventEmbed.addFields({ name: 'Notes', value: eventNotes, inline: false });
-                }
-
-                // Set color based on event type
-                switch (eventType) {
-                    case 'TRAINING':
-                        eventEmbed.setColor('#4CAF50'); // Green
-                        break;
-                    case 'RAID':
-                        eventEmbed.setColor('#F44336'); // Red
-                        break;
-                    case 'DEFENSE':
-                        eventEmbed.setColor('#2196F3'); // Blue
-                        break;
-                    case 'SCRIM':
-                        eventEmbed.setColor('#FF9800'); // Orange
-                        break;
-                }
-
-                // Add buttons for RSVP
-                const rsvpRow = new ActionRowBuilder<ButtonBuilder>()
-                    .addComponents(
-                        new ButtonBuilder()
-                            .setCustomId(`event_rsvp_yes:${Date.now()}`)
-                            .setLabel('Attending')
-                            .setStyle(ButtonStyle.Success)
-                            .setEmoji('✅'),
-                        new ButtonBuilder()
-                            .setCustomId(`event_rsvp_no:${Date.now()}`)
-                            .setLabel('Not Attending')
-                            .setStyle(ButtonStyle.Danger)
-                            .setEmoji('❌'),
-                        new ButtonBuilder()
-                            .setCustomId(`event_rsvp_maybe:${Date.now()}`)
-                            .setLabel('Maybe')
-                            .setStyle(ButtonStyle.Secondary)
-                            .setEmoji('❓')
-                    );
-
-                // Send the event announcement
-                await submission.reply({
-                    content: 'Event scheduled successfully!',
+                // Don't await the modal submission here - that's handled by the modal submit handler
+            } catch (error) {
+                Logger.error('Error showing modal', 'ScheduleDebug', error);
+                await ctx.reply({
+                    content: 'Failed to show event creation form. Please try again.',
                     ephemeral: true
                 });
-
-                // Send the actual announcement to the channel
-                await ctx.channel.send({
-                    content: '@everyone',
-                    embeds: [eventEmbed],
-                    components: [rsvpRow]
-                });
-
-                // Log the event creation
-                Logger.info(`Event scheduled by ${ctx.user.tag}: ${eventType} at ${new Date(unixTimestamp * 1000).toISOString()}`, 'EventScheduling');
-
-            } catch (error) {
-                Logger.error('Error showing modal or processing submission', 'ScheduleDebug', error);
-
-                // Respond to the initial interaction if we haven't already
-                if (!interaction.replied && !interaction.deferred) {
-                    await interaction.reply({
-                        content: 'Failed to create event. Please try again.',
-                        ephemeral: true
-                    });
-                } else {
-                    await ctx.reply({
-                        content: 'Failed to process event creation. Please try again.',
-                        ephemeral: true
-                    });
-                }
             }
         } catch (error) {
             Logger.error('General error in schedule command', 'ScheduleDebug', error);

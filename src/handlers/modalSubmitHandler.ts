@@ -7,6 +7,7 @@ import { config } from '../config';
 import { addRoleBinding, getRoleBindings } from '../handlers/roleBindHandler'; // Added this import
 import { Logger } from '../utils/logger';
 import { getLinkedRobloxUser } from './accountLinks';
+import * as chrono from 'chrono-node';
 
 export async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
     const customId = interaction.customId;
@@ -24,6 +25,9 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction): Pr
             await handleVerifyUsernameModal(interaction);
         } else if (customId === 'binds_multi_add_modal') {
             await handleMultiBindsAddModalSubmit(interaction);
+        } else if (customId.startsWith('event_create_modal:')) {
+            // Pass to event handler function in schedule command
+            await handleEventCreateModal(interaction);
         } else {
             Logger.warn(`Unknown modal type: ${customId}`, 'ModalSubmit');
             void interaction.reply({
@@ -37,6 +41,135 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction): Pr
     }
 }
 
+
+async function handleEventCreateModal(interaction: ModalSubmitInteraction): Promise<void> {
+    try {
+        // Handle the event creation modal submission
+        const userId = interaction.customId.replace('event_create_modal:', '');
+
+        // Immediately defer reply to avoid interaction expiration
+        await interaction.deferReply({ ephemeral: true });
+
+        // Process the submission
+        const eventType = interaction.fields.getTextInputValue('event_type').trim().toUpperCase();
+        const eventTimeInput = interaction.fields.getTextInputValue('event_time').trim();
+        const eventLocation = interaction.fields.getTextInputValue('event_location').trim();
+        const eventNotes = interaction.fields.getTextInputValue('event_notes').trim();
+
+        // Validate event type
+        const validTypes = ['TRAINING', 'RAID', 'DEFENSE', 'SCRIM'];
+        if (!validTypes.includes(eventType)) {
+            await interaction.editReply({
+                content: 'Invalid event type. Please use TRAINING, RAID, DEFENSE, or SCRIM.',
+            });
+            return;
+        }
+
+        // Parse time input to get Unix timestamp
+        let unixTimestamp: number;
+
+        // Try parsing as Unix timestamp first
+        if (/^\d+$/.test(eventTimeInput)) {
+            unixTimestamp = parseInt(eventTimeInput);
+        } else {
+            // Try parsing as natural language date
+            try {
+                const parsedDate = chrono.parseDate(eventTimeInput);
+                if (!parsedDate) {
+                    throw new Error('Could not understand the date format');
+                }
+                unixTimestamp = Math.floor(parsedDate.getTime() / 1000);
+            } catch (error) {
+                await interaction.editReply({
+                    content: 'Could not understand your date format. Try something like "tomorrow at 8pm" or "May 30 at 3pm".',
+                });
+                return;
+            }
+        }
+
+        // Create the event embed
+        const eventEmbed = createBaseEmbed('primary')
+            .setTitle(`${eventType} EVENT`)
+            .addFields([
+                { name: 'Host', value: `<@${interaction.user.id}>`, inline: false },
+                { name: 'Time', value: `<t:${unixTimestamp}:F> (<t:${unixTimestamp}:R>)`, inline: false },
+                { name: 'Location', value: eventLocation, inline: false }
+            ]);
+
+        // Add notes if provided
+        if (eventNotes) {
+            eventEmbed.addFields({ name: 'Notes', value: eventNotes, inline: false });
+        }
+
+        // Set color based on event type
+        switch (eventType) {
+            case 'TRAINING':
+                eventEmbed.setColor('#4CAF50'); // Green
+                break;
+            case 'RAID':
+                eventEmbed.setColor('#F44336'); // Red
+                break;
+            case 'DEFENSE':
+                eventEmbed.setColor('#2196F3'); // Blue
+                break;
+            case 'SCRIM':
+                eventEmbed.setColor('#FF9800'); // Orange
+                break;
+        }
+
+        // Add buttons for RSVP
+        const rsvpRow = new ActionRowBuilder<ButtonBuilder>()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`event_rsvp_yes:${Date.now()}`)
+                    .setLabel('Attending')
+                    .setStyle(ButtonStyle.Success)
+                    .setEmoji('✅'),
+                new ButtonBuilder()
+                    .setCustomId(`event_rsvp_no:${Date.now()}`)
+                    .setLabel('Not Attending')
+                    .setStyle(ButtonStyle.Danger)
+                    .setEmoji('❌'),
+                new ButtonBuilder()
+                    .setCustomId(`event_rsvp_maybe:${Date.now()}`)
+                    .setLabel('Maybe')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setEmoji('❓')
+            );
+
+        // Send success message to the user
+        await interaction.editReply({
+            content: 'Event scheduled successfully!',
+        });
+
+        // Send the actual announcement to the channel
+        const channel = interaction.channel;
+        if (channel) {
+            await channel.send({
+                content: '@everyone',
+                embeds: [eventEmbed],
+                components: [rsvpRow]
+            });
+        }
+
+        // Log the event creation
+        Logger.info(`Event scheduled by ${interaction.user.tag}: ${eventType} at ${new Date(unixTimestamp * 1000).toISOString()}`, 'EventScheduling');
+    } catch (error) {
+        Logger.error('Error processing event creation modal', 'EventScheduling', error);
+
+        // Handle reply based on interaction state
+        if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({
+                content: 'Failed to create event. Please try again.',
+                ephemeral: true
+            });
+        } else {
+            await interaction.editReply({
+                content: 'Failed to process event creation. Please try again.'
+            });
+        }
+    }
+}
 
 async function handleVerifyUsernameModal(interaction: ModalSubmitInteraction): Promise<void> {
     try {

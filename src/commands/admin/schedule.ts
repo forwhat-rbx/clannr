@@ -96,7 +96,7 @@ class ScheduleEventCommand extends Command {
             // Use the interaction directly if it exists and has showModal
             const validInteraction = interaction || originalInteraction;
 
-            if (validInteraction && typeof validInteraction.showModal === 'function') {
+            if (interaction && typeof interaction.showModal === 'function') {
                 Logger.info(`Found valid interaction with showModal`, 'ScheduleDebug');
 
                 // Show the modal

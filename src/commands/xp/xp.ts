@@ -141,9 +141,19 @@ export default class ManageXPCommand extends Command {
                     const update: any = { xp: newXP, lastActivity: new Date() };
                     if (action === 'add' && eventType) {
                         update[eventType] = (userData[eventType] || 0) + 1;
-                        update[
-                            `last${eventType.charAt(0).toUpperCase() + eventType.slice(1)}`
-                        ] = new Date();
+
+                        // Map plural event types to singular database field names
+                        const lastFieldMap = {
+                            'raids': 'lastRaid',
+                            'defenses': 'lastDefense',
+                            'scrims': 'lastScrim',
+                            'trainings': 'lastTraining'
+                        };
+
+                        // Use the mapping to get the correct field name
+                        if (lastFieldMap[eventType]) {
+                            update[lastFieldMap[eventType]] = new Date();
+                        }
                     }
 
                     await provider.updateUser(robloxIdString, update);

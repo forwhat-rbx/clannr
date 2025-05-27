@@ -4,108 +4,253 @@ import { Command } from '../../structures/Command';
 import { PartialUser, User, GroupMember } from 'bloxy/dist/structures';
 import { getLinkedRobloxUser } from '../../handlers/accountLinks';
 import { config } from '../../config';
-import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle } from 'discord.js'; // Added ActionRowBuilder, ButtonBuilder, ButtonStyle
+import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { provider } from '../../database';
-import { createCanvas, loadImage, registerFont, Canvas, CanvasRenderingContext2D as NodeCanvasRenderingContext2D } from 'canvas';
-import { findHighestEligibleRole } from '../ranking/xprankup'; // Import the eligibility checker
+import Jimp from 'jimp';
+import { Logger } from '../../utils/logger';
+import { findHighestEligibleRole } from '../ranking/xprankup';
 
+// Font cache for performance
+const fontCache: Record<string, any> = {};
 
-// Register custom fonts (ensure these files exist in your assets folder)
-try {
-    registerFont('./assets/fonts/Exo2-Bold.ttf', { family: 'Exo2', weight: 'bold' });
-    registerFont('./assets/fonts/Exo2-Regular.ttf', { family: 'Exo2' });
-    registerFont('./assets/fonts/Orbitron-Bold.ttf', { family: 'Orbitron', weight: 'bold' });
-} catch (err) {
-    console.warn('Could not register custom fonts, falling back to system fonts', err);
+// Helper function to convert hexadecimal color codes to Jimp color values
+function hexToJimpColor(hex: string): number {
+    // Remove # if present
+    hex = hex.replace('#', '');
+
+    // Handle short form (e.g. #ABC)
+    if (hex.length === 3) {
+        hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+    }
+
+    // Add alpha if needed
+    if (hex.length === 6) {
+        hex += 'FF';
+    }
+
+    // Convert to integer
+    return parseInt(hex, 16);
 }
 
-// Helper function for drawing rounded rectangles
-function roundedRect(ctx: NodeCanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
-    ctx.beginPath();
-    ctx.moveTo(x + radius, y);
-    ctx.lineTo(x + width - radius, y);
-    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-    ctx.lineTo(x + width, y + height - radius);
-    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-    ctx.lineTo(x + radius, y + height);
-    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-    ctx.lineTo(x, y + radius);
-    ctx.quadraticCurveTo(x, y, x + radius, y);
-    ctx.closePath();
+// Helper function to draw rounded rectangle
+async function roundedRect(image: Jimp, x: number, y: number, width: number, height: number, radius: number, color: number) {
+    // Create a mask image with transparency
+    const mask = new Jimp(width, height, 0x00000000);
+
+    // Draw the rounded rectangle on the mask
+    for (let i = 0; i < width; i++) {
+        for (let j = 0; j < height; j++) {
+            // Calculate distance from each corner
+            const dx1 = i < radius ? radius - i : 0;
+            const dy1 = j < radius ? radius - j : 0;
+            const dx2 = i >= width - radius ? i - (width - radius - 1) : 0;
+            const dy2 = j < radius ? radius - j : 0;
+            const dx3 = i < radius ? radius - i : 0;
+            const dy3 = j >= height - radius ? j - (height - radius - 1) : 0;
+            const dx4 = i >= width - radius ? i - (width - radius - 1) : 0;
+            const dy4 = j >= height - radius ? j - (height - radius - 1) : 0;
+
+            // Check if pixel is inside the rounded rectangle
+            if ((dx1 && dy1 && Math.sqrt(dx1 * dx1 + dy1 * dy1) > radius) ||
+                (dx2 && dy2 && Math.sqrt(dx2 * dx2 + dy2 * dy2) > radius) ||
+                (dx3 && dy3 && Math.sqrt(dx3 * dx3 + dy3 * dy3) > radius) ||
+                (dx4 && dy4 && Math.sqrt(dx4 * dx4 + dy4 * dy4) > radius)) {
+                continue; // Outside the rounded corners
+            }
+
+            // Set pixel as solid
+            mask.setPixelColor(0xFFFFFFFF, i, j);
+        }
+    }
+
+    // Create colored rectangle
+    const rect = new Jimp(width, height, color);
+
+    // Apply mask
+    rect.mask(mask, 0, 0);
+
+    // Composite onto main image
+    image.composite(rect, x, y, {
+        mode: Jimp.BLEND_SOURCE_OVER
+    });
+
+    return image;
 }
 
-// Helper function to draw sharp-edged rectangles (more industrial)
-function sharpRect(ctx: NodeCanvasRenderingContext2D, x: number, y: number, width: number, height: number, cornerSize: number = 5) {
-    ctx.beginPath();
-    ctx.moveTo(x + cornerSize, y);
-    ctx.lineTo(x + width - cornerSize, y);
-    ctx.lineTo(x + width, y + cornerSize);
-    ctx.lineTo(x + width, y + height - cornerSize);
-    ctx.lineTo(x + width - cornerSize, y + height);
-    ctx.lineTo(x + cornerSize, y + height);
-    ctx.lineTo(x, y + height - cornerSize);
-    ctx.lineTo(x, y + cornerSize);
-    ctx.closePath();
+// Helper function to draw sharp-edged rectangle
+async function sharpRect(image: Jimp, x: number, y: number, width: number, height: number, cornerSize: number = 5, color: number) {
+    // Create a mask image with transparency
+    const mask = new Jimp(width, height, 0x00000000);
+
+    // Draw the shape on the mask
+    mask.scan(0, 0, width, height, (px, py, idx) => {
+        // Skip the corners
+        if ((px < cornerSize && py < cornerSize) ||
+            (px >= width - cornerSize && py < cornerSize) ||
+            (px < cornerSize && py >= height - cornerSize) ||
+            (px >= width - cornerSize && py >= height - cornerSize)) {
+            return;
+        }
+
+        // Set pixel as solid
+        mask.setPixelColor(0xFFFFFFFF, px, py);
+    });
+
+    // Create colored rectangle
+    const rect = new Jimp(width, height, color);
+
+    // Apply mask
+    rect.mask(mask, 0, 0);
+
+    // Composite onto main image
+    image.composite(rect, x, y, {
+        mode: Jimp.BLEND_SOURCE_OVER
+    });
+
+    return image;
 }
 
-// Helper function to draw a star (used for high-rank decoration)
-function drawStar(ctx: NodeCanvasRenderingContext2D, cx: number, cy: number, outerRadius: number, innerRadius: number, color: string) {
+// Helper function to draw a star
+async function drawStar(image: Jimp, cx: number, cy: number, outerRadius: number, innerRadius: number, color: number) {
+    // Create a temporary canvas for the star
+    const starSize = Math.max(outerRadius, innerRadius) * 2 + 4; // Add padding
+    const starImg = new Jimp(starSize, starSize, 0x00000000);
+
+    // Calculate star points
+    const points = [];
     let rot = Math.PI / 2 * 3;
-    let step = Math.PI / 5;
+    const step = Math.PI / 5;
 
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - outerRadius);
     for (let i = 0; i < 5; i++) {
-        let x = cx + Math.cos(rot) * outerRadius;
-        let y = cy + Math.sin(rot) * outerRadius;
-        ctx.lineTo(x, y);
+        // Outer point
+        let x1 = cx - Math.round(Math.cos(rot) * outerRadius);
+        let y1 = cy - Math.round(Math.sin(rot) * outerRadius);
+        points.push({ x: x1, y: y1 });
         rot += step;
-        x = cx + Math.cos(rot) * innerRadius;
-        y = cy + Math.sin(rot) * innerRadius;
-        ctx.lineTo(x, y);
+
+        // Inner point
+        let x2 = cx - Math.round(Math.cos(rot) * innerRadius);
+        let y2 = cy - Math.round(Math.sin(rot) * innerRadius);
+        points.push({ x: x2, y: y2 });
         rot += step;
     }
-    ctx.fillStyle = color;
-    ctx.fill();
+
+    // Draw filled polygon
+    const offsetX = starSize / 2 - cx;
+    const offsetY = starSize / 2 - cy;
+
+    // Fill the star
+    for (let x = 0; x < starSize; x++) {
+        for (let y = 0; y < starSize; y++) {
+            const realX = x - offsetX;
+            const realY = y - offsetY;
+
+            if (isPointInPolygon(realX, realY, points)) {
+                starImg.setPixelColor(color, x, y);
+            }
+        }
+    }
+
+    // Composite star onto main image
+    image.composite(starImg, cx - starSize / 2, cy - starSize / 2, {
+        mode: Jimp.BLEND_SOURCE_OVER
+    });
+
+    return image;
+}
+
+// Helper function to check if a point is inside a polygon
+function isPointInPolygon(x: number, y: number, polygon: { x: number, y: number }[]): boolean {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const xi = polygon[i].x, yi = polygon[i].y;
+        const xj = polygon[j].x, yj = polygon[j].y;
+
+        const intersect = ((yi > y) !== (yj > y))
+            && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+    }
+    return inside;
 }
 
 // Helper function to create worn edge effect
-function createWornEdge(ctx: NodeCanvasRenderingContext2D, x: number, y: number, width: number, height: number) {
-    const wornAmount = 1.2; // Slightly reduced for a more subtle effect
-    const noise = 0.7;     // Reduced for cleaner edges
+async function createWornEdge(image: Jimp, x: number, y: number, width: number, height: number) {
+    const wornAmount = 1.2;
+    const noise = 0.7;
 
-    ctx.save();
-    ctx.strokeStyle = 'rgba(50, 50, 50, 0.5)';
-    ctx.lineWidth = 0.8;   // Thinner lines for a more refined look
+    // Draw horizontal worn edges
+    for (let i = 0; i < width; i += 12) {
+        const distortTop = (Math.random() * noise - noise / 2) * wornAmount;
+        const distortBottom = (Math.random() * noise - noise / 2) * wornAmount;
 
-    for (let i = 0; i < width; i += 12) {  // Increased spacing for cleaner look
-        const distort = (Math.random() * noise - noise / 2) * wornAmount;
-        ctx.beginPath();
-        ctx.moveTo(x + i, y + distort);
-        ctx.lineTo(x + i + 5, y + (Math.random() * noise - noise / 2) * wornAmount);
-        ctx.stroke();
+        // Top edge
+        image.setPixelColor(0x32323280, x + i, y + Math.floor(distortTop));
+        image.setPixelColor(0x32323280, x + i + 1, y + Math.floor(distortTop));
 
-        const bottomDistort = (Math.random() * noise - noise / 2) * wornAmount;
-        ctx.beginPath();
-        ctx.moveTo(x + i, y + height + bottomDistort);
-        ctx.lineTo(x + i + 5, y + height + (Math.random() * noise - noise / 2) * wornAmount);
-        ctx.stroke();
+        // Bottom edge
+        image.setPixelColor(0x32323280, x + i, y + height + Math.floor(distortBottom));
+        image.setPixelColor(0x32323280, x + i + 1, y + height + Math.floor(distortBottom));
     }
 
+    // Draw vertical worn edges
     for (let i = 0; i < height; i += 12) {
-        const distort = (Math.random() * noise - noise / 2) * wornAmount;
-        ctx.beginPath();
-        ctx.moveTo(x + distort, y + i);
-        ctx.lineTo(x + (Math.random() * noise - noise / 2) * wornAmount, y + i + 5);
-        ctx.stroke();
+        const distortLeft = (Math.random() * noise - noise / 2) * wornAmount;
+        const distortRight = (Math.random() * noise - noise / 2) * wornAmount;
 
-        const rightDistort = (Math.random() * noise - noise / 2) * wornAmount;
-        ctx.beginPath();
-        ctx.moveTo(x + width + rightDistort, y + i);
-        ctx.lineTo(x + width + (Math.random() * noise - noise / 2) * wornAmount, y + i + 5);
-        ctx.stroke();
+        // Left edge
+        image.setPixelColor(0x32323280, x + Math.floor(distortLeft), y + i);
+        image.setPixelColor(0x32323280, x + Math.floor(distortLeft), y + i + 1);
+
+        // Right edge
+        image.setPixelColor(0x32323280, x + width + Math.floor(distortRight), y + i);
+        image.setPixelColor(0x32323280, x + width + Math.floor(distortRight), y + i + 1);
     }
-    ctx.restore();
+
+    return image;
+}
+
+// Print text with shadow
+async function printTextWithShadow(image: Jimp, font: any, text: string, x: number, y: number, shadowColor: number = 0x00000080, shadowOffset: number = 1) {
+    // Print shadow
+    image.print(font, x + shadowOffset, y + shadowOffset, { text: text });
+
+    // Print main text
+    image.print(font, x, y, { text: text });
+
+    return image;
+}
+
+// Load the font based on size
+async function loadFont(size: number, bold: boolean = false): Promise<any> {
+    const fontKey = `${size}_${bold ? 'bold' : 'regular'}`;
+
+    // Check cache first
+    if (fontCache[fontKey]) {
+        return fontCache[fontKey];
+    }
+
+    // Determine which font to load based on size
+    let fontPath;
+    if (size <= 14) {
+        fontPath = bold ? Jimp.FONT_SANS_14_BLACK : Jimp.FONT_SANS_14_BLACK;
+    } else if (size <= 16) {
+        fontPath = bold ? Jimp.FONT_SANS_16_BLACK : Jimp.FONT_SANS_16_BLACK;
+    } else if (size <= 32) {
+        fontPath = bold ? Jimp.FONT_SANS_32_BLACK : Jimp.FONT_SANS_32_BLACK;
+    } else {
+        fontPath = bold ? Jimp.FONT_SANS_64_BLACK : Jimp.FONT_SANS_64_BLACK;
+    }
+
+    try {
+        // Load the font and cache it
+        const font = await Jimp.loadFont(fontPath);
+        fontCache[fontKey] = font;
+        return font;
+    } catch (error) {
+        Logger.error(`Failed to load font: ${fontPath}`, 'XPCard', error);
+        // Fallback to a default font
+        return await Jimp.loadFont(Jimp.FONT_SANS_16_BLACK);
+    }
 }
 
 // Generate a stunning XP composite image with advanced styling
@@ -123,505 +268,558 @@ const generateCompositeImage = async (
         trainings: number;
     }
 ) => {
-    // FIXED: Updated URLs to more reliable sources
-    const newBackgroundUrl = 'https://i.ibb.co/fYpTNw9p/NEW-SOH-BACK.png'; // Dark tech background
-    const frontLogoUrl = 'https://i.ibb.co/xSrQvRCW/NEW-SOH-FRONT.png'; // Generic logo placeholder
-
-    const width = 1000;
-    const height = 400;
-    const canvas = createCanvas(width, height);
-    const ctx = canvas.getContext('2d');
-
-    // Load and draw main background with better error handling
-    let background;
     try {
-        background = await loadImage(newBackgroundUrl);
-        ctx.drawImage(background, 0, 0, width, height);
+        // FIXED: Updated URLs to more reliable sources
+        const newBackgroundUrl = 'https://i.ibb.co/fYpTNw9/NEW-SOH-BACK.png'; // Dark tech background
+        const frontLogoUrl = 'https://i.ibb.co/xSrQvRCW/NEW-SOH-FRONT.png'; // Generic logo placeholder
 
-        // Modern overlay gradient for better readability
-        const overlay = ctx.createLinearGradient(0, 0, 0, height);
-        overlay.addColorStop(0, 'rgba(10, 12, 18, 0.4)');
-        overlay.addColorStop(0.5, 'rgba(10, 12, 18, 0.3)');
-        overlay.addColorStop(1, 'rgba(10, 12, 18, 0.5)');
-        ctx.fillStyle = overlay;
-        ctx.fillRect(0, 0, width, height);
-    } catch (error) {
-        console.error(`Failed to load background image: ${newBackgroundUrl}`, error);
-        // Fallback: create a more modern gradient background
-        const gradient = ctx.createLinearGradient(0, 0, width, height);
-        gradient.addColorStop(0, '#161921');
-        gradient.addColorStop(0.5, '#21232d');
-        gradient.addColorStop(1, '#191b24');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, width, height);
-    }
+        const width = 1000;
+        const height = 400;
 
-    // Create a modern card effect with sharper edges and better transparency
-    const cardX = 40;
-    const cardY = 40;
-    const cardWidth = width - 80;
-    const cardHeight = height - 80;
+        // Create base canvas
+        let image = new Jimp(width, height, 0x00000000);
 
-    ctx.save();
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
-    ctx.shadowBlur = 25;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 8;
-    ctx.fillStyle = 'rgba(22, 22, 28, 0.8)'; // Darker, more solid background
-    sharpRect(ctx, cardX, cardY, cardWidth, cardHeight, 8); // Larger corner size for modern look
-    ctx.fill();
+        // Load and draw main background with better error handling
+        try {
+            const background = await Jimp.read(newBackgroundUrl);
+            background.resize(width, height);
+            image.composite(background, 0, 0);
 
-    // Modern steel border with sharper contrast
-    const borderGradient = ctx.createLinearGradient(cardX, cardY, cardX, cardY + cardHeight);
-    borderGradient.addColorStop(0, '#8a8a9a');
-    borderGradient.addColorStop(0.5, '#d0d0d0'); // Brighter midpoint
-    borderGradient.addColorStop(1, '#5a5a6a'); // Darker end
-    ctx.strokeStyle = borderGradient;
-    ctx.lineWidth = 2.5; // Slightly thicker border
-    sharpRect(ctx, cardX, cardY, cardWidth, cardHeight, 8);
-    ctx.stroke();
-    ctx.restore();
+            // Add overlay gradient for better readability (simulated with semi-transparent rectangle)
+            const overlay = new Jimp(width, height, 0x0A0C1266);
+            image.composite(overlay, 0, 0);
+        } catch (error) {
+            Logger.error(`Failed to load background image: ${newBackgroundUrl}`, 'XPCard', error);
 
-    // Add modern tech pattern overlay instead of simple grid
-    ctx.save();
-    ctx.globalAlpha = 0.07; // Slightly more visible
-    // Horizontal tech lines with varying opacity
-    for (let i = 0; i < width; i += 60) {
-        ctx.beginPath();
-        ctx.moveTo(i, 0);
-        ctx.lineTo(i, height);
-        ctx.strokeStyle = i % 180 === 0 ? '#90a0ff' : '#aaaaaa'; // Blue accent on every third line
-        ctx.lineWidth = i % 180 === 0 ? 0.8 : 0.4; // Thicker for accent lines
-        ctx.stroke();
-    }
-    // Vertical tech lines with data points
-    for (let i = 0; i < height; i += 60) {
-        ctx.beginPath();
-        ctx.moveTo(0, i);
-        ctx.lineTo(width, i);
-        ctx.strokeStyle = i % 180 === 0 ? '#90a0ff' : '#aaaaaa';
-        ctx.lineWidth = i % 180 === 0 ? 0.8 : 0.4;
-        ctx.stroke();
+            // Fallback: create a gradient background by filling with a dark color
+            image.scan(0, 0, width, height, (x, y, idx) => {
+                // Create a gradient from top to bottom
+                const factor = y / height;
+                const r = Math.floor(22 + factor * 10);
+                const g = Math.floor(25 + factor * 10);
+                const b = Math.floor(33 + factor * 10);
+                const color = (r << 24) + (g << 16) + (b << 8) + 255;
+                image.setPixelColor(color, x, y);
+            });
+        }
 
-        // Add data points at intersections for tech feel
-        if (i % 180 === 0) {
-            for (let j = 0; j < width; j += 180) {
-                ctx.beginPath();
-                ctx.arc(j, i, 2, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(120, 180, 255, 0.7)';
-                ctx.fill();
+        // Create card background
+        const cardX = 40;
+        const cardY = 40;
+        const cardWidth = width - 80;
+        const cardHeight = height - 80;
+
+        // Create the card with a dark semi-transparent background
+        await sharpRect(image, cardX, cardY, cardWidth, cardHeight, 8, 0x16161CE6);
+
+        // Add a border to the card
+        const borderColor = 0x8A8A9AFF;
+        image.scan(cardX, cardY, cardWidth, 2, (x, y, idx) => {
+            image.setPixelColor(borderColor, x, y);
+        });
+        image.scan(cardX, cardY + cardHeight - 2, cardWidth, 2, (x, y, idx) => {
+            image.setPixelColor(borderColor, x, y);
+        });
+        image.scan(cardX, cardY, 2, cardHeight, (x, y, idx) => {
+            image.setPixelColor(borderColor, x, y);
+        });
+        image.scan(cardX + cardWidth - 2, cardY, 2, cardHeight, (x, y, idx) => {
+            image.setPixelColor(borderColor, x, y);
+        });
+
+        // Add tech pattern overlay
+        for (let i = 0; i < width; i += 60) {
+            // Vertical lines
+            const lineColor = i % 180 === 0 ? 0x90A0FF12 : 0xAAAAAA12;
+            const lineWidth = i % 180 === 0 ? 1 : 1;
+
+            for (let y = 0; y < height; y++) {
+                for (let w = 0; w < lineWidth; w++) {
+                    if (i + w < width) {
+                        image.setPixelColor(lineColor, i + w, y);
+                    }
+                }
             }
         }
-    }
-    ctx.restore();
 
-    // Add worn edge effect to card - more refined and subtle
-    createWornEdge(ctx, cardX, cardY, cardWidth, cardHeight);
+        for (let i = 0; i < height; i += 60) {
+            // Horizontal lines
+            const lineColor = i % 180 === 0 ? 0x90A0FF12 : 0xAAAAAA12;
+            const lineWidth = i % 180 === 0 ? 1 : 1;
 
-    // Avatar positioning - optimized for layout balance
-    const avatarSize = 100;
-    const avatarX = cardX + 60;
-    const avatarY = cardY + 30;
+            for (let x = 0; x < width; x++) {
+                for (let w = 0; w < lineWidth; w++) {
+                    if (i + w < height) {
+                        image.setPixelColor(lineColor, x, i + w);
+                    }
+                }
+            }
 
-    // Load and draw avatar with modern industrial effects
-    let avatar;
-    try {
-        avatar = await loadImage(avatarUrl);
+            // Add data points at intersections
+            if (i % 180 === 0) {
+                for (let j = 0; j < width; j += 180) {
+                    // Draw small blue dots at intersections
+                    for (let dx = -1; dx <= 1; dx++) {
+                        for (let dy = -1; dy <= 1; dy++) {
+                            if (j + dx >= 0 && j + dx < width && i + dy >= 0 && i + dy < height) {
+                                image.setPixelColor(0x78B4FFB3, j + dx, i + dy);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Add worn edge effect
+        await createWornEdge(image, cardX, cardY, cardWidth, cardHeight);
+
+        // Avatar positioning
+        const avatarSize = 100;
+        const avatarX = cardX + 60;
+        const avatarY = cardY + 30;
+
+        // Load and draw avatar
+        let avatar;
+        try {
+            avatar = await Jimp.read(avatarUrl);
+            avatar.resize(avatarSize, avatarSize);
+
+            // Create circular mask for avatar
+            const mask = new Jimp(avatarSize, avatarSize, 0x00000000);
+            mask.scan(0, 0, avatarSize, avatarSize, (x, y, idx) => {
+                const centerX = avatarSize / 2;
+                const centerY = avatarSize / 2;
+                const distance = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
+
+                if (distance <= avatarSize / 2) {
+                    mask.setPixelColor(0xFFFFFFFF, x, y);
+                }
+            });
+
+            // Add glow effect around avatar
+            const glowSize = 15;
+            for (let x = avatarX - glowSize; x < avatarX + avatarSize + glowSize; x++) {
+                for (let y = avatarY - glowSize; y < avatarY + avatarSize + glowSize; y++) {
+                    if (x >= 0 && x < width && y >= 0 && y < height) {
+                        const centerX = avatarX + avatarSize / 2;
+                        const centerY = avatarY + avatarSize / 2;
+                        const distance = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
+
+                        if (distance > avatarSize / 2 && distance <= avatarSize / 2 + glowSize) {
+                            // Calculate glow intensity (1.0 at edge of avatar, 0.0 at edge of glow)
+                            const intensity = 1 - ((distance - avatarSize / 2) / glowSize);
+                            const alpha = Math.floor(intensity * 180); // Max alpha of 0.7
+
+                            // Blue glow color
+                            const glowColor = (100 << 24) | (150 << 16) | (230 << 8) | alpha;
+
+                            // Only set pixel if it's more intense than what's already there
+                            const currentColor = image.getPixelColor(x, y);
+                            const currentAlpha = currentColor & 0xFF;
+
+                            if (alpha > currentAlpha) {
+                                image.setPixelColor(glowColor, x, y);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Apply circular mask to avatar
+            avatar.mask(mask, 0, 0);
+
+            // Draw metallic ring around avatar
+            for (let angle = 0; angle < Math.PI * 2; angle += 0.01) {
+                const ringRadius = avatarSize / 2 + 3;
+                const x = Math.round(avatarX + avatarSize / 2 + Math.cos(angle) * ringRadius);
+                const y = Math.round(avatarY + avatarSize / 2 + Math.sin(angle) * ringRadius);
+
+                // Gradient based on angle
+                let brightness = 176 + Math.floor(80 * Math.sin(angle));
+                const ringColor = (brightness << 24) | (brightness << 16) | (brightness << 8) | 0xFF;
+
+                if (x >= 0 && x < width && y >= 0 && y < height) {
+                    image.setPixelColor(ringColor, x, y);
+                }
+            }
+
+            // Draw bolts
+            for (let i = 0; i < 4; i++) {
+                const angle = i * Math.PI / 2;
+                const boltX = Math.round(avatarX + avatarSize / 2 + Math.cos(angle) * (avatarSize / 2 + 6));
+                const boltY = Math.round(avatarY + avatarSize / 2 + Math.sin(angle) * (avatarSize / 2 + 6));
+
+                // Draw bolt
+                for (let dx = -2; dx <= 2; dx++) {
+                    for (let dy = -2; dy <= 2; dy++) {
+                        if (boltX + dx >= 0 && boltX + dx < width && boltY + dy >= 0 && boltY + dy < height) {
+                            const distance = Math.sqrt(dx * dx + dy * dy);
+                            if (distance <= 2.5) {
+                                // Metallic gradient for bolt
+                                const brightness = 160 + Math.floor(40 * (1 - distance / 2.5));
+                                const boltColor = (brightness << 24) | (brightness << 16) | (brightness << 8) | 0xFF;
+                                image.setPixelColor(boltColor, boltX + dx, boltY + dy);
+                            }
+                        }
+                    }
+                }
+
+                // Bolt highlight
+                if (boltX - 1 >= 0 && boltX - 1 < width && boltY - 1 >= 0 && boltY - 1 < height) {
+                    image.setPixelColor(0xFFFFFFCC, boltX - 1, boltY - 1);
+                }
+            }
+
+            // Draw avatar
+            image.composite(avatar, avatarX, avatarY);
+        } catch (error) {
+            Logger.error(`Failed to load avatar image: ${avatarUrl}`, 'XPCard', error);
+
+            // Create a fallback avatar
+            const fallbackAvatar = new Jimp(avatarSize, avatarSize, 0x2A2A33FF);
+
+            // Add a question mark to the fallback avatar
+            const fallbackFont = await loadFont(32);
+            fallbackAvatar.print(fallbackFont, avatarSize / 2 - 10, avatarSize / 2 - 16, { text: '?' });
+
+            // Apply circular mask
+            const mask = new Jimp(avatarSize, avatarSize, 0x00000000);
+            mask.scan(0, 0, avatarSize, avatarSize, (x, y, idx) => {
+                const centerX = avatarSize / 2;
+                const centerY = avatarSize / 2;
+                const distance = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
+
+                if (distance <= avatarSize / 2) {
+                    mask.setPixelColor(0xFFFFFFFF, x, y);
+                }
+            });
+
+            fallbackAvatar.mask(mask, 0, 0);
+            image.composite(fallbackAvatar, avatarX, avatarY);
+        }
+
+        // Determine rank level for decorative emblems
+        const rankLevel = userRank.toLowerCase().includes('commander') ? 5 :
+            userRank.toLowerCase().includes('officer') ? 4 :
+                userRank.toLowerCase().includes('captain') ? 3 :
+                    userRank.toLowerCase().includes('sergeant') ? 2 : 1;
+
+        // Username and rank positioning
+        const nameX = avatarX + avatarSize + 30;
+        const nameY = avatarY + 35;
+
+        // Load fonts for text
+        const usernameFont = await loadFont(38, true);
+        const rankFont = await loadFont(26);
+
+        // Draw username
+        await printTextWithShadow(image, usernameFont, userName, nameX, nameY - 30);
+
+        // Draw rank emblems for higher ranks
+        if (rankLevel > 2) {
+            // Measure text width (approximate)
+            const textWidth = userName.length * 20; // Rough approximation
+
+            for (let i = 0; i < rankLevel - 2; i++) {
+                const emblemX = nameX + textWidth + 20 + (i * 25);
+                // Draw star with glow
+                await drawStar(image, emblemX, nameY - 15, 10, 5, 0xD0D0E0FF);
+            }
+        }
+
+        // Draw rank badge
+        const rankText = `${userRank}`;
+        const rankWidth = rankText.length * 12 + 20; // Approximate width
+        const rankX = nameX;
+        const rankY = nameY + 20;
+
+        // Badge background
+        await roundedRect(image, rankX, rankY, rankWidth, 36, 5, 0x1E1E26E6);
+
+        // Badge border
+        for (let x = rankX; x < rankX + rankWidth; x++) {
+            // Top and bottom border
+            image.setPixelColor(0x8A8A9AFF, x, rankY);
+            image.setPixelColor(0x8A8A9AFF, x, rankY + 35);
+        }
+
+        for (let y = rankY; y < rankY + 36; y++) {
+            // Left and right border
+            image.setPixelColor(0x8A8A9AFF, rankX, y);
+            image.setPixelColor(0x8A8A9AFF, rankX + rankWidth - 1, y);
+        }
+
+        // Print rank text in light blue
+        image.print(rankFont, rankX + 10, rankY + 5, {
+            text: rankText,
+            alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT,
+            alignmentY: Jimp.VERTICAL_ALIGN_MIDDLE
+        }, 0, 0, {
+            r: 160, g: 208, b: 255, a: 255
+        });
+
+        // Modern tech-style progress bar
+        const progressBarWidth = cardWidth - 120;
+        const progressBarHeight = 26;
+        const progressX = cardX + 60;
+        const progressY = avatarY + avatarSize + 25;
+        const progress = nextXP ? Math.min(currentXP / nextXP, 1) : 1;
+        const filledWidth = Math.round(progress * progressBarWidth);
+
+        // Progress bar background
+        const barBg = new Jimp(progressBarWidth, progressBarHeight, 0x16161CF2);
+        image.composite(barBg, progressX, progressY);
+
+        // Progress bar border
+        for (let x = progressX; x < progressX + progressBarWidth; x++) {
+            image.setPixelColor(0x505060FF, x, progressY);
+            image.setPixelColor(0x505060FF, x, progressY + progressBarHeight - 1);
+        }
+        for (let y = progressY; y < progressY + progressBarHeight; y++) {
+            image.setPixelColor(0x505060FF, progressX, y);
+            image.setPixelColor(0x505060FF, progressX + progressBarWidth - 1, y);
+        }
+
+        // Add tech pattern to empty bar
+        for (let i = 0; i < progressBarWidth; i += 8) {
+            for (let y = progressY; y < progressY + progressBarHeight; y++) {
+                image.setPixelColor(0x60607019, progressX + i, y);
+            }
+        }
+
+        // Fill progress bar
+        if (filledWidth > 0) {
+            // Create a blue gradient for the progress bar
+            const barFill = new Jimp(filledWidth, progressBarHeight, 0x00000000);
+            barFill.scan(0, 0, filledWidth, progressBarHeight, (x, y, idx) => {
+                // Gradient from left to right
+                const factor = x / filledWidth;
+                const r = Math.floor(16 + factor * 60);
+                const g = Math.floor(96 + factor * 80);
+                const b = Math.floor(192 + factor * 63);
+                const color = (r << 24) | (g << 16) | (b << 8) | 255;
+                barFill.setPixelColor(color, x, y);
+            });
+
+            // Add scanline effect
+            for (let i = 0; i < progressBarHeight; i += 4) {
+                for (let x = 0; x < filledWidth; x++) {
+                    const currentColor = barFill.getPixelColor(x, i);
+                    // Make it slightly brighter
+                    const r = Math.min(255, ((currentColor >> 24) & 0xFF) + 20);
+                    const g = Math.min(255, ((currentColor >> 16) & 0xFF) + 20);
+                    const b = Math.min(255, ((currentColor >> 8) & 0xFF) + 20);
+                    const newColor = (r << 24) | (g << 16) | (b << 8) | 255;
+                    barFill.setPixelColor(newColor, x, i);
+                }
+            }
+
+            image.composite(barFill, progressX, progressY);
+        }
+
+        // Add XP text
+        const xpFont = await loadFont(16, true);
+        const xpText = `XP: ${currentXP} / ${nextXP ?? 'MAX'}`;
+        const xpTextX = progressX + progressBarWidth / 2 - (xpText.length * 4);
+        const xpTextY = progressY + progressBarHeight / 2 - 8;
+
+        // Print with shadow for better readability
+        await printTextWithShadow(image, xpFont, xpText, xpTextX, xpTextY);
+
+        // Add indicator dots
+        for (let i = 0.2; i <= 0.8; i += 0.2) {
+            const dotX = Math.round(progressX + (progressBarWidth * i));
+            const dotY = Math.round(progressY + progressBarHeight / 2);
+            const isActive = progress >= i;
+
+            // Draw dot
+            const dotColor = isActive ? 0xA0D0FFFF : 0x505050FF;
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dy = -1; dy <= 1; dy++) {
+                    if (dx * dx + dy * dy <= 1) {
+                        image.setPixelColor(dotColor, dotX + dx, dotY + dy);
+                    }
+                }
+            }
+
+            // Add glow for active indicators
+            if (isActive) {
+                for (let dx = -3; dx <= 3; dx++) {
+                    for (let dy = -3; dy <= 3; dy++) {
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist > 1 && dist <= 3.5) {
+                            const intensity = 1 - (dist - 1) / 2.5;
+                            const alpha = Math.floor(intensity * 102); // 0.4 * 255
+                            const glowColor = (160 << 24) | (208 << 16) | (255 << 8) | alpha;
+
+                            const x = dotX + dx;
+                            const y = dotY + dy;
+                            if (x >= progressX && x < progressX + progressBarWidth &&
+                                y >= progressY && y < progressY + progressBarHeight) {
+                                image.setPixelColor(glowColor, x, y);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Combat statistics section
+        const statsStartY = progressY + progressBarHeight + 50;
+        const statItemWidth = (cardWidth - 120) / 4;
+        const statItemHeight = 45;
+
+        // Header text
+        const headerFont = await loadFont(16, true);
+        const headerText = 'COMBAT STATISTICS';
+        const headerX = cardX + cardWidth / 2 - (headerText.length * 5);
+        const headerY = statsStartY - 25;
+
+        // Print header
+        image.print(headerFont, headerX, headerY, { text: headerText }, 0, 0, {
+            r: 160, g: 208, b: 255, a: 255
+        });
+
+        // Divider line
+        for (let x = cardX + 100; x < cardX + cardWidth - 100; x++) {
+            // Gradient divider
+            const position = (x - (cardX + 100)) / (cardWidth - 200);
+            let alpha;
+
+            if (position < 0.5) {
+                alpha = Math.floor((position / 0.5) * 178); // 0.7 * 255
+            } else {
+                alpha = Math.floor(((1 - position) / 0.5) * 178);
+            }
+
+            const dividerColor = (100 << 24) | (150 << 16) | (230 << 8) | alpha;
+            image.setPixelColor(dividerColor, x, statsStartY);
+        }
+
+        // Stats items
+        const statsItems = [
+            { label: 'RAIDS', value: attendance.raids },
+            { label: 'DEFENSES', value: attendance.defenses },
+            { label: 'SCRIMS', value: attendance.scrims },
+            { label: 'TRAININGS', value: attendance.trainings }
+        ];
+
+        // Center the stats
+        const statsStartX = cardX + (cardWidth - statsItems.length * statItemWidth) / 2;
+
+        // Load fonts for stats
+        const statLabelFont = await loadFont(13);
+        const statValueFont = await loadFont(19, true);
+
+        for (let i = 0; i < statsItems.length; i++) {
+            const item = statsItems[i];
+            const statX = Math.round(statsStartX + i * statItemWidth);
+            const statY = Math.round(statsStartY + 10);
+            const statWidth = Math.round(statItemWidth - 10);
+
+            // Background
+            const statBg = new Jimp(statWidth, statItemHeight, 0x1A1A24FF);
+            image.composite(statBg, statX, statY);
+
+            // Border
+            for (let x = statX; x < statX + statWidth; x++) {
+                image.setPixelColor(0x606070FF, x, statY);
+                image.setPixelColor(0x606070FF, x, statY + statItemHeight - 1);
+            }
+
+            for (let y = statY; y < statY + statItemHeight; y++) {
+                image.setPixelColor(0x606070FF, statX, y);
+                image.setPixelColor(0x606070FF, statX + statWidth - 1, y);
+            }
+
+            // Top accent line
+            for (let x = statX; x < statX + statWidth; x++) {
+                image.setPixelColor(0x4080C0FF, x, statY);
+                image.setPixelColor(0x4080C0FF, x, statY + 1);
+            }
+
+            // Center position for text
+            const centerX = statX + statWidth / 2;
+
+            // Print label
+            const labelX = centerX - (item.label.length * 3);
+            image.print(statLabelFont, labelX, statY + 4, { text: item.label }, 0, 0, {
+                r: 144, g: 160, b: 192, a: 255
+            });
+
+            // Print value
+            const valueText = item.value.toString();
+            const valueX = centerX - (valueText.length * 5);
+            image.print(statValueFont, valueX, statY + 20, { text: valueText }, 0, 0, {
+                r: 255, g: 255, b: 255, a: 255
+            });
+        }
+
+        // Try to add front logo
+        try {
+            const frontLogo = await Jimp.read(frontLogoUrl);
+            const logoWidth = 220;
+            const logoHeight = 220 * (frontLogo.bitmap.height / frontLogo.bitmap.width);
+            frontLogo.resize(logoWidth, logoHeight);
+
+            const logoX = cardX + cardWidth - logoWidth - 20;
+            const logoY = cardY + 10;
+
+            // Add with opacity
+            frontLogo.opacity(0.3);
+            image.composite(frontLogo, logoX, logoY);
+        } catch (error) {
+            Logger.error(`Failed to load front logo image: ${frontLogoUrl}`, 'XPCard', error);
+
+            // Create a fallback logo
+            const logoWidth = 220;
+            const logoHeight = 220;
+            const logoX = cardX + cardWidth - logoWidth - 20;
+            const logoY = cardY + 10;
+
+            // Draw a circular glow as fallback
+            for (let x = logoX; x < logoX + logoWidth; x++) {
+                for (let y = logoY; y < logoY + logoHeight; y++) {
+                    const centerX = logoX + logoWidth / 2;
+                    const centerY = logoY + logoHeight / 2;
+                    const distance = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
+
+                    if (distance <= logoWidth / 3) {
+                        const intensity = 1 - distance / (logoWidth / 3);
+                        const alpha = Math.floor(intensity * 25); // 0.1 * 255
+                        const glowColor = (60 << 24) | (100 << 16) | (180 << 8) | alpha;
+
+                        image.setPixelColor(glowColor, x, y);
+                    }
+                }
+            }
+
+            // Add circular detail
+            for (let angle = 0; angle < Math.PI * 2; angle += 0.01) {
+                const x = Math.round(logoX + logoWidth / 2 + Math.cos(angle) * (logoWidth / 4));
+                const y = Math.round(logoY + logoHeight / 2 + Math.sin(angle) * (logoWidth / 4));
+
+                if (x >= 0 && x < width && y >= 0 && y < height) {
+                    image.setPixelColor(0x6496E64D, x, y); // 0.3 alpha
+                }
+            }
+
+            for (let angle = 0; angle < Math.PI * 2; angle += 0.01) {
+                const x = Math.round(logoX + logoWidth / 2 + Math.cos(angle) * (logoWidth / 3));
+                const y = Math.round(logoY + logoHeight / 2 + Math.sin(angle) * (logoWidth / 3));
+
+                if (x >= 0 && x < width && y >= 0 && y < height) {
+                    image.setPixelColor(0x6496E64D, x, y); // 0.3 alpha
+                }
+            }
+        }
+
+        // Convert to buffer and return
+        return await image.getBufferAsync(Jimp.MIME_PNG);
     } catch (error) {
-        console.error(`Failed to load avatar image: ${avatarUrl}`, error);
-        avatar = createCanvas(128, 128);
-        const fallbackCtx = avatar.getContext('2d');
-        fallbackCtx.fillStyle = '#2a2a33';
-        fallbackCtx.fillRect(0, 0, 128, 128);
-        fallbackCtx.font = '32px Arial';
-        fallbackCtx.fillStyle = '#999';
-        fallbackCtx.textAlign = 'center';
-        fallbackCtx.fillText('?', 64, 80);
+        Logger.error('Error generating XP card image', 'XPCard', error);
+        throw error;
     }
-
-    ctx.save();
-    // Enhanced avatar glow for more visual impact
-    const glowSize = 15; // Increased from 12
-    const glowGradient = ctx.createRadialGradient(
-        avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2,
-        avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + glowSize
-    );
-    glowGradient.addColorStop(0, 'rgba(100, 150, 230, 0.7)'); // More vibrant blue
-    glowGradient.addColorStop(1, 'rgba(30, 60, 100, 0)');
-    ctx.beginPath();
-    ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + glowSize, 0, Math.PI * 2);
-    ctx.fillStyle = glowGradient;
-    ctx.fill();
-
-    // Modern metallic frame
-    ctx.beginPath();
-    ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + 3, 0, Math.PI * 2);
-    const metalRingGradient = ctx.createLinearGradient(
-        avatarX, avatarY,
-        avatarX + avatarSize, avatarY + avatarSize
-    );
-    metalRingGradient.addColorStop(0, '#b0b0b0');
-    metalRingGradient.addColorStop(0.5, '#e8e8e8');
-    metalRingGradient.addColorStop(1, '#909090');
-    ctx.strokeStyle = metalRingGradient;
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
-
-    // Modern industrial bolts - more refined
-    for (let i = 0; i < 4; i++) {
-        const angle = i * Math.PI / 2;
-        const boltX = avatarX + avatarSize / 2 + Math.cos(angle) * (avatarSize / 2 + 6);
-        const boltY = avatarY + avatarSize / 2 + Math.sin(angle) * (avatarSize / 2 + 6);
-
-        // Bolt base with modern metallic look
-        ctx.beginPath();
-        ctx.arc(boltX, boltY, 2.5, 0, Math.PI * 2);
-        const boltGradient = ctx.createLinearGradient(
-            boltX - 3, boltY - 3, boltX + 3, boltY + 3
-        );
-        boltGradient.addColorStop(0, '#e0e0e0');
-        boltGradient.addColorStop(0.5, '#a0a0a0');
-        boltGradient.addColorStop(1, '#808080');
-        ctx.fillStyle = boltGradient;
-        ctx.fill();
-
-        // Bolt highlight - more subtle
-        ctx.beginPath();
-        ctx.arc(boltX - 0.8, boltY - 0.8, 0.8, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-        ctx.fill();
-    }
-
-    // Draw avatar image clipped as a circle
-    ctx.beginPath();
-    ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
-    ctx.closePath();
-    ctx.clip();
-    ctx.drawImage(avatar, avatarX, avatarY, avatarSize, avatarSize);
-    ctx.restore();
-
-    // Determine rank level for decorative emblems
-    const rankLevel = userRank.toLowerCase().includes('commander') ? 5 :
-        userRank.toLowerCase().includes('officer') ? 4 :
-            userRank.toLowerCase().includes('captain') ? 3 :
-                userRank.toLowerCase().includes('sergeant') ? 2 : 1;
-
-    // Username and rank positioning
-    const nameX = avatarX + avatarSize + 30;
-    const nameY = avatarY + 35;
-
-    // Draw username with modern metallic effect
-    ctx.save();
-    ctx.font = `bold 38px Orbitron, Arial`;
-
-    // Modern shadow for depth
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    ctx.fillText(userName, nameX + 1.5, nameY + 1.5);
-
-    // Modern metal gradient for text
-    const nameGradient = ctx.createLinearGradient(nameX, nameY - 30, nameX, nameY + 10);
-    nameGradient.addColorStop(0, '#ffffff');
-    nameGradient.addColorStop(0.5, '#e0e0e0');
-    nameGradient.addColorStop(1, '#b0b0b0');
-    ctx.fillStyle = nameGradient;
-    ctx.fillText(userName, nameX, nameY);
-
-    // Modern rank emblems for higher ranks
-    if (rankLevel > 2) {
-        for (let i = 0; i < rankLevel - 2; i++) {
-            const emblemX = nameX + ctx.measureText(userName).width + 20 + (i * 25);
-
-            // Modern star with glow
-            ctx.save();
-            ctx.shadowColor = 'rgba(100, 150, 255, 0.6)';
-            ctx.shadowBlur = 8;
-            ctx.shadowOffsetX = 0;
-            ctx.shadowOffsetY = 0;
-            drawStar(ctx, emblemX, nameY - 15, 10, 5, '#d0d0e0');
-            ctx.restore();
-        }
-    }
-    ctx.restore();
-
-    // Draw rank badge with modern styling
-    ctx.save();
-    ctx.font = `26px Exo2, Arial`;
-    const rankText = `${userRank}`;
-    const rankWidth = ctx.measureText(rankText).width + 20;
-    const rankX = nameX;
-    const rankY = nameY + 20;
-
-    // Modern badge background with enhanced depth
-    const badgeGradient = ctx.createLinearGradient(rankX, rankY, rankX, rankY + 36);
-    badgeGradient.addColorStop(0, 'rgba(30, 30, 38, 0.9)');
-    badgeGradient.addColorStop(0.5, 'rgba(35, 35, 45, 0.85)');
-    badgeGradient.addColorStop(1, 'rgba(28, 28, 36, 0.9)');
-    ctx.fillStyle = badgeGradient;
-    roundedRect(ctx, rankX, rankY, rankWidth, 36, 5);
-    ctx.fill();
-
-    // Modern metal plate border with refined styling
-    const rankBorderGradient = ctx.createLinearGradient(rankX, rankY, rankX + rankWidth, rankY);
-    rankBorderGradient.addColorStop(0, '#8a8a9a');
-    rankBorderGradient.addColorStop(0.5, '#c0c0d0');
-    rankBorderGradient.addColorStop(1, '#8a8a9a');
-    ctx.strokeStyle = rankBorderGradient;
-    ctx.lineWidth = 1;
-    roundedRect(ctx, rankX, rankY, rankWidth, 36, 5);
-    ctx.stroke();
-
-    // Modern text with light blue color as requested
-    ctx.fillStyle = '#a0d0ff'; // Light blue text color
-    ctx.shadowColor = 'rgba(100, 180, 255, 0.4)';
-    ctx.shadowBlur = 4;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
-    ctx.fillText(rankText, rankX + 10, rankY + 26);
-
-    // Removed the rivets/dots as requested
-    ctx.restore();
-
-    // Modern tech-style progress bar
-    ctx.save();
-    const progressBarWidth = cardWidth - 120;
-    const progressBarHeight = 26; // Slightly taller
-    const progressX = cardX + 60;
-    const progressY = avatarY + avatarSize + 25;
-    const progress = nextXP ? Math.min(currentXP / nextXP, 1) : 1;
-    const filledWidth = progress * progressBarWidth;
-
-    // Shadow for depth
-    ctx.shadowColor = 'rgba(0, 80, 180, 0.4)';
-    ctx.shadowBlur = 10;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 2;
-
-    // Sharp-cornered progress bar background for modern tech look
-    ctx.fillStyle = 'rgba(22, 22, 28, 0.95)';
-    ctx.fillRect(progressX, progressY, progressBarWidth, progressBarHeight);
-
-    // Techy border with blue accent
-    ctx.strokeStyle = '#505060';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(progressX, progressY, progressBarWidth, progressBarHeight);
-
-    // Add tech pattern to empty bar
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(progressX, progressY, progressBarWidth, progressBarHeight);
-    ctx.clip();
-    ctx.globalAlpha = 0.1;
-    for (let i = 0; i < progressBarWidth; i += 8) {
-        ctx.beginPath();
-        ctx.moveTo(progressX + i, progressY);
-        ctx.lineTo(progressX + i, progressY + progressBarHeight);
-        ctx.strokeStyle = '#606070';
-        ctx.lineWidth = 0.5;
-        ctx.stroke();
-    }
-    ctx.restore();
-
-    // Modern high-contrast fill
-    if (filledWidth > 0) {
-        // More vibrant blue gradient
-        const progressGradient = ctx.createLinearGradient(progressX, progressY, progressX + progressBarWidth, progressY);
-        progressGradient.addColorStop(0, '#1060c0');
-        progressGradient.addColorStop(0.4, '#3080e0');
-        progressGradient.addColorStop(1, '#50a0ff');
-        ctx.fillStyle = progressGradient;
-
-        // Draw with sharp corners for modern look
-        ctx.fillRect(progressX, progressY, filledWidth, progressBarHeight);
-
-        // Add tech scanline effect to filled portion
-        ctx.save();
-        ctx.globalAlpha = 0.15;
-        ctx.beginPath();
-        ctx.rect(progressX, progressY, filledWidth, progressBarHeight);
-        ctx.clip();
-
-        for (let i = 0; i < progressBarHeight; i += 4) {
-            ctx.beginPath();
-            ctx.moveTo(progressX, progressY + i);
-            ctx.lineTo(progressX + filledWidth, progressY + i);
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-        }
-        ctx.restore();
-    }
-
-    // Modern XP counter - tech-inspired
-    ctx.font = 'bold 16px Orbitron, Arial';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#ffffff';
-    // Add drop shadow for better readability
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
-    ctx.shadowBlur = 3;
-    ctx.fillText(
-        `XP: ${currentXP} / ${nextXP ?? 'MAX'}`,
-        progressX + progressBarWidth / 2,
-        progressY + progressBarHeight / 2 + 6
-    );
-
-    // Centered indicator dots in the progress bar
-    ctx.shadowBlur = 0;
-    for (let i = 0.2; i <= 0.8; i += 0.2) {
-        const dotX = progressX + (progressBarWidth * i);
-        const dotY = progressY + progressBarHeight / 2; // Centered vertically
-        const isActive = progress >= i;
-
-        // Modern indicator design
-        ctx.beginPath();
-        ctx.arc(dotX, dotY, 2, 0, Math.PI * 2);
-        ctx.fillStyle = isActive ? '#a0d0ff' : '#505050';
-        ctx.fill();
-
-        // Subtle glow for active indicators
-        if (isActive) {
-            ctx.beginPath();
-            ctx.arc(dotX, dotY, 3.5, 0, Math.PI * 2);
-            ctx.strokeStyle = 'rgba(160, 208, 255, 0.4)';
-            ctx.lineWidth = 0.7;
-            ctx.stroke();
-        }
-    }
-    ctx.restore();
-
-    // Updated combat statistics section with modern styling and no triangles
-    ctx.save();
-    // Set these properties specifically to prevent triangle artifacts
-    ctx.lineJoin = 'miter';
-    ctx.miterLimit = 1;
-
-    const statsStartY = progressY + progressBarHeight + 50;
-    const statItemWidth = (cardWidth - 120) / 4;
-    const statItemHeight = 45;
-
-    // Modern tech header
-    ctx.font = 'bold 16px Orbitron, Arial'; // Change to Orbitron for tech feel
-    ctx.fillStyle = '#a0d0ff'; // Light blue for consistency
-    ctx.textAlign = 'center';
-    ctx.fillText('COMBAT STATISTICS', cardX + cardWidth / 2, statsStartY - 8);
-
-    // Modern divider with tech feel
-    const dividerGradient = ctx.createLinearGradient(
-        cardX + 100, statsStartY,
-        cardX + cardWidth - 100, statsStartY
-    );
-    dividerGradient.addColorStop(0, 'rgba(80, 100, 180, 0.1)');
-    dividerGradient.addColorStop(0.5, 'rgba(100, 150, 230, 0.7)');
-    dividerGradient.addColorStop(1, 'rgba(80, 100, 180, 0.1)');
-    ctx.strokeStyle = dividerGradient;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(cardX + 100, statsStartY);
-    ctx.lineTo(cardX + cardWidth - 100, statsStartY);
-    ctx.stroke();
-
-    // Stats items
-    const statsItems = [
-        { label: 'RAIDS', value: attendance.raids },
-        { label: 'DEFENSES', value: attendance.defenses },
-        { label: 'SCRIMS', value: attendance.scrims },
-        { label: 'TRAININGS', value: attendance.trainings }
-    ];
-
-    // Center the stats
-    const statsStartX = cardX + (cardWidth - statsItems.length * statItemWidth) / 2;
-
-    statsItems.forEach((item, index) => {
-        const statX = statsStartX + index * statItemWidth;
-        const statY = statsStartY + 10;
-
-        // Clean rectangle with NO gradients to prevent triangle artifacts
-        ctx.fillStyle = '#1a1a24'; // Solid dark background
-        ctx.fillRect(statX, statY, statItemWidth - 10, statItemHeight);
-
-        // Simple clean border
-        ctx.strokeStyle = '#606070';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(statX, statY, statItemWidth - 10, statItemHeight);
-
-        // Modern accent line at top - flat for no triangles
-        ctx.beginPath();
-        ctx.moveTo(statX, statY);
-        ctx.lineTo(statX + statItemWidth - 10, statY);
-        ctx.strokeStyle = '#4080c0'; // More vibrant blue
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        // Clean text rendering
-        const centerX = statX + (statItemWidth - 10) / 2;
-
-        // Label with tech font
-        ctx.fillStyle = '#90a0c0';
-        ctx.font = '13px Orbitron, Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(item.label, centerX, statY + 17);
-
-        // Value with more prominence
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 19px Orbitron, Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(`${item.value}`, centerX, statY + 38);
-    });
-
-    ctx.restore();
-
-    // Enhanced front logo with better error handling
-    try {
-        const frontLogo = await loadImage(frontLogoUrl);
-        // Increase size to 220px wide for more prominence
-        const logoWidth = 220;
-        const logoHeight = 220 * (frontLogo.height / frontLogo.width);
-        const logoX = cardX + cardWidth - logoWidth - 20;
-        const logoY = cardY + 10;
-
-        // Modern tech glow behind the logo
-        ctx.save();
-        ctx.shadowColor = 'rgba(80, 120, 200, 0.3)';
-        ctx.shadowBlur = 25;
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 0;
-        ctx.drawImage(frontLogo, logoX, logoY, logoWidth, logoHeight);
-        ctx.restore();
-    } catch (error) {
-        console.error(`Failed to load front logo image: ${frontLogoUrl}`, error);
-
-        // Modern fallback logo created directly on canvas
-        const logoWidth = 220;
-        const logoHeight = 220;
-        const logoX = cardX + cardWidth - logoWidth - 20;
-        const logoY = cardY + 10;
-
-        ctx.save();
-        // Draw tech-style logo shape
-        ctx.beginPath();
-        ctx.arc(logoX + logoWidth / 2, logoY + logoHeight / 2, logoWidth / 3, 0, Math.PI * 2);
-        const logoGradient = ctx.createRadialGradient(
-            logoX + logoWidth / 2, logoY + logoHeight / 2, logoWidth / 6,
-            logoX + logoWidth / 2, logoY + logoHeight / 2, logoWidth / 3
-        );
-        logoGradient.addColorStop(0, 'rgba(60, 100, 180, 0.1)');
-        logoGradient.addColorStop(0.7, 'rgba(40, 80, 140, 0.05)');
-        logoGradient.addColorStop(1, 'rgba(30, 60, 120, 0)');
-        ctx.fillStyle = logoGradient;
-        ctx.fill();
-
-        // Add tech details to fallback logo
-        ctx.strokeStyle = 'rgba(100, 150, 230, 0.2)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.arc(logoX + logoWidth / 2, logoY + logoHeight / 2, logoWidth / 4, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(100, 150, 230, 0.3)';
-        ctx.stroke();
-        ctx.restore();
-    }
-
-    return canvas.toBuffer();
 };
 
 // The rest of the code remains unchanged

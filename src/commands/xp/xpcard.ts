@@ -158,7 +158,7 @@ export default class XPCommand extends Command {
 
             const cardBuilder = new XPCardBuilder();
             try {
-                await cardBuilder.initialize('https://i.ibb.co/Z68bgDS/NEW-SOH-BACK.png');
+                await cardBuilder.initialize('https://i.ibb.co/Z68bgDS8/NEW-SOH-BACK.png');
             } catch (bgError) {
                 Logger.warn('Failed to load background image, using default background', 'XPCard');
                 await cardBuilder.initialize();

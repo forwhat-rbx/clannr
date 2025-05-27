@@ -22,6 +22,7 @@ import { Logger } from './utils/logger';
 import { promiseWithTimeout } from './utils/timeoutUtil';
 import { directAuthenticate, getXCSRFToken, directGetGroup, directGetGroupRoles, directGetGroupAuditLogs } from './utils/directAuth';
 import { initializeDatabase } from './database/dbInit';
+import { deployCommands } from './utils/deployCommands';
 
 require('dotenv').config();
 
@@ -49,6 +50,26 @@ require('./api');
 // [Clients]
 const discordClient = new QbotClient();
 discordClient.login(process.env.DISCORD_TOKEN);
+discordClient.once('ready', async () => {
+
+    try {
+        await deployCommands();
+        Logger.info('Commands deployed successfully', 'Discord');
+    } catch (error) {
+        Logger.error('Failed to deploy commands', 'Discord', error);
+    }
+
+    Logger.info(`Discord connected as ${discordClient.user.tag} (${discordClient.user.id})`, 'Discord');
+
+    // Log guild information to verify bot is in expected servers
+    Logger.info(`Connected to ${discordClient.guilds.cache.size} guilds:`, 'Discord');
+    discordClient.guilds.cache.forEach(guild => {
+        Logger.info(`- ${guild.name} (${guild.id}) | Members: ${guild.memberCount}`, 'Discord');
+    });
+
+    // Verify slash command registration
+    Logger.info(`Bot has ${discordClient.application.commands.cache.size} global commands registered`, 'Discord');
+});
 const robloxClient = new RobloxClient({ credentials: { cookie: process.env.ROBLOX_COOKIE } });
 
 try {

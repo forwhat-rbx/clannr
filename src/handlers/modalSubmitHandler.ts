@@ -34,7 +34,6 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction): Pr
         }
     } catch (error) {
         Logger.error('Error in modal submit handler:', 'ModalSubmit', error);
-        // Error handling...
     }
 }
 

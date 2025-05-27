@@ -284,8 +284,8 @@ export class XPCardBuilder {
                         const distance = Math.sqrt(dx * dx + dy * dy);
                         if (distance <= 2.5) {
                             // Metallic gradient
-                            const brightness = 160 + Math.floor(40 * (1 - distance / 2.5));
-                            const boltColor = (brightness << 24) | (brightness << 16) | (brightness << 8) | 0xFF;
+                            const brightness = Math.min(255, Math.max(0, 160 + Math.floor(40 * (1 - distance / 2.5))));
+                            const boltColor = Jimp.rgbaToInt(brightness, brightness, brightness, 255);
                             this.image.setPixelColor(boltColor, boltX + dx, boltY + dy);
                         }
                     }
@@ -294,7 +294,9 @@ export class XPCardBuilder {
 
             // Bolt highlight
             if (boltX - 1 >= 0 && boltX - 1 < this.width && boltY - 1 >= 0 && boltY - 1 < this.height) {
-                this.image.setPixelColor(0xFFFFFFCC, boltX - 1, boltY - 1);
+                // FIX: Use Jimp.rgbaToInt for highlight color too
+                const highlightColor = Jimp.rgbaToInt(255, 255, 255, 204); // 0xFFFFFFCC
+                this.image.setPixelColor(highlightColor, boltX - 1, boltY - 1);
             }
         }
     }

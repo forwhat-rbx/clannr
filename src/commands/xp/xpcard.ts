@@ -138,23 +138,40 @@ export default class XPCommand extends Command {
 
         const nextXp = getNextXpRequirement(robloxMember, userData.xp);
 
-        const avatarUrl = await robloxClient.apis.thumbnailsAPI
-            .getUsersAvatarHeadShotImages({
-                userIds: [robloxUser.id],
-                size: '420x420', // Use a larger size for better quality
-                format: 'png',
-                isCircular: false
-            })
-            .then(res => {
-                const imageUrl = res.data[0]?.imageUrl;
-                Logger.debug(`Avatar URL fetched: ${imageUrl}`, 'XPCard');
-                return imageUrl || 'https://www.roblox.com/headshot-thumbnail/image?userId=' + robloxUser.id;
-            })
-            .catch(err => {
-                Logger.error(`Failed to fetch avatar: ${err.message}`, 'XPCard');
-                // Fallback to direct URL format which is more reliable
-                return `https://www.roblox.com/headshot-thumbnail/image?userId=${robloxUser.id}&width=150&height=150&format=png`;
-            });
+        // Replace the existing avatar URL fetching code with this more robust version
+        const avatarUrl = await (async () => {
+            try {
+                // First attempt - Use Roblox API
+                const response = await robloxClient.apis.thumbnailsAPI.getUsersAvatarHeadShotImages({
+                    userIds: [robloxUser.id],
+                    size: '150x150', // Use smaller size for better compatibility
+                    format: 'png',
+                    isCircular: false
+                });
+
+                const imageUrl = response.data[0]?.imageUrl;
+                if (imageUrl) {
+                    Logger.debug(`Avatar URL fetched from API: ${imageUrl}`, 'XPCard');
+                    return imageUrl;
+                }
+                throw new Error('No avatar URL returned from Roblox API');
+            } catch (err) {
+                Logger.warn(`Failed to fetch avatar via API: ${err.message}`, 'XPCard');
+
+                // Second attempt - Use direct CDN URL with random cache buster
+                try {
+                    const cacheBuster = Date.now();
+                    const directUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${robloxUser.id}&width=150&height=150&format=png&t=${cacheBuster}`;
+                    Logger.debug(`Trying direct URL: ${directUrl}`, 'XPCard');
+                    return directUrl;
+                } catch (directErr) {
+                    Logger.error(`Failed to create direct URL: ${directErr.message}`, 'XPCard');
+
+                    // Last resort - Use placeholder service
+                    return `https://via.placeholder.com/150x150/36393F/FFFFFF?text=${encodeURIComponent(robloxUser.name.substring(0, 2))}`;
+                }
+            }
+        })();
 
         try {
             // Create the XP card

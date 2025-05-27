@@ -56,7 +56,7 @@ model RoleBind {
 }
 
 model GuildConfig {
-  id                   String   @id
+  id                   String  @id @default(uuid())
   guildId              String   @unique
   nicknameFormat       String   @default("{robloxUsername}")
   verifiedRoleId       String?

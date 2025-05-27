@@ -27,23 +27,31 @@ if (!process.env.ROBLOX_COOKIE) {
     process.exit(1);
 }
 
+// Import database and API - database automatically initializes on import
 require('./database');
 require('./api');
 
 // [Clients]
 const discordClient = new QbotClient();
-discordClient.login(process.env.DISCORD_TOKEN);
 const robloxClient = new RobloxClient({ credentials: { cookie: process.env.ROBLOX_COOKIE } });
 let robloxGroup: Group = null;
 
-(async () => {
+// Main initialization function
+async function initialize() {
     try {
+        // Login to Discord
+        Logger.info('Logging in to Discord...', 'Auth');
+        await discordClient.login(process.env.DISCORD_TOKEN);
+
+        // Load commands
+        await discordClient.loadCommands();
+
+        // Login to Roblox
         Logger.info('Attempting to login to Roblox...', 'Auth');
         await robloxClient.login();
 
-        // Instead of getCurrentUser (which doesn't exist), verify authentication by getting user info
         try {
-            // This is the typical way to get authenticated user info in Bloxy
+            // Verify Roblox authentication
             const userInfo = await robloxClient.apis.usersAPI.getAuthenticatedUserInformation();
             Logger.info(`Successfully logged in as: ${userInfo.name} (${userInfo.id})`, 'Auth');
         } catch (userErr) {
@@ -56,7 +64,7 @@ let robloxGroup: Group = null;
         robloxGroup = await robloxClient.getGroup(config.groupId);
         Logger.info(`Found group: ${robloxGroup.name} (${robloxGroup.id})`, 'Auth');
 
-        // Validate group access by fetching roles (crucial for ranking permissions)
+        // Validate group access by fetching roles
         const roles = await robloxGroup.getRoles();
         Logger.info(`Authentication confirmed - found ${roles.length} group roles`, 'Auth');
 
@@ -71,7 +79,7 @@ let robloxGroup: Group = null;
             }, 3, 5000);
             Logger.info('Initial XSRF token fetched successfully', 'Auth');
 
-            // Initialize promotion service AFTER we've confirmed authentication
+            // Initialize promotion service AFTER authentication is confirmed
             schedulePromotionChecks();
         } catch (err) {
             Logger.error('Failed to fetch initial XSRF token:', 'Auth', err);
@@ -84,7 +92,17 @@ let robloxGroup: Group = null;
             }, 20000);
         }
 
-        // [Events]
+        // Start background tasks
+        startBackgroundTasks();
+    } catch (error) {
+        Logger.error('CRITICAL ERROR during initialization', 'Auth', error);
+        process.exit(1);
+    }
+}
+
+// Start all background tasks with proper error handling
+function startBackgroundTasks() {
+    try {
         checkSuspensions();
         checkBans();
         if (config.logChannels.shout) recordShout();
@@ -92,11 +110,11 @@ let robloxGroup: Group = null;
         if (config.memberCount.enabled) recordMemberCount();
         if (config.antiAbuse.enabled) clearActions();
         if (config.deleteWallURLs) checkWallForAds();
+        Logger.info('All background tasks started successfully', 'Startup');
     } catch (error) {
-        Logger.error('AUTHENTICATION FAILED - Your Roblox cookie may be invalid or expired', 'Auth', error);
-        process.exit(1);
+        Logger.error('Error starting background tasks', 'Startup', error);
     }
-})();
+}
 
 // [Handlers]
 discordClient.on('interactionCreate', async (interaction) => {
@@ -134,7 +152,12 @@ discordClient.on('interactionCreate', async (interaction) => {
 });
 
 discordClient.on('messageCreate', handleLegacyCommand);
-ActivityLogger.testLogging();
+
+// Start the initialization process
+initialize().catch(error => {
+    Logger.error('Failed to initialize application', 'Startup', error);
+    process.exit(1);
+});
 
 // [Module]
 export { discordClient, robloxClient, robloxGroup };

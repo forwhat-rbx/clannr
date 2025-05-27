@@ -68,7 +68,7 @@ abstract class Command {
      * Generate a command object for slash commands.
      */
     generateAPICommand() {
-        if(this.type.startsWith('Subcommand')) {
+        if (this.type?.startsWith('Subcommand')) {
             return {
                 name: this.trigger,
                 description: this.description,
@@ -79,7 +79,7 @@ abstract class Command {
             return {
                 name: this.trigger,
                 description: this.description,
-                type: commandTypeMappings[this.type],
+                type: commandTypeMappings[this.type || 'ChatInput'],
                 options: this.args ? this.args.map(mapArgument) : [],
                 defaultPermission: true,
             }
@@ -89,9 +89,8 @@ abstract class Command {
     /**
      * The function to run the command.
      * @param ctx The context of the command.
-     * @param args The arguments passed to the command, as an object mapped by ID.
      */
-    abstract run(ctx: CommandContext): void;
+    abstract run(ctx: CommandContext): Promise<any> | any;
 }
 
 export { Command };

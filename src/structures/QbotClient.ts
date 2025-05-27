@@ -59,6 +59,7 @@ class QbotClient extends Client {
                             const { default: CommandClass } = await import(commandPath);
 
                             if (CommandClass && typeof CommandClass === 'function') {
+                                // Create an instance of the command and store it
                                 const command = new CommandClass();
                                 Logger.debug(`Loaded command: ${command.trigger || 'Unknown'}`, 'CommandLoader');
                                 loadedCommands.push(command);

@@ -8,8 +8,8 @@ import { User } from 'bloxy/dist/structures';
  */
 export const getLinkedRobloxUser = async (discordId: string): Promise<User | null> => {
     try {
-        // Find the user link in our database
-        const userLink = await prisma.userLink.findUnique({
+        // Use findFirst instead of findUnique to avoid schema conflicts
+        const userLink = await prisma.userLink.findFirst({
             where: {
                 discordId: discordId
             }
@@ -36,23 +36,31 @@ export const createUserLink = async (discordId: string, robloxId: string) => {
         // Ensure robloxId is always a string
         const robloxIdString = String(robloxId);
 
-        const result = await prisma.userLink.upsert({
-            where: {
-                discordId: discordId
-            },
-            update: {
-                robloxId: robloxIdString,
-                verifiedAt: new Date()
-            },
-            create: {
-                discordId: discordId,
-                robloxId: robloxIdString,
-                verifiedAt: new Date()
-            }
+        // Use upsert with findFirst precondition instead of relying on unique constraints
+        const existingLink = await prisma.userLink.findFirst({
+            where: { discordId: discordId }
         });
 
-        console.log(`[LINK DEBUG] Link created successfully:`, result);
-        return result;
+        if (existingLink) {
+            // Update existing link
+            const result = await prisma.userLink.update({
+                where: { discordId: discordId },
+                data: {
+                    robloxId: robloxIdString,
+                    verifiedAt: new Date()
+                }
+            });
+            console.log(`[LINK DEBUG] Link updated successfully:`, result);
+            return result;
+        } else {
+            // Create new link
+            const result = await prisma.$queryRaw`
+                INSERT INTO UserLink (discordId, robloxId, verifiedAt)
+                VALUES (${discordId}, ${robloxIdString}, ${new Date()})
+            `;
+            console.log(`[LINK DEBUG] Link created successfully via raw query`);
+            return { discordId, robloxId: robloxIdString, verifiedAt: new Date() };
+        }
     } catch (err) {
         console.error("Failed to create user link:", err);
         throw err;
@@ -64,9 +72,7 @@ export const createUserLink = async (discordId: string, robloxId: string) => {
  */
 export const removeUserLink = async (discordId: string) => {
     try {
-        return await prisma.userLink.delete({
-            where: { discordId: discordId }
-        });
+        return await prisma.$executeRaw`DELETE FROM UserLink WHERE discordId = ${discordId}`;
     } catch (err) {
         console.error("Failed to remove user link:", err);
         throw err;
@@ -77,9 +83,11 @@ export const removeUserLink = async (discordId: string) => {
  * Check if a Discord user is verified
  */
 export const isUserVerified = async (discordId: string): Promise<boolean> => {
-    const userLink = await prisma.userLink.findUnique({
-        where: { discordId: discordId }
-    });
-
-    return !!userLink;
+    try {
+        const count = await prisma.$queryRaw`SELECT COUNT(*) as count FROM UserLink WHERE discordId = ${discordId}`;
+        return count[0].count > 0;
+    } catch (err) {
+        console.error("Failed to check verification status:", err);
+        return false;
+    }
 };

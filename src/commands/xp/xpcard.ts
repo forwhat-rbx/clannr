@@ -157,13 +157,13 @@ export default class XPCommand extends Command {
             };
 
             const cardBuilder = new XPCardBuilder();
-            await cardBuilder.initialize('https://i.ibb.co/fYpTNw9/NEW-SOH-BACK.png');
+            await cardBuilder.initialize('https://i.ibb.co/Z68bgDS8/NEW-SOH-BACK.png');
             await cardBuilder.addCardBackground();
             await cardBuilder.addAvatar(avatarUrl);
             await cardBuilder.addUserInfo(robloxUser.name, robloxMember.role.name);
             await cardBuilder.addProgressBar(userData.xp, nextXp);
             await cardBuilder.addStatistics(stats);
-            await cardBuilder.addLogo('https://i.ibb.co/xSrQvRCW/NEW-SOH-FRONT.png');
+            await cardBuilder.addLogo('https://i.ibb.co/zhtwc0np/NEW-SOH-FRONT.pngg');
 
             const imageBuffer = await cardBuilder.build();
 

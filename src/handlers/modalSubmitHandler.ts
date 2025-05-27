@@ -26,7 +26,6 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction): Pr
         } else if (customId === 'binds_multi_add_modal') {
             await handleMultiBindsAddModalSubmit(interaction);
         } else if (customId.startsWith('event_create_modal:')) {
-            // Pass to event handler function in schedule command
             await handleEventCreateModal(interaction);
         } else {
             Logger.warn(`Unknown modal type: ${customId}`, 'ModalSubmit');
@@ -40,7 +39,6 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction): Pr
         // Error handling...
     }
 }
-
 
 async function handleEventCreateModal(interaction: ModalSubmitInteraction): Promise<void> {
     try {
@@ -75,28 +73,46 @@ async function handleEventCreateModal(interaction: ModalSubmitInteraction): Prom
             // It's a Unix timestamp
             unixTimestamp = parseInt(eventTimeInput);
             parsedDate = new Date(unixTimestamp * 1000);
-            friendlyDateDisplay = parsedDate.toLocaleString();
+
+            // Format based on locale
+            const locale = interaction.guild?.preferredLocale === 'pt-BR' ? 'pt-BR' : 'en-US';
+            friendlyDateDisplay = parsedDate.toLocaleString(locale);
         } else {
             // Try natural language parsing
             try {
-                // Use more advanced chrono parsing options with correct typing
+                // Check if we need the Portuguese parser
+                const isPortuguese = interaction.guild?.preferredLocale === 'pt-BR';
+
+                // Setup parsing options - using any type to avoid TypeScript errors
                 const parseOptions: any = {
                     forwardDate: true
                 };
 
-                // Add timezone if available
-                if (interaction.guild?.preferredLocale === 'pt-BR') {
-                    parseOptions.timezone = 'America/Sao_Paulo';
+                // Try to use the appropriate parser
+                let parser;
+                if (isPortuguese) {
+                    try {
+                        // Attempt to import Portuguese parser
+                        parser = require('chrono-node/dist/locale/pt');
+                        Logger.info('Using Portuguese date parser', 'EventScheduling');
+                    } catch (e) {
+                        Logger.warn('Portuguese parser not available, falling back to default', 'EventScheduling');
+                        parser = chrono;
+                    }
                 } else {
-                    parseOptions.timezone = 'UTC';
+                    parser = chrono;
                 }
 
-                const results = chrono.parse(eventTimeInput, parseOptions);
+                // Parse the date using the selected parser
+                const results = parser.parse(eventTimeInput, parseOptions);
 
                 if (results.length > 0 && results[0].start) {
                     parsedDate = results[0].start.date();
                     unixTimestamp = Math.floor(parsedDate.getTime() / 1000);
-                    friendlyDateDisplay = parsedDate.toLocaleString();
+
+                    // Format the date according to locale
+                    const locale = isPortuguese ? 'pt-BR' : 'en-US';
+                    friendlyDateDisplay = parsedDate.toLocaleString(locale);
 
                     // Log the successful parsing for debugging
                     Logger.info(`Parsed "${eventTimeInput}" as ${friendlyDateDisplay}`, 'EventScheduling');
@@ -104,13 +120,14 @@ async function handleEventCreateModal(interaction: ModalSubmitInteraction): Prom
                     throw new Error('Could not understand the date format');
                 }
             } catch (error) {
+                // Show different examples based on locale
+                const isPortuguese = interaction.guild?.preferredLocale === 'pt-BR';
+                const examples = isPortuguese
+                    ? '• "amanhã às 17h"\n• "próxima sexta às 20h"\n• "30 de maio às 15h"\n• "em 3 dias às 19h"\n• "hoje à noite"'
+                    : '• "tomorrow at 5pm"\n• "next friday at 8pm"\n• "may 30 at 3pm"\n• "in 3 days at 7pm"\n• "8pm tonight"';
+
                 await interaction.editReply({
-                    content: 'Could not understand your date format. Try phrases like:\n' +
-                        '• "tomorrow at 5pm"\n' +
-                        '• "next friday at 8pm"\n' +
-                        '• "may 30 at 3pm"\n' +
-                        '• "in 3 days at 7pm"\n' +
-                        '• "8pm tonight"'
+                    content: 'Could not understand your date format. Try phrases like:\n' + examples
                 });
                 return;
             }

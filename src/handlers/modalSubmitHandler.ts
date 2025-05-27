@@ -78,36 +78,79 @@ async function handleEventCreateModal(interaction: ModalSubmitInteraction): Prom
         } else {
             // Try natural language parsing
             try {
-                // Setup parsing options - using any type to avoid TypeScript errors
-                const parseOptions: any = {
-                    forwardDate: true
+                // Mapeamento de frases comuns em português para datas
+                const commonPhrases: Record<string, () => Date> = {
+                    'amanhã': () => {
+                        const tomorrow = new Date();
+                        tomorrow.setDate(tomorrow.getDate() + 1);
+                        return tomorrow;
+                    },
+                    'hoje': () => new Date(),
+                    'agora': () => new Date()
                 };
 
-                // Try to use the Portuguese parser
-                let parser;
-                try {
-                    // Attempt to import Portuguese parser
-                    parser = require('chrono-node/dist/locale/pt');
-                    Logger.info('Usando parser de data em português', 'EventScheduling');
-                } catch (e) {
-                    Logger.warn('Parser português não disponível, usando parser padrão', 'EventScheduling');
-                    parser = chrono;
+                // Extrai hora se mencionada (padrão: às XXh ou às XX:YY)
+                const timeRegex = /\bàs?\s+(\d{1,2})(?::(\d{2}))?(?:h|hrs)?/i;
+                const timeMatch = eventTimeInput.match(timeRegex);
+
+                // Tratamento especial para frases comuns
+                let baseDate: Date | null = null;
+
+                // Verifica se a entrada começa com alguma frase comum
+                for (const [phrase, getDate] of Object.entries(commonPhrases)) {
+                    if (eventTimeInput.toLowerCase().startsWith(phrase.toLowerCase())) {
+                        baseDate = getDate();
+                        Logger.info(`Frase comum detectada: "${phrase}"`, 'EventScheduling');
+                        break;
+                    }
                 }
 
-                // Parse the date using the Portuguese parser
-                const results = parser.parse(eventTimeInput, parseOptions);
+                // Se encontrou uma data base e também uma hora
+                if (baseDate && timeMatch) {
+                    const hours = parseInt(timeMatch[1], 10);
+                    const minutes = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
 
-                if (results.length > 0 && results[0].start) {
-                    parsedDate = results[0].start.date();
+                    baseDate.setHours(hours, minutes, 0, 0);
+                    parsedDate = baseDate;
                     unixTimestamp = Math.floor(parsedDate.getTime() / 1000);
 
                     // Format the date according to Brazilian locale
                     friendlyDateDisplay = parsedDate.toLocaleString('pt-BR');
 
-                    // Log the successful parsing for debugging
-                    Logger.info(`Analisado "${eventTimeInput}" como ${friendlyDateDisplay}`, 'EventScheduling');
+                    Logger.info(`Data/hora processada manualmente: "${eventTimeInput}" como ${friendlyDateDisplay}`, 'EventScheduling');
                 } else {
-                    throw new Error('Não foi possível entender o formato da data');
+                    // Se não conseguiu processar manualmente, tenta usar o chrono
+                    // Setup parsing options - using any type to avoid TypeScript errors
+                    const parseOptions: any = {
+                        forwardDate: true
+                    };
+
+                    // Try to use the Portuguese parser
+                    let parser;
+                    try {
+                        // Attempt to import Portuguese parser
+                        parser = require('chrono-node/dist/locale/pt');
+                        Logger.info('Usando parser de data em português', 'EventScheduling');
+                    } catch (e) {
+                        Logger.warn('Parser português não disponível, usando parser padrão', 'EventScheduling');
+                        parser = chrono;
+                    }
+
+                    // Parse the date using the Portuguese parser
+                    const results = parser.parse(eventTimeInput, parseOptions);
+
+                    if (results.length > 0 && results[0].start) {
+                        parsedDate = results[0].start.date();
+                        unixTimestamp = Math.floor(parsedDate.getTime() / 1000);
+
+                        // Format the date according to Brazilian locale
+                        friendlyDateDisplay = parsedDate.toLocaleString('pt-BR');
+
+                        // Log the successful parsing for debugging
+                        Logger.info(`Analisado "${eventTimeInput}" como ${friendlyDateDisplay}`, 'EventScheduling');
+                    } else {
+                        throw new Error('Não foi possível entender o formato da data');
+                    }
                 }
             } catch (error) {
                 // Show Portuguese examples

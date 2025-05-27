@@ -54,39 +54,39 @@ class ScheduleEventCommand extends Command {
             // Create a modal for the event details
             const modal = new ModalBuilder()
                 .setCustomId(`event_create_modal:${ctx.user.id}`)
-                .setTitle('Schedule New Event');
+                .setTitle('Agendar Novo Evento');
 
             // Event type select
             const eventTypeInput = new TextInputBuilder()
                 .setCustomId('event_type')
-                .setLabel('Event Type (TRAINING/RAID/DEFENSE/SCRIM)')
+                .setLabel('Tipo de Evento (TRAINING/RAID/DEFENSE/SCRIM)')
                 .setStyle(TextInputStyle.Short)
-                .setPlaceholder('Type: TRAINING, RAID, DEFENSE, or SCRIM')
+                .setPlaceholder('Ex: TRAINING, RAID, DEFENSE, ou SCRIM')
                 .setRequired(true)
                 .setMaxLength(10);
 
             // Time input
             const timeInput = new TextInputBuilder()
                 .setCustomId('event_time')
-                .setLabel('When is the event?')
+                .setLabel('Quando será o evento?')
                 .setStyle(TextInputStyle.Short)
-                .setPlaceholder('e.g., tomorrow at 5pm, next friday at 8pm, May 30')
+                .setPlaceholder('Ex: amanhã às 17h, próxima sexta às 20h, 30 de maio')
                 .setRequired(true);
 
             // Location input
             const locationInput = new TextInputBuilder()
                 .setCustomId('event_location')
-                .setLabel('Location')
+                .setLabel('Local')
                 .setStyle(TextInputStyle.Short)
-                .setPlaceholder('Where will this event take place?')
+                .setPlaceholder('Onde o evento acontecerá?')
                 .setRequired(true);
 
             // Notes input
             const notesInput = new TextInputBuilder()
                 .setCustomId('event_notes')
-                .setLabel('Notes')
+                .setLabel('Observações')
                 .setStyle(TextInputStyle.Paragraph)
-                .setPlaceholder('Any additional information for participants')
+                .setPlaceholder('Informações adicionais para os participantes')
                 .setRequired(false);
 
             // Add inputs to rows

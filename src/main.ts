@@ -18,6 +18,7 @@ import { getLogChannels as initializeLogChannels } from './handlers/handleLoggin
 import { ActivityLogger } from './utils/activityLogger';
 import { handleComponentInteraction } from './handlers/componentInteractionHandler';
 import { Logger } from './utils/logger';
+import { promiseWithTimeout } from './utils/timeoutUtil'; // Fixed import path
 
 require('dotenv').config();
 
@@ -39,40 +40,79 @@ let robloxGroup: Group = null;
 (async () => {
     try {
         Logger.info('Attempting to login to Roblox...', 'Auth');
-        await robloxClient.login();
 
-        // Instead of getCurrentUser (which doesn't exist), verify authentication by getting user info
+        // Add timeout to login
+        await promiseWithTimeout(
+            robloxClient.login(),
+            30000, // 30 second timeout for login
+            'Roblox login timed out'
+        );
+
+        Logger.info('Roblox login completed, fetching user info...', 'Auth');
+
+        // Add timeout to user info fetch
         try {
-            // This is the typical way to get authenticated user info in Bloxy
-            const userInfo = await robloxClient.apis.usersAPI.getAuthenticatedUserInformation();
+            const userInfo = await promiseWithTimeout(
+                robloxClient.apis.usersAPI.getAuthenticatedUserInformation(),
+                15000, // 15 second timeout
+                'User info fetch timed out'
+            );
             Logger.info(`Successfully logged in as: ${userInfo.name} (${userInfo.id})`, 'Auth');
         } catch (userErr) {
             Logger.warn('Authenticated, but couldn\'t fetch user details', 'Auth', userErr);
+            // Continue anyway
         }
 
-        await initializeLogChannels();
+        Logger.info('Initializing log channels...', 'Auth');
 
-        // Get the group (this will fail if not authenticated)
-        robloxGroup = await robloxClient.getGroup(config.groupId);
+        // Add timeout to log channel initialization
+        await promiseWithTimeout(
+            initializeLogChannels(),
+            10000, // 10 second timeout
+            'Log channel initialization timed out'
+        );
+
+        Logger.info('Log channels initialized, fetching group...', 'Auth');
+
+        // Get the group with timeout
+        robloxGroup = await promiseWithTimeout(
+            robloxClient.getGroup(config.groupId),
+            20000, // 20 second timeout
+            'Group fetch timed out'
+        );
+
         Logger.info(`Found group: ${robloxGroup.name} (${robloxGroup.id})`, 'Auth');
 
-        // Validate group access by fetching roles (crucial for ranking permissions)
-        const roles = await robloxGroup.getRoles();
+        // Validate group access by fetching roles with timeout
+        const roles = await promiseWithTimeout(
+            robloxGroup.getRoles(),
+            15000, // 15 second timeout
+            'Group roles fetch timed out'
+        );
+
         Logger.info(`Authentication confirmed - found ${roles.length} group roles`, 'Auth');
 
         // Grab a CSRF token to use for future requests
         try {
             Logger.info('Fetching initial XSRF token...', 'Auth');
-            const response = await fetchWithRetry('https://auth.roblox.com/v2/logout', {
-                method: 'POST',
-                headers: {
-                    'Cookie': `.ROBLOSECURITY=${process.env.ROBLOX_COOKIE}`
-                }
-            }, 3, 5000);
+
+            const response = await promiseWithTimeout(
+                fetchWithRetry('https://auth.roblox.com/v2/logout', {
+                    method: 'POST',
+                    headers: {
+                        'Cookie': `.ROBLOSECURITY=${process.env.ROBLOX_COOKIE}`
+                    }
+                }, 3, 5000),
+                15000, // 15 second timeout
+                'XSRF token fetch timed out'
+            );
+
             Logger.info('Initial XSRF token fetched successfully', 'Auth');
 
             // Initialize promotion service AFTER we've confirmed authentication
+            Logger.info('Initializing promotion service...', 'Auth');
             schedulePromotionChecks();
+            Logger.info('Promotion service initialized', 'Auth');
         } catch (err) {
             Logger.error('Failed to fetch initial XSRF token:', 'Auth', err);
             Logger.warn('Continuing startup despite token fetch failure', 'Auth');
@@ -85,13 +125,69 @@ let robloxGroup: Group = null;
         }
 
         // [Events]
-        checkSuspensions();
-        checkBans();
-        if (config.logChannels.shout) recordShout();
-        if (config.recordManualActions) recordAuditLogs();
-        if (config.memberCount.enabled) recordMemberCount();
-        if (config.antiAbuse.enabled) clearActions();
-        if (config.deleteWallURLs) checkWallForAds();
+        Logger.info('Setting up event handlers...', 'Auth');
+
+        // Initialize each event handler with better error handling
+        try {
+            checkSuspensions();
+            Logger.info('Suspension checks initialized', 'Events');
+        } catch (e) {
+            Logger.error('Failed to initialize suspension checks:', 'Events', e);
+        }
+
+        try {
+            checkBans();
+            Logger.info('Ban checks initialized', 'Events');
+        } catch (e) {
+            Logger.error('Failed to initialize ban checks:', 'Events', e);
+        }
+
+        if (config.logChannels.shout) {
+            try {
+                recordShout();
+                Logger.info('Shout recording initialized', 'Events');
+            } catch (e) {
+                Logger.error('Failed to initialize shout recording:', 'Events', e);
+            }
+        }
+
+        if (config.recordManualActions) {
+            try {
+                recordAuditLogs();
+                Logger.info('Audit log recording initialized', 'Events');
+            } catch (e) {
+                Logger.error('Failed to initialize audit log recording:', 'Events', e);
+            }
+        }
+
+        if (config.memberCount.enabled) {
+            try {
+                recordMemberCount();
+                Logger.info('Member count recording initialized', 'Events');
+            } catch (e) {
+                Logger.error('Failed to initialize member count recording:', 'Events', e);
+            }
+        }
+
+        if (config.antiAbuse.enabled) {
+            try {
+                clearActions();
+                Logger.info('Anti-abuse system initialized', 'Events');
+            } catch (e) {
+                Logger.error('Failed to initialize anti-abuse system:', 'Events', e);
+            }
+        }
+
+        if (config.deleteWallURLs) {
+            try {
+                checkWallForAds();
+                Logger.info('Wall URL checker initialized', 'Events');
+            } catch (e) {
+                Logger.error('Failed to initialize wall URL checker:', 'Events', e);
+            }
+        }
+
+        Logger.info('All systems initialized successfully', 'Auth');
     } catch (error) {
         Logger.error('AUTHENTICATION FAILED - Your Roblox cookie may be invalid or expired', 'Auth', error);
         process.exit(1);
@@ -135,6 +231,9 @@ discordClient.on('interactionCreate', async (interaction) => {
 
 discordClient.on('messageCreate', handleLegacyCommand);
 ActivityLogger.testLogging();
+
+// Log successful startup
+Logger.info('Bot initialization complete', 'Startup');
 
 // [Module]
 export { discordClient, robloxClient, robloxGroup };

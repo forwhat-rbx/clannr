@@ -157,13 +157,23 @@ export default class XPCommand extends Command {
             };
 
             const cardBuilder = new XPCardBuilder();
-            await cardBuilder.initialize('https://i.ibb.co/Z68bgDS8/NEW-SOH-BACK.png');
+            try {
+                await cardBuilder.initialize('https://i.ibb.co/Z68bgDS/NEW-SOH-BACK.png');
+            } catch (bgError) {
+                Logger.warn('Failed to load background image, using default background', 'XPCard');
+                await cardBuilder.initialize();
+            }
             await cardBuilder.addCardBackground();
             await cardBuilder.addAvatar(avatarUrl);
             await cardBuilder.addUserInfo(robloxUser.name, robloxMember.role.name);
             await cardBuilder.addProgressBar(userData.xp, nextXp);
             await cardBuilder.addStatistics(stats);
-            await cardBuilder.addLogo('https://i.ibb.co/zhtwc0np/NEW-SOH-FRONT.pngg');
+            try {
+                await cardBuilder.initialize('https://i.ibb.co/zhtwc0np/NEW-SOH-FRONT.png');
+            } catch (bgError) {
+                Logger.warn('Failed to load background image, using default background', 'XPCard');
+                await cardBuilder.initialize();
+            }
 
             const imageBuffer = await cardBuilder.build();
 

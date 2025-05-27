@@ -255,9 +255,11 @@ export class XPCardBuilder {
             const x = Math.round(avatarX + size / 2 + Math.cos(angle) * ringRadius);
             const y = Math.round(avatarY + size / 2 + Math.sin(angle) * ringRadius);
 
-            // Gradient based on angle
-            const brightness = 176 + Math.floor(80 * Math.sin(angle));
-            const ringColor = (brightness << 24) | (brightness << 16) | (brightness << 8) | 0xFF;
+            // Gradient based on angle - FIX: ensure brightness values stay in range
+            const brightness = Math.max(0, Math.min(255, 176 + Math.floor(80 * Math.sin(angle))));
+
+            // FIX: Use correct bit operations to prevent negative values
+            const ringColor = (brightness & 0xFF) << 24 | (brightness & 0xFF) << 16 | (brightness & 0xFF) << 8 | 0xFF;
 
             if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
                 this.image.setPixelColor(ringColor, x, y);

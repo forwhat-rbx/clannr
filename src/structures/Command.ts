@@ -1,5 +1,7 @@
 import {
     ApplicationCommandOptionData, ApplicationCommandOptionType, ApplicationCommandType,
+    ApplicationCommandSubCommandData, ApplicationCommandSubGroupData,
+    ApplicationCommandChoicesData
 } from 'discord.js';
 import {
     CommandConfig,
@@ -28,19 +30,80 @@ const argumentTypeMappings = {
     DiscordMentionable: ApplicationCommandOptionType.Mentionable,
 }
 
-const mapArgument = (arg: CommandArgument) => {
-    // @ts-ignore
-    const apiArgument: ApplicationCommandOptionData = {
+const mapArgument = (arg: CommandArgument): ApplicationCommandOptionData => {
+    // Base properties every option has
+    const base = {
         name: arg.trigger,
         description: arg.description || 'No description provided.',
         type: argumentTypeMappings[arg.type],
-        autocomplete: arg.autocomplete || false,
         required: arg.required !== null && arg.required !== undefined ? arg.required : true,
-        choices: arg.choices || [],
-        options: arg.args ? arg.args.map(mapArgument) : [],
-        channelTypes: arg.channelTypes,
+    };
+
+    // Handle subcommands and subcommand groups which can have nested options
+    if (arg.type === 'Subcommand' || arg.type === 'SubcommandGroup') {
+        return {
+            ...base,
+            options: arg.args ? arg.args.map(mapArgument) : []
+        } as ApplicationCommandSubCommandData | ApplicationCommandSubGroupData;
     }
-    return apiArgument;
+
+    // Handle string options
+    if (arg.type === 'String' || arg.type === 'RobloxUser' || arg.type === 'RobloxRole') {
+        // We need to handle autocomplete and choices differently based on their values
+        if (arg.autocomplete === true) {
+            // If autocomplete is true, choices must be undefined
+            return {
+                ...base,
+                autocomplete: true
+            };
+        } else if (arg.choices && arg.choices.length > 0) {
+            // If we have choices, autocomplete must be false
+            return {
+                ...base,
+                choices: arg.choices,
+                autocomplete: false
+            };
+        } else {
+            // Otherwise, just set autocomplete to false
+            return {
+                ...base,
+                autocomplete: false
+            };
+        }
+    }
+
+    // Handle number options
+    if (arg.type === 'Number') {
+        // Same logic as string options
+        if (arg.autocomplete === true) {
+            return {
+                ...base,
+                autocomplete: true
+            };
+        } else if (arg.choices && arg.choices.length > 0) {
+            return {
+                ...base,
+                choices: arg.choices,
+                autocomplete: false
+            };
+        } else {
+            return {
+                ...base,
+                autocomplete: false
+            };
+        }
+    }
+
+    // Handle channel options which can have channelTypes
+    if (arg.type === 'DiscordChannel') {
+        return {
+            ...base,
+            channelTypes: arg.channelTypes
+        };
+    }
+
+    // Default for other option types
+    return base;
 }
 
 abstract class Command {

@@ -31,7 +31,7 @@
     "axios": "^1.9.0",
     "bloxy": "github:LengoLabs/bloxy",
     "chart.js": "^4.4.8",
-    "chrono-node": "^2.3.7",
+    "chrono-node": "^2.5.0",
     "discord.js": "14.11.0",
     "dotenv": "^10.0.0",
     "express": "^4.17.2",

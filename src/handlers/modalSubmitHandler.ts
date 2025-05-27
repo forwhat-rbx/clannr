@@ -144,7 +144,7 @@ async function handleEventCreateModal(interaction: ModalSubmitInteraction): Prom
                     // Try a simple fallback with chrono (safer approach)
                     try {
                         // Avoid importing specific locale modules
-                        const results = chrono.parse(eventTimeInput, { forwardDate: true });
+                        const results = chrono.parse(eventTimeInput, { forwardDate: true } as any);
 
                         if (results.length > 0 && results[0].start) {
                             parsedDate = results[0].start.date();

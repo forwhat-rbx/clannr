@@ -20,6 +20,7 @@ import { handleComponentInteraction } from './handlers/componentInteractionHandl
 import { Logger } from './utils/logger';
 import { promiseWithTimeout } from './utils/timeoutUtil';
 import { directAuthenticate, getXCSRFToken, directGetGroup, directGetGroupRoles } from './utils/directAuth';
+import { initializeDatabase } from './database/dbInit';
 
 require('dotenv').config();
 

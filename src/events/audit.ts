@@ -1,22 +1,25 @@
-import { robloxClient, robloxGroup } from '../main';
 import { config } from '../config';
 import { logAction } from '../handlers/handleLogging';
 import { Logger } from '../utils/logger';
-import { directGetGroupAuditLogs } from '../utils/directAuth';
+import { directGetGroupAuditLogs, directGetGroupRoles } from '../utils/directAuth';
 import { PartialUser } from 'bloxy/dist/structures';
 
 // Track the last recorded audit log timestamp
 let lastRecordedDate: number;
+// Add a flag to track consecutive errors
+let consecutiveErrors = 0;
+// Add a variable to track check frequency (starts at 60 seconds)
+let checkInterval = 60000;
 
 // Define TypeScript interface for user info response
 interface RobloxUserResponse {
     id: number;
     name: string;
     displayName: string;
-    description: string;
-    created: string;
-    isBanned: boolean;
-    hasVerifiedBadge: boolean;
+    description?: string;
+    created?: string;
+    isBanned?: boolean;
+    hasVerifiedBadge?: boolean;
 }
 
 const recordAuditLogs = async () => {
@@ -39,20 +42,31 @@ const recordAuditLogs = async () => {
 
             auditLogData = response.data || [];
             Logger.info(`Found ${auditLogData.length} audit log entries`, 'Audit');
+
+            // Reset consecutive errors since this part succeeded
+            consecutiveErrors = 0;
         } catch (directErr) {
             Logger.error('Failed to fetch audit logs directly:', 'Audit', directErr);
             auditLogData = [];
+            consecutiveErrors++;
         }
 
         // If we have audit logs and they contain at least one entry
-        if (auditLogData.length > 0) {
+        if (auditLogData && auditLogData.length > 0) {
             // Get the timestamp of the most recent log
             const mostRecentDate = new Date(auditLogData[0].created).getTime();
 
-            // If we've seen logs before, process any new ones
-            if (lastRecordedDate) {
-                // Get group roles for reference
-                const groupRoles = await robloxGroup.getRoles();
+            // If we've seen logs before and there are new ones to process
+            if (lastRecordedDate && mostRecentDate > lastRecordedDate) {
+                // Get group roles directly to avoid Bloxy issues
+                let groupRoles;
+                try {
+                    groupRoles = await directGetGroupRoles(process.env.ROBLOX_COOKIE, config.groupId);
+                } catch (rolesError) {
+                    Logger.error('Failed to fetch group roles:', 'Audit', rolesError);
+                    // Return early since we can't process without roles
+                    return;
+                }
 
                 // Process each log entry
                 for (const log of auditLogData) {
@@ -63,6 +77,7 @@ const recordAuditLogs = async () => {
 
                     // Check if this log is newer than our last recorded timestamp
                     const logCreationDate = new Date(log.created);
+
                     if (Math.round(logCreationDate.getTime() / 1000) > Math.round(lastRecordedDate / 1000)) {
                         // Find role information
                         const oldRole = groupRoles.find((role) => role.id === log.description['OldRoleSetId']);
@@ -80,7 +95,11 @@ const recordAuditLogs = async () => {
                                     }
                                 });
 
-                                // Parse the response with type information
+                                if (!response.ok) {
+                                    throw new Error(`Failed to fetch user with status ${response.status}`);
+                                }
+
+                                // Parse the response with proper type assertion
                                 const userInfo = await response.json() as RobloxUserResponse;
 
                                 // Create a partial user object that satisfies the PartialUser requirements
@@ -88,18 +107,19 @@ const recordAuditLogs = async () => {
                                     id: Number(targetId),
                                     name: userInfo.name || `User ${targetId}`,
                                     displayName: userInfo.displayName || userInfo.name || `User ${targetId}`,
-                                    client: robloxClient, // Use the actual client
-                                    getStatus: async () => "",
-                                    getAvatar: async () => null,
-                                    getCurrentlyWearing: async () => ({ assetIds: [] }),
-                                    isBanned: async () => false,
-                                    isOnline: async () => false,
                                 };
 
-                                // Then cast it to PartialUser when using it
+                                // Create an actor user object (avoiding Bloxy)
+                                const actorUser: any = {
+                                    id: Number(log.actor.user.userId),
+                                    name: log.actor.user.username || `User ${log.actor.user.userId}`,
+                                    displayName: log.actor.user.displayName || log.actor.user.username || `User ${log.actor.user.userId}`,
+                                };
+
+                                // Log the action using our custom objects
                                 logAction(
                                     'Manual Set Rank',
-                                    log.actor.user,
+                                    actorUser as PartialUser,
                                     null,
                                     targetUser as PartialUser,
                                     `${oldRole.name} (${oldRole.rank}) → ${newRole.name} (${newRole.rank})`
@@ -110,18 +130,34 @@ const recordAuditLogs = async () => {
                         }
                     }
                 }
+            } else if (!lastRecordedDate) {
+                // First run, just set the timestamp without processing
+                Logger.info(`Initialized audit log timestamp to ${new Date(mostRecentDate).toISOString()}`, 'Audit');
             }
 
             // Update our last recorded date for next time
             lastRecordedDate = mostRecentDate;
             Logger.info(`Updated last recorded audit log timestamp to ${new Date(lastRecordedDate).toISOString()}`, 'Audit');
+
+            // If no new logs were found, increase check interval to reduce spam
+            if (lastRecordedDate && mostRecentDate === lastRecordedDate && checkInterval < 300000) {
+                checkInterval = Math.min(Math.floor(checkInterval * 1.5), 300000); // Max 5 minutes
+                Logger.info(`No new logs found, increasing check interval to ${checkInterval / 1000} seconds`, 'Audit');
+            }
         }
     } catch (err) {
         Logger.error('Error checking audit logs', 'Audit', err);
+        consecutiveErrors++;
+
+        // Increase check interval if we're getting errors
+        if (consecutiveErrors > 3) {
+            checkInterval = Math.min(Math.floor(checkInterval * 2), 600000); // Max 10 minutes if errors
+            Logger.warn(`Multiple consecutive errors (${consecutiveErrors}), increasing check interval to ${checkInterval / 1000} seconds`, 'Audit');
+        }
     }
 
-    // Continue checking every 60 seconds even if there was an error
-    setTimeout(recordAuditLogs, 60000);
+    // Continue checking every interval even if there was an error, but with dynamic timing
+    setTimeout(recordAuditLogs, checkInterval);
 };
 
 export { recordAuditLogs };

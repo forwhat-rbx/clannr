@@ -58,6 +58,7 @@ export async function initializeDatabase() {
                     "nicknameFormat" TEXT NOT NULL DEFAULT '{robloxUsername}',
                     "verificationChannelId" TEXT,
                     "verificationMessageId" TEXT
+                    "autoUpdateEnabled" BOOLEAN DEFAULT true
                 )`;
 
                 Logger.info('Database schema created successfully', 'Database');

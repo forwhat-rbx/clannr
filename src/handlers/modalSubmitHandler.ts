@@ -116,6 +116,7 @@ async function handleEventCreateModal(interaction: ModalSubmitInteraction): Prom
                 eventEmbed.setColor('#FF9800'); // Orange
                 break;
         }
+
         // Send success message to the user
         await interaction.editReply({
             content: 'Event scheduled successfully!',

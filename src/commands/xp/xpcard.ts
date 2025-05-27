@@ -4,10 +4,10 @@ import { Command } from '../../structures/Command';
 import { PartialUser, User, GroupMember } from 'bloxy/dist/structures';
 import { getLinkedRobloxUser } from '../../handlers/accountLinks';
 import { config } from '../../config';
-import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle } from 'discord.js'; // Added ActionRowBuilder, ButtonBuilder, ButtonStyle
+import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { provider } from '../../database';
 import { createCanvas, loadImage, registerFont, Canvas, CanvasRenderingContext2D as NodeCanvasRenderingContext2D } from 'canvas';
-import { findHighestEligibleRole } from '../ranking/xprankup'; // Import the eligibility checker
+import { findHighestEligibleRole } from '../ranking/xprankup';
 
 
 // Register custom fonts (ensure these files exist in your assets folder)

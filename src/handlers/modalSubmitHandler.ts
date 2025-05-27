@@ -39,7 +39,6 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction): Pr
         // Error handling...
     }
 }
-
 async function handleEventCreateModal(interaction: ModalSubmitInteraction): Promise<void> {
     try {
         // Handle the event creation modal submission
@@ -58,7 +57,7 @@ async function handleEventCreateModal(interaction: ModalSubmitInteraction): Prom
         const validTypes = ['TRAINING', 'RAID', 'DEFENSE', 'SCRIM'];
         if (!validTypes.includes(eventType)) {
             await interaction.editReply({
-                content: 'Invalid event type. Please use TRAINING, RAID, DEFENSE, or SCRIM.',
+                content: 'Tipo de evento inválido. Por favor, use TRAINING, RAID, DEFENSE, ou SCRIM.',
             });
             return;
         }
@@ -75,59 +74,47 @@ async function handleEventCreateModal(interaction: ModalSubmitInteraction): Prom
             parsedDate = new Date(unixTimestamp * 1000);
 
             // Format based on locale
-            const locale = interaction.guild?.preferredLocale === 'pt-BR' ? 'pt-BR' : 'en-US';
-            friendlyDateDisplay = parsedDate.toLocaleString(locale);
+            friendlyDateDisplay = parsedDate.toLocaleString('pt-BR');
         } else {
             // Try natural language parsing
             try {
-                // Check if we need the Portuguese parser
-                const isPortuguese = interaction.guild?.preferredLocale === 'pt-BR';
-
                 // Setup parsing options - using any type to avoid TypeScript errors
                 const parseOptions: any = {
                     forwardDate: true
                 };
 
-                // Try to use the appropriate parser
+                // Try to use the Portuguese parser
                 let parser;
-                if (isPortuguese) {
-                    try {
-                        // Attempt to import Portuguese parser
-                        parser = require('chrono-node/dist/locale/pt');
-                        Logger.info('Using Portuguese date parser', 'EventScheduling');
-                    } catch (e) {
-                        Logger.warn('Portuguese parser not available, falling back to default', 'EventScheduling');
-                        parser = chrono;
-                    }
-                } else {
+                try {
+                    // Attempt to import Portuguese parser
+                    parser = require('chrono-node/dist/locale/pt');
+                    Logger.info('Usando parser de data em português', 'EventScheduling');
+                } catch (e) {
+                    Logger.warn('Parser português não disponível, usando parser padrão', 'EventScheduling');
                     parser = chrono;
                 }
 
-                // Parse the date using the selected parser
+                // Parse the date using the Portuguese parser
                 const results = parser.parse(eventTimeInput, parseOptions);
 
                 if (results.length > 0 && results[0].start) {
                     parsedDate = results[0].start.date();
                     unixTimestamp = Math.floor(parsedDate.getTime() / 1000);
 
-                    // Format the date according to locale
-                    const locale = isPortuguese ? 'pt-BR' : 'en-US';
-                    friendlyDateDisplay = parsedDate.toLocaleString(locale);
+                    // Format the date according to Brazilian locale
+                    friendlyDateDisplay = parsedDate.toLocaleString('pt-BR');
 
                     // Log the successful parsing for debugging
-                    Logger.info(`Parsed "${eventTimeInput}" as ${friendlyDateDisplay}`, 'EventScheduling');
+                    Logger.info(`Analisado "${eventTimeInput}" como ${friendlyDateDisplay}`, 'EventScheduling');
                 } else {
-                    throw new Error('Could not understand the date format');
+                    throw new Error('Não foi possível entender o formato da data');
                 }
             } catch (error) {
-                // Show different examples based on locale
-                const isPortuguese = interaction.guild?.preferredLocale === 'pt-BR';
-                const examples = isPortuguese
-                    ? '• "amanhã às 17h"\n• "próxima sexta às 20h"\n• "30 de maio às 15h"\n• "em 3 dias às 19h"\n• "hoje à noite"'
-                    : '• "tomorrow at 5pm"\n• "next friday at 8pm"\n• "may 30 at 3pm"\n• "in 3 days at 7pm"\n• "8pm tonight"';
+                // Show Portuguese examples
+                const examples = '• "amanhã às 17h"\n• "próxima sexta às 20h"\n• "30 de maio às 15h"\n• "em 3 dias às 19h"\n• "hoje à noite"';
 
                 await interaction.editReply({
-                    content: 'Could not understand your date format. Try phrases like:\n' + examples
+                    content: 'Não foi possível entender o formato da data. Tente frases como:\n' + examples
                 });
                 return;
             }
@@ -137,23 +124,23 @@ async function handleEventCreateModal(interaction: ModalSubmitInteraction): Prom
         const now = Date.now() / 1000;
         if (unixTimestamp < now) {
             await interaction.editReply({
-                content: 'Please specify a future date and time for the event.'
+                content: 'Por favor, especifique uma data e hora no futuro para o evento.'
             });
             return;
         }
 
         // Create the event embed
         const eventEmbed = createBaseEmbed('primary')
-            .setTitle(`${eventType} EVENT`)
+            .setTitle(`EVENTO DE ${getPortugueseEventType(eventType)}`)
             .addFields([
-                { name: 'Host', value: `<@${interaction.user.id}>`, inline: false },
-                { name: 'Time', value: `<t:${unixTimestamp}:F> (<t:${unixTimestamp}:R>)`, inline: false },
-                { name: 'Location', value: eventLocation, inline: false }
+                { name: 'Anfitrião', value: `<@${interaction.user.id}>`, inline: false },
+                { name: 'Horário', value: `<t:${unixTimestamp}:F> (<t:${unixTimestamp}:R>)`, inline: false },
+                { name: 'Local', value: eventLocation, inline: false }
             ]);
 
         // Add notes if provided
         if (eventNotes) {
-            eventEmbed.addFields({ name: 'Notes', value: eventNotes, inline: false });
+            eventEmbed.addFields({ name: 'Observações', value: eventNotes, inline: false });
         }
 
         // Set color based on event type
@@ -174,7 +161,7 @@ async function handleEventCreateModal(interaction: ModalSubmitInteraction): Prom
 
         // Send success message to the user with the parsed date for confirmation
         await interaction.editReply({
-            content: `Event scheduled successfully for ${friendlyDateDisplay}!`,
+            content: `Evento agendado com sucesso para ${friendlyDateDisplay}!`,
         });
 
         // Send the actual announcement to the channel
@@ -187,21 +174,37 @@ async function handleEventCreateModal(interaction: ModalSubmitInteraction): Prom
         }
 
         // Log the event creation
-        Logger.info(`Event scheduled by ${interaction.user.tag}: ${eventType} at ${parsedDate.toISOString()}`, 'EventScheduling');
+        Logger.info(`Evento agendado por ${interaction.user.tag}: ${eventType} em ${parsedDate.toISOString()}`, 'EventScheduling');
     } catch (error) {
-        Logger.error('Error processing event creation modal', 'EventScheduling', error);
+        Logger.error('Erro ao processar modal de criação de evento', 'EventScheduling', error);
 
         // Handle reply based on interaction state
         if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({
-                content: 'Failed to create event. Please try again.',
+                content: 'Falha ao criar evento. Por favor, tente novamente.',
                 ephemeral: true
             });
         } else {
             await interaction.editReply({
-                content: 'Failed to process event creation. Please try again.'
+                content: 'Falha ao processar a criação do evento. Por favor, tente novamente.'
             });
         }
+    }
+}
+
+// Helper function to get Portuguese event type names
+function getPortugueseEventType(englishType: string): string {
+    switch (englishType) {
+        case 'TRAINING':
+            return 'TREINAMENTO';
+        case 'RAID':
+            return 'RAID';
+        case 'DEFENSE':
+            return 'DEFESA';
+        case 'SCRIM':
+            return 'SCRIMMAGE';
+        default:
+            return englishType;
     }
 }
 
@@ -268,8 +271,6 @@ async function handleVerifyUsernameModal(interaction: ModalSubmitInteraction): P
 
             // Generate a verification code
             const verificationCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-
-            // Rest of the function remains the same...
 
             // Store the verification data in global map with consistent ID format
             global.pendingVerifications.set(interaction.user.id, {

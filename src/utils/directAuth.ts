@@ -188,7 +188,8 @@ export async function directGetUsersByUsernames(cookie: string, usernames: strin
             throw new Error(`Failed to get users with status: ${response.status}`);
         }
 
-        const data = await response.json();
+        // Add type assertion here
+        const data = await response.json() as RobloxUsernamesResponse;
         Logger.info(`Successfully found ${data.data.length} users by username`, 'DirectAuth');
 
         // Transform the response to match the format expected by the application

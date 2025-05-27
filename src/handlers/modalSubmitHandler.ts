@@ -7,6 +7,7 @@ import { config } from '../config';
 import { addRoleBinding, getRoleBindings } from '../handlers/roleBindHandler'; // Added this import
 import { Logger } from '../utils/logger';
 import { getLinkedRobloxUser } from './accountLinks';
+import { directGetUsersByUsernames } from '../utils/directAuth';
 
 export async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
     const customId = interaction.customId;
@@ -69,7 +70,7 @@ async function handleVerifyUsernameModal(interaction: ModalSubmitInteraction): P
 
         // Try to find the Roblox user
         try {
-            const robloxUsers = await robloxClient.getUsersByUsernames([username]);
+            const robloxUsers = await directGetUsersByUsernames(process.env.ROBLOX_COOKIE, [username]);
             if (robloxUsers.length === 0) {
                 // Log failed verification - username not found
                 await logVerificationEvent(

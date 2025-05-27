@@ -38,6 +38,29 @@ interface RobloxGroupRolesResponse {
     }>;
 }
 
+interface RobloxUsernamesResponse {
+    data: Array<{
+        id: number;
+        name: string;
+        displayName: string;
+    }>;
+}
+
+interface RobloxUserResponse {
+    id: number;
+    name: string;
+    displayName: string;
+    description?: string;
+    created?: string;
+    isBanned?: boolean;
+    hasVerifiedBadge?: boolean;
+}
+
+interface RobloxAuditLogResponse {
+    previousPageCursor: string | null;
+    nextPageCursor: string | null;
+    data: Array<any>;
+}
 /**
  * Directly authenticates with Roblox using the cookie
  * This bypasses the problematic Bloxy login flow
@@ -134,6 +157,89 @@ export async function directGetGroup(cookie: string, groupId: number): Promise<R
     }
 }
 
+/**
+ * Directly fetch Roblox users by username without using Bloxy
+ * @param cookie Roblox security cookie
+ * @param usernames Array of usernames to look up
+ * @returns Array of user objects with id, name and displayName
+ */
+export async function directGetUsersByUsernames(cookie: string, usernames: string[]): Promise<any[]> {
+    try {
+        Logger.info(`Directly fetching users by usernames: ${usernames.join(', ')}`, 'DirectAuth');
+
+        // Get CSRF token for the request
+        const csrfToken = await getXCSRFToken(cookie);
+
+        // Make the API request
+        const response = await fetch('https://users.roblox.com/v1/usernames/users', {
+            method: 'POST',
+            headers: {
+                'Cookie': `.ROBLOSECURITY=${cookie}`,
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken
+            },
+            body: JSON.stringify({
+                usernames: usernames,
+                excludeBannedUsers: false
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to get users with status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        Logger.info(`Successfully found ${data.data.length} users by username`, 'DirectAuth');
+
+        // Transform the response to match the format expected by the application
+        return data.data.map(user => ({
+            id: user.id,
+            name: user.name,
+            displayName: user.displayName
+        }));
+    } catch (error) {
+        Logger.error(`Failed to get users by username: ${error.message}`, 'DirectAuth');
+        return [];
+    }
+}
+
+/**
+ * Directly fetch a single Roblox user by ID
+ * @param cookie Roblox security cookie
+ * @param userId Roblox user ID to look up
+ * @returns User object with id, name and displayName or null if not found
+ */
+export async function directGetUserById(cookie: string, userId: number): Promise<any> {
+    try {
+        Logger.info(`Directly fetching user by ID: ${userId}`, 'DirectAuth');
+
+        const response = await fetch(`https://users.roblox.com/v1/users/${userId}`, {
+            method: 'GET',
+            headers: {
+                'Cookie': `.ROBLOSECURITY=${cookie}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to get user with status: ${response.status}`);
+        }
+
+        // Type cast the response to our interface
+        const user = await response.json() as RobloxUserResponse;
+        Logger.info(`Successfully found user: ${user.name} (${user.id})`, 'DirectAuth');
+
+        return {
+            id: user.id,
+            name: user.name,
+            displayName: user.displayName
+        };
+    } catch (error) {
+        Logger.error(`Failed to get user by ID: ${error.message}`, 'DirectAuth');
+        return null;
+    }
+}
+
 export async function directGetGroupAuditLogs(cookie: string, groupId: number, params: any = {}): Promise<any> {
     try {
         Logger.info(`Directly fetching audit logs for group ${groupId}...`, 'DirectAuth');
@@ -165,7 +271,8 @@ export async function directGetGroupAuditLogs(cookie: string, groupId: number, p
             throw new Error(`Failed to get audit logs with status: ${response.status}`);
         }
 
-        const data = await response.json();
+        // Type cast the response to our interface
+        const data = await response.json() as RobloxAuditLogResponse;
         Logger.info(`Successfully fetched audit logs for group ${groupId}`, 'DirectAuth');
         return data;
     } catch (error) {

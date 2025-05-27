@@ -141,11 +141,20 @@ export default class XPCommand extends Command {
         const avatarUrl = await robloxClient.apis.thumbnailsAPI
             .getUsersAvatarHeadShotImages({
                 userIds: [robloxUser.id],
-                size: '150x150',
+                size: '420x420', // Use a larger size for better quality
                 format: 'png',
+                isCircular: false
             })
-            .then((res) => res.data[0]?.imageUrl || 'https://www.roblox.com/images/default-headshot.png')
-            .catch(() => 'https://www.roblox.com/images/default-headshot.png');
+            .then(res => {
+                const imageUrl = res.data[0]?.imageUrl;
+                Logger.debug(`Avatar URL fetched: ${imageUrl}`, 'XPCard');
+                return imageUrl || 'https://www.roblox.com/headshot-thumbnail/image?userId=' + robloxUser.id;
+            })
+            .catch(err => {
+                Logger.error(`Failed to fetch avatar: ${err.message}`, 'XPCard');
+                // Fallback to direct URL format which is more reliable
+                return `https://www.roblox.com/headshot-thumbnail/image?userId=${robloxUser.id}&width=150&height=150&format=png`;
+            });
 
         try {
             // Create the XP card

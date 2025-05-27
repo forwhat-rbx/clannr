@@ -139,31 +139,31 @@ export class XPCardBuilder {
     }
 
     private addTechPatternOverlay(): void {
-        // Add vertical lines
+        // Add vertical lines - FIX: Much more subtle
         for (let i = 0; i < this.width; i += 60) {
-            const lineColor = i % 180 === 0 ? 0x90A0FF12 : 0xAAAAAA12;
+            const lineColor = i % 180 === 0 ? 0x90A0FF08 : 0xAAAAAA08; // Reduced opacity
 
             for (let y = 0; y < this.height; y++) {
                 this.image.setPixelColor(lineColor, i, y);
             }
         }
 
-        // Add horizontal lines
+        // Add horizontal lines - FIX: Much more subtle
         for (let i = 0; i < this.height; i += 60) {
-            const lineColor = i % 180 === 0 ? 0x90A0FF12 : 0xAAAAAA12;
+            const lineColor = i % 180 === 0 ? 0x90A0FF08 : 0xAAAAAA08; // Reduced opacity
 
             for (let x = 0; x < this.width; x++) {
                 this.image.setPixelColor(lineColor, x, i);
             }
 
-            // Add data points at intersections
+            // Add data points at intersections - only at major grid points
             if (i % 180 === 0) {
                 for (let j = 0; j < this.width; j += 180) {
                     // Draw small blue dots at intersections
                     for (let dx = -1; dx <= 1; dx++) {
                         for (let dy = -1; dy <= 1; dy++) {
                             if (j + dx >= 0 && j + dx < this.width && i + dy >= 0 && i + dy < this.height) {
-                                this.image.setPixelColor(0x78B4FFB3, j + dx, i + dy);
+                                this.image.setPixelColor(0x78B4FF80, j + dx, i + dy); // Less transparent
                             }
                         }
                     }
@@ -342,10 +342,10 @@ export class XPCardBuilder {
 
         // Load fonts
         const usernameFont = await loadFont(38, true);
-        const rankFont = await loadFont(26);
+        const rankFont = await loadFont(20); // SMALLER FONT SIZE
 
-        // Fix: Use printText function instead of direct print
-        await printTextWithShadow(this.image, usernameFont, username, nameX, nameY - 30);
+        // FIX: Position username text higher to avoid overlap
+        await printTextWithShadow(this.image, usernameFont, username, nameX, nameY - 35);
 
         // Add rank stars for higher ranks
         if (rankLevel > 2) {
@@ -353,42 +353,33 @@ export class XPCardBuilder {
 
             for (let i = 0; i < rankLevel - 2; i++) {
                 const emblemX = nameX + textWidth + 20 + (i * 25);
-                await drawStar(this.image, emblemX, nameY - 15, 10, 5, 0xD0D0E0FF);
+                await drawStar(this.image, emblemX, nameY - 20, 10, 5, 0xD0D0E0FF);
             }
         }
 
-        // Draw rank badge
+        // Draw rank badge - FIX: Position below name with proper spacing
         const rankText = rank;
-        const rankWidth = rankText.length * 12 + 20;
+        const rankWidth = rankText.length * 10 + 20; // Reduced width calculation
         const rankX = nameX;
-        const rankY = nameY + 20;
+        const rankY = nameY + 10; // Moved down to avoid overlap
 
         // Badge background
-        await drawRoundedRect(this.image, rankX, rankY, rankWidth, 36, 5, 0x1E1E26E6);
+        await drawRoundedRect(this.image, rankX, rankY, rankWidth, 30, 5, 0x1E1E26E6);
 
         // Badge border
         const borderColor = 0x8A8A9AFF;
         for (let x = rankX; x < rankX + rankWidth; x++) {
             this.image.setPixelColor(borderColor, x, rankY);
-            this.image.setPixelColor(borderColor, x, rankY + 35);
+            this.image.setPixelColor(borderColor, x, rankY + 29);
         }
 
-        for (let y = rankY; y < rankY + 36; y++) {
+        for (let y = rankY; y < rankY + 30; y++) {
             this.image.setPixelColor(borderColor, rankX, y);
             this.image.setPixelColor(borderColor, rankX + rankWidth - 1, y);
         }
 
-        // Fix: Use correct print method with proper parameters
-        this.image.print(
-            rankFont,
-            rankX + 10,
-            rankY + 5,
-            {
-                text: rankText,
-                alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT,
-                alignmentY: Jimp.VERTICAL_ALIGN_TOP
-            }
-        );
+        // Print rank text - simplified to avoid complex parameter issues
+        this.image.print(rankFont, rankX + 10, rankY + 5, rankText);
 
         return this;
     }
@@ -518,8 +509,10 @@ export class XPCardBuilder {
 
         const progressY = margin + 30 + avatarSize + 25;
         const statsStartY = progressY + progressBarHeight + 50;
-        const statItemWidth = (cardWidth - 120) / 4;
-        const statItemHeight = 45;
+
+        // FIX: Improved stat box layout - larger width for each box
+        const statItemWidth = Math.min(160, (cardWidth - 40) / 4);
+        const statItemHeight = 50; // Slightly taller
 
         // Header text
         const headerFont = await loadFont(16, true);
@@ -527,17 +520,8 @@ export class XPCardBuilder {
         const headerX = margin + cardWidth / 2 - (headerText.length * 5);
         const headerY = statsStartY - 25;
 
-        // Print header
-        this.image.print(
-            headerFont,
-            headerX,
-            headerY,
-            {
-                text: headerText,
-                alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT,
-                alignmentY: Jimp.VERTICAL_ALIGN_TOP
-            }
-        );
+        // Print header - simplified to avoid parameter issues
+        this.image.print(headerFont, headerX, headerY, headerText);
 
         // Divider line
         for (let x = margin + 100; x < margin + cardWidth - 100; x++) {
@@ -563,8 +547,10 @@ export class XPCardBuilder {
             { label: 'TRAININGS', value: stats.trainings }
         ];
 
-        // Center the stats
-        const statsStartX = margin + (cardWidth - statsItems.length * statItemWidth) / 2;
+        // FIX: Better center the stats with more space between them
+        const totalItemsWidth = statItemWidth * statsItems.length;
+        const leftPadding = (cardWidth - totalItemsWidth) / 2;
+        const statsStartX = margin + leftPadding;
 
         // Load fonts
         const statLabelFont = await loadFont(13);
@@ -575,7 +561,7 @@ export class XPCardBuilder {
             const item = statsItems[i];
             const statX = Math.round(statsStartX + i * statItemWidth);
             const statY = Math.round(statsStartY + 10);
-            const statWidth = Math.round(statItemWidth - 10);
+            const statWidth = Math.round(statItemWidth - 20); // Add more padding
 
             // Background
             const statBg = await createCanvas(statWidth, statItemHeight, 0x1A1A24FF);
@@ -603,32 +589,13 @@ export class XPCardBuilder {
             // Center position for text
             const centerX = statX + statWidth / 2;
 
-            // Print label
-            const labelX = centerX - (item.label.length * 3);
-            this.image.print(
-                statLabelFont,
-                labelX,
-                statY + 4,
-                {
-                    text: item.label,
-                    alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT,
-                    alignmentY: Jimp.VERTICAL_ALIGN_TOP
-                }
-            );
+            // Print label - simplified
+            const labelText = item.label;
+            this.image.print(statLabelFont, centerX - (labelText.length * 3), statY + 6, labelText);
 
-            // Print value
+            // Print value - simplified
             const valueText = item.value.toString();
-            const valueX = centerX - (valueText.length * 5);
-            this.image.print(
-                statValueFont,
-                valueX,
-                statY + 20,
-                {
-                    text: valueText,
-                    alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT,
-                    alignmentY: Jimp.VERTICAL_ALIGN_TOP
-                }
-            );
+            this.image.print(statValueFont, centerX - (valueText.length * 5), statY + 22, valueText);
         }
 
         return this;

@@ -16,6 +16,7 @@ import { config } from '../../config';
 export class CommandContext {
     channel: any;
     interaction: any;
+    message: any;
     editReply(arg0: { content: string; }) {
         throw new Error('Method not implemented.');
     }

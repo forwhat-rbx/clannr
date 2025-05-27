@@ -9,7 +9,8 @@ import {
     TextInputStyle,
     StringSelectMenuBuilder,
     StringSelectMenuOptionBuilder,
-    CommandInteraction
+    CommandInteraction,
+    ChatInputCommandInteraction
 } from 'discord.js';
 import { config } from '../../config';
 import { Logger } from '../../utils/logger';
@@ -35,16 +36,10 @@ class ScheduleEventCommand extends Command {
 
     async run(ctx: CommandContext) {
         try {
-            // ADD DEBUGGING LOGS
-            Logger.info(`Running schedule command with ctx type: ${typeof ctx}`, 'ScheduleDebug');
-            Logger.info(`Context has interaction: ${Boolean(ctx.interaction)}`, 'ScheduleDebug');
+            // Only use properties that exist on CommandContext
+            const interaction = ctx.interaction;
 
-            if (ctx.interaction) {
-                Logger.info(`Interaction type: ${ctx.interaction.constructor.name}`, 'ScheduleDebug');
-                Logger.info(`Interaction has showModal: ${Boolean(ctx.interaction.showModal)}`, 'ScheduleDebug');
-                Logger.info(`showModal type: ${typeof ctx.interaction.showModal}`, 'ScheduleDebug');
-                Logger.info(`Interaction properties: ${Object.keys(ctx.interaction).join(', ')}`, 'ScheduleDebug');
-            }
+            Logger.info(`Interaction check: ${Boolean(interaction)}`, 'ScheduleDebug');
 
             // Create a modal for the event details
             const modal = new ModalBuilder()
@@ -93,76 +88,157 @@ class ScheduleEventCommand extends Command {
             // Add rows to the modal
             modal.addComponents(firstRow, secondRow, thirdRow, fourthRow);
 
-            // Try alternative approaches to check interaction
-            Logger.info(`Testing alternative checks...`, 'ScheduleDebug');
+            // Direct access to the original interaction object - fixed to avoid TypeScript errors
+            const originalInteraction = (ctx as any).originalInteraction || (ctx as any)._interaction;
 
-            // Detailed check 1: Check if interaction is a CommandInteraction
-            const isCommandInteraction = ctx.interaction instanceof CommandInteraction;
-            Logger.info(`Is CommandInteraction: ${isCommandInteraction}`, 'ScheduleDebug');
+            Logger.info(`Original interaction check: ${Boolean(originalInteraction)}`, 'ScheduleDebug');
 
-            // Detailed check 2: Try a direct cast and check
-            try {
-                const testInteraction = ctx.interaction as CommandInteraction;
-                Logger.info(`Direct cast successful, has showModal: ${Boolean(testInteraction?.showModal)}`, 'ScheduleDebug');
-            } catch (e) {
-                Logger.error(`Direct cast failed: ${e.message}`, 'ScheduleDebug');
-            }
+            // Use the interaction directly if it exists and has showModal
+            const validInteraction = interaction || originalInteraction;
 
-            // Check if we're using slash commands and have access to modal functionality
-            if (ctx.interaction && typeof ctx.interaction.showModal === 'function') {
-                Logger.info(`Condition passed, showing modal`, 'ScheduleDebug');
-                // Cast to CommandInteraction to access showModal
-                const interaction = ctx.interaction as CommandInteraction;
+            if (validInteraction && typeof validInteraction.showModal === 'function') {
+                Logger.info(`Found valid interaction with showModal`, 'ScheduleDebug');
 
                 // Show the modal
-                await interaction.showModal(modal);
+                await validInteraction.showModal(modal);
+
                 try {
                     // Wait for modal submission
                     const filter = i => i.customId === `event_create_modal:${ctx.user.id}`;
-                    const submission = await interaction.awaitModalSubmit({
+                    const submission = await validInteraction.awaitModalSubmit({
                         filter,
                         time: 300000 // 5 minute timeout
                     });
 
                     // Process the submission
-                    // ...rest of code remains the same...
+                    const eventType = submission.fields.getTextInputValue('event_type').trim().toUpperCase();
+                    const eventTimeInput = submission.fields.getTextInputValue('event_time').trim();
+                    const eventLocation = submission.fields.getTextInputValue('event_location').trim();
+                    const eventNotes = submission.fields.getTextInputValue('event_notes').trim();
+
+                    // Validate event type
+                    const validTypes = ['TRAINING', 'RAID', 'DEFENSE', 'SCRIM'];
+                    if (!validTypes.includes(eventType)) {
+                        await submission.reply({
+                            content: 'Invalid event type. Please use TRAINING, RAID, DEFENSE, or SCRIM.',
+                            ephemeral: true
+                        });
+                        return;
+                    }
+
+                    // Parse time input to get Unix timestamp
+                    let unixTimestamp: number;
+
+                    // Try parsing as Unix timestamp first
+                    if (/^\d+$/.test(eventTimeInput)) {
+                        unixTimestamp = parseInt(eventTimeInput);
+                    } else {
+                        // Try parsing as YYYY-MM-DD HH:MM
+                        try {
+                            const parsedDate = chrono.parseDate(eventTimeInput);
+                            if (!parsedDate) {
+                                throw new Error('Could not understand the date format');
+                            }
+                            unixTimestamp = Math.floor(parsedDate.getTime() / 1000);
+                        } catch (error) {
+                            await submission.reply({
+                                content: 'Could not understand your date format. Try something like "tomorrow at 8pm" or "May 30 at 3pm".',
+                                ephemeral: true
+                            });
+                            return;
+                        }
+                    }
+
+                    // Create the event embed
+                    const eventEmbed = createBaseEmbed('primary')
+                        .setTitle(`${eventType} EVENT`)
+                        .addFields([
+                            { name: 'Host', value: `<@${ctx.user.id}>`, inline: false },
+                            { name: 'Time', value: `<t:${unixTimestamp}:F> (<t:${unixTimestamp}:R>)`, inline: false },
+                            { name: 'Location', value: eventLocation, inline: false }
+                        ]);
+
+                    // Add notes if provided
+                    if (eventNotes) {
+                        eventEmbed.addFields({ name: 'Notes', value: eventNotes, inline: false });
+                    }
+
+                    // Set color based on event type
+                    switch (eventType) {
+                        case 'TRAINING':
+                            eventEmbed.setColor('#4CAF50'); // Green
+                            break;
+                        case 'RAID':
+                            eventEmbed.setColor('#F44336'); // Red
+                            break;
+                        case 'DEFENSE':
+                            eventEmbed.setColor('#2196F3'); // Blue
+                            break;
+                        case 'SCRIM':
+                            eventEmbed.setColor('#FF9800'); // Orange
+                            break;
+                    }
+
+                    // Add buttons for RSVP (optional)
+                    const rsvpRow = new ActionRowBuilder<ButtonBuilder>()
+                        .addComponents(
+                            new ButtonBuilder()
+                                .setCustomId(`event_rsvp_yes:${Date.now()}`)
+                                .setLabel('Attending')
+                                .setStyle(ButtonStyle.Success)
+                                .setEmoji('✅'),
+                            new ButtonBuilder()
+                                .setCustomId(`event_rsvp_no:${Date.now()}`)
+                                .setLabel('Not Attending')
+                                .setStyle(ButtonStyle.Danger)
+                                .setEmoji('❌'),
+                            new ButtonBuilder()
+                                .setCustomId(`event_rsvp_maybe:${Date.now()}`)
+                                .setLabel('Maybe')
+                                .setStyle(ButtonStyle.Secondary)
+                                .setEmoji('❓')
+                        );
+
+                    // Send the event announcement
+                    await submission.reply({
+                        content: 'Event scheduled successfully!',
+                        ephemeral: true
+                    });
+
+                    // Send the actual announcement to the channel
+                    await ctx.channel.send({
+                        content: '@everyone',
+                        embeds: [eventEmbed],
+                        components: [rsvpRow]
+                    });
+
+                    // Log the event creation
+                    Logger.info(`Event scheduled by ${ctx.user.tag}: ${eventType} at ${new Date(unixTimestamp * 1000).toISOString()}`, 'EventScheduling');
+
                 } catch (error) {
                     Logger.error('Error processing event modal submission', 'EventScheduling', error);
-                    // ...error handling...
+                    if (validInteraction.deferred || validInteraction.replied) {
+                        await ctx.editReply({ content: 'Failed to process event creation. Please try again.' });
+                    } else {
+                        await ctx.reply({ content: 'Failed to process event creation. Please try again.', ephemeral: true });
+                    }
                 }
             } else {
-                Logger.info(`Condition failed, showing error message`, 'ScheduleDebug');
-                Logger.info(`ctx.interaction exists: ${Boolean(ctx.interaction)}`, 'ScheduleDebug');
-                if (ctx.interaction) {
-                    Logger.info(`showModal is a function: ${typeof ctx.interaction.showModal === 'function'}`, 'ScheduleDebug');
-                    Logger.info(`showModal type: ${typeof ctx.interaction.showModal}`, 'ScheduleDebug');
-                }
+                // If we still can't find a valid interaction, try to handle with direct reply
+                Logger.error('No valid interaction found with showModal method', 'ScheduleDebug');
 
-                // Try another approach without checking
-                try {
-                    Logger.info(`Attempting direct modal show without condition check`, 'ScheduleDebug');
-                    // Force-cast the interaction
-                    const forcedInteraction = ctx.interaction as any;
-                    // Try showing the modal directly
-                    await forcedInteraction.showModal(modal);
-
-                    Logger.info(`Direct modal show worked!`, 'ScheduleDebug');
-
-                    // Return to avoid showing the error message
-                    return;
-                } catch (e) {
-                    Logger.error(`Direct modal show failed: ${e.message}`, 'ScheduleDebug', e);
-                }
+                // Log all available properties on the context
+                Logger.info(`Context properties: ${Object.keys(ctx).join(', ')}`, 'ScheduleDebug');
 
                 await ctx.reply({
-                    content: 'This command can only be used with slash commands. Debug info has been logged.',
+                    content: 'This command can only be used with slash commands. Please use Discord\'s slash command feature (/schedule).',
                     ephemeral: true
                 });
             }
         } catch (error) {
-            Logger.error('Error showing event creation modal', 'EventScheduling', error);
+            Logger.error('Error in schedule command', 'ScheduleDebug', error);
             await ctx.reply({
-                content: 'An error occurred while trying to schedule an event. Check logs for details.',
+                content: 'An error occurred while trying to schedule an event. Please try again later.',
                 ephemeral: true
             });
         }

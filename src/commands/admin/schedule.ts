@@ -303,15 +303,15 @@ class ScheduleEventCommand extends Command {
                     if (ctx.interaction.deferred || ctx.interaction.replied) {
                         await ctx.editReply({ content: 'Failed to process event creation. Please try again.' });
                     } else {
-                        await ctx.reply({ content: 'Failed to process event creation. Please try again.', ephemeral: true });
+                        await ctx.reply(createReplyOptions({ content: 'Failed to process event creation. Please try again.', ephemeral: true }));
                     }
                 }
             } else {
-                await ctx.reply({ content: 'This command can only be used with slash commands.', ephemeral: true });
+                await ctx.reply(createReplyOptions({ content: 'This command can only be used with slash commands.', ephemeral: true }));
             }
         } catch (error) {
             Logger.error('Error showing event creation modal', 'EventScheduling', error);
-            await ctx.reply({ content: 'An error occurred while trying to schedule an event.', ephemeral: true });
+            await ctx.reply(createReplyOptions({ content: 'An error occurred while trying to schedule an event.', ephemeral: true }));
         }
     }
 }

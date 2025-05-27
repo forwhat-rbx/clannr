@@ -19,6 +19,7 @@ import { ActivityLogger } from './utils/activityLogger';
 import { handleComponentInteraction } from './handlers/componentInteractionHandler';
 import { Logger } from './utils/logger';
 import { promiseWithTimeout } from './utils/timeoutUtil'; // Fixed import path
+import { directAuthenticate, getXCSRFToken } from './utils/directAuth';
 
 require('dotenv').config();
 
@@ -41,28 +42,41 @@ let robloxGroup: Group = null;
     try {
         Logger.info('Attempting to login to Roblox...', 'Auth');
 
-        // Add timeout to login
-        await promiseWithTimeout(
-            robloxClient.login(),
-            30000, // 30 second timeout for login
-            'Roblox login timed out'
-        );
-
-        Logger.info('Roblox login completed, fetching user info...', 'Auth');
-
-        // Add timeout to user info fetch
+        // First, try direct authentication (which is much more reliable)
         try {
-            const userInfo = await promiseWithTimeout(
-                robloxClient.apis.usersAPI.getAuthenticatedUserInformation(),
-                15000, // 15 second timeout
-                'User info fetch timed out'
+            const authResult = await promiseWithTimeout(
+                directAuthenticate(process.env.ROBLOX_COOKIE),
+                15000,
+                'Direct authentication timed out'
             );
-            Logger.info(`Successfully logged in as: ${userInfo.name} (${userInfo.id})`, 'Auth');
-        } catch (userErr) {
-            Logger.warn('Authenticated, but couldn\'t fetch user details', 'Auth', userErr);
-            // Continue anyway
+
+            Logger.info(`Successfully logged in as: ${authResult.name} (${authResult.id})`, 'Auth');
+
+            // Try to get a CSRF token since we bypassed the normal login
+            try {
+                const token = await promiseWithTimeout(
+                    getXCSRFToken(process.env.ROBLOX_COOKIE),
+                    10000,
+                    'CSRF token fetch timed out'
+                );
+                Logger.info('CSRF token acquired successfully', 'Auth');
+            } catch (tokenErr) {
+                Logger.warn('Failed to get CSRF token, some operations may fail', 'Auth', tokenErr);
+            }
+        } catch (directAuthError) {
+            Logger.warn('Direct authentication failed, falling back to Bloxy login', 'Auth', directAuthError);
+
+            // Fall back to original login method
+            await promiseWithTimeout(
+                robloxClient.login(),
+                30000,
+                'Roblox login timed out'
+            );
+
+            Logger.info('Fallback login succeeded', 'Auth');
         }
 
+        // Continue with the rest of your initialization
         Logger.info('Initializing log channels...', 'Auth');
 
         // Add timeout to log channel initialization

@@ -67,24 +67,62 @@ async function handleEventCreateModal(interaction: ModalSubmitInteraction): Prom
 
         // Parse time input to get Unix timestamp
         let unixTimestamp: number;
+        let parsedDate: Date | null = null;
+        let friendlyDateDisplay: string;
 
-        // Try parsing as Unix timestamp first
+        // Try different parsing approaches
         if (/^\d+$/.test(eventTimeInput)) {
+            // It's a Unix timestamp
             unixTimestamp = parseInt(eventTimeInput);
+            parsedDate = new Date(unixTimestamp * 1000);
+            friendlyDateDisplay = parsedDate.toLocaleString();
         } else {
-            // Try parsing as natural language date
+            // Try natural language parsing
             try {
-                const parsedDate = chrono.parseDate(eventTimeInput);
-                if (!parsedDate) {
+                // Use more advanced chrono parsing options with correct typing
+                const parseOptions: any = {
+                    forwardDate: true
+                };
+
+                // Add timezone if available
+                if (interaction.guild?.preferredLocale === 'pt-BR') {
+                    parseOptions.timezone = 'America/Sao_Paulo';
+                } else {
+                    parseOptions.timezone = 'UTC';
+                }
+
+                const results = chrono.parse(eventTimeInput, parseOptions);
+
+                if (results.length > 0 && results[0].start) {
+                    parsedDate = results[0].start.date();
+                    unixTimestamp = Math.floor(parsedDate.getTime() / 1000);
+                    friendlyDateDisplay = parsedDate.toLocaleString();
+
+                    // Log the successful parsing for debugging
+                    Logger.info(`Parsed "${eventTimeInput}" as ${friendlyDateDisplay}`, 'EventScheduling');
+                } else {
                     throw new Error('Could not understand the date format');
                 }
-                unixTimestamp = Math.floor(parsedDate.getTime() / 1000);
             } catch (error) {
                 await interaction.editReply({
-                    content: 'Could not understand your date format. Try something like "tomorrow at 8pm" or "May 30 at 3pm".',
+                    content: 'Could not understand your date format. Try phrases like:\n' +
+                        '• "tomorrow at 5pm"\n' +
+                        '• "next friday at 8pm"\n' +
+                        '• "may 30 at 3pm"\n' +
+                        '• "in 3 days at 7pm"\n' +
+                        '• "8pm tonight"'
                 });
                 return;
             }
+        }
+
+        // Validate the date is in the future
+        const now = Date.now() / 1000;
+        if (unixTimestamp < now) {
+            await interaction.editReply({
+                content: 'Please specify a future date and time for the event.'
+            });
+            return;
         }
 
         // Create the event embed
@@ -117,9 +155,9 @@ async function handleEventCreateModal(interaction: ModalSubmitInteraction): Prom
                 break;
         }
 
-        // Send success message to the user
+        // Send success message to the user with the parsed date for confirmation
         await interaction.editReply({
-            content: 'Event scheduled successfully!',
+            content: `Event scheduled successfully for ${friendlyDateDisplay}!`,
         });
 
         // Send the actual announcement to the channel
@@ -132,7 +170,7 @@ async function handleEventCreateModal(interaction: ModalSubmitInteraction): Prom
         }
 
         // Log the event creation
-        Logger.info(`Event scheduled by ${interaction.user.tag}: ${eventType} at ${new Date(unixTimestamp * 1000).toISOString()}`, 'EventScheduling');
+        Logger.info(`Event scheduled by ${interaction.user.tag}: ${eventType} at ${parsedDate.toISOString()}`, 'EventScheduling');
     } catch (error) {
         Logger.error('Error processing event creation modal', 'EventScheduling', error);
 

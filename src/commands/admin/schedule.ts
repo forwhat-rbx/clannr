@@ -68,9 +68,9 @@ class ScheduleEventCommand extends Command {
             // Time input
             const timeInput = new TextInputBuilder()
                 .setCustomId('event_time')
-                .setLabel('Time (YYYY-MM-DD HH:MM or Unix timestamp)')
+                .setLabel('When is the event?')
                 .setStyle(TextInputStyle.Short)
-                .setPlaceholder('e.g., 2025-05-30 20:00 or 1749262500')
+                .setPlaceholder('e.g., tomorrow at 5pm, next friday at 8pm, May 30')
                 .setRequired(true);
 
             // Location input

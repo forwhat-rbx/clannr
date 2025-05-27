@@ -528,9 +528,16 @@ export class XPCardBuilder {
         const headerY = statsStartY - 25;
 
         // Print header
-        this.image.print(headerFont, headerX, headerY, { text: headerText }, 0, 0, {
-            r: 160, g: 208, b: 255, a: 255
-        });
+        this.image.print(
+            headerFont,
+            headerX,
+            headerY,
+            {
+                text: headerText,
+                alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT,
+                alignmentY: Jimp.VERTICAL_ALIGN_TOP
+            }
+        );
 
         // Divider line
         for (let x = margin + 100; x < margin + cardWidth - 100; x++) {
@@ -598,16 +605,30 @@ export class XPCardBuilder {
 
             // Print label
             const labelX = centerX - (item.label.length * 3);
-            this.image.print(statLabelFont, labelX, statY + 4, { text: item.label }, 0, 0, {
-                r: 144, g: 160, b: 192, a: 255
-            });
+            this.image.print(
+                statLabelFont,
+                labelX,
+                statY + 4,
+                {
+                    text: item.label,
+                    alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT,
+                    alignmentY: Jimp.VERTICAL_ALIGN_TOP
+                }
+            );
 
             // Print value
             const valueText = item.value.toString();
             const valueX = centerX - (valueText.length * 5);
-            this.image.print(statValueFont, valueX, statY + 20, { text: valueText }, 0, 0, {
-                r: 255, g: 255, b: 255, a: 255
-            });
+            this.image.print(
+                statValueFont,
+                valueX,
+                statY + 20,
+                {
+                    text: valueText,
+                    alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT,
+                    alignmentY: Jimp.VERTICAL_ALIGN_TOP
+                }
+            );
         }
 
         return this;

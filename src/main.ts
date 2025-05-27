@@ -1,4 +1,5 @@
 import { QbotClient } from './structures/QbotClient';
+import { patchBloxyLibrary, monkeyPatchBloxyLibrary } from './utils/bloxyPatch';
 import { Client as RobloxClient } from 'bloxy';
 import { handleInteraction } from './handlers/handleInteraction';
 import { handleLegacyCommand } from './handlers/handleLegacyCommand';
@@ -24,6 +25,15 @@ import { initializeDatabase } from './database/dbInit';
 
 require('dotenv').config();
 
+// Apply Bloxy patches immediately - BEFORE any Bloxy code runs
+Logger.info('Applying Bloxy library patches...', 'Startup');
+const patchSuccess = patchBloxyLibrary();
+if (!patchSuccess) {
+    // Fall back to monkey patching if direct patch fails
+    Logger.info('Direct patch failed, applying monkey patch...', 'BloxyPatch');
+    monkeyPatchBloxyLibrary();
+}
+
 // [Ensure Setup]
 if (!process.env.ROBLOX_COOKIE) {
     Logger.error('ROBLOX_COOKIE is not set in the .env file.', 'Auth', null);
@@ -40,6 +50,20 @@ require('./api');
 const discordClient = new QbotClient();
 discordClient.login(process.env.DISCORD_TOKEN);
 const robloxClient = new RobloxClient({ credentials: { cookie: process.env.ROBLOX_COOKIE } });
+
+try {
+    // Fix requester issue at runtime if needed
+    const RESTController = require('bloxy/dist/controllers/rest/RESTController').default;
+    if (RESTController.prototype.requester !== undefined && typeof RESTController.prototype.requester !== 'function') {
+        Logger.warn('Detected non-function requester at runtime, applying fix', 'BloxyPatch');
+        RESTController.prototype.requester = function (options) {
+            return this.request(options);
+        };
+    }
+} catch (e) {
+    Logger.warn('Runtime patch check failed, but continuing', 'BloxyPatch');
+}
+
 let robloxGroup: Group = null;
 
 class DirectGroupMember {

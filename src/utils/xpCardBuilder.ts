@@ -438,7 +438,8 @@ export class XPCardBuilder {
                 const r = Math.floor(16 + factor * 60);
                 const g = Math.floor(96 + factor * 80);
                 const b = Math.floor(192 + factor * 63);
-                const color = (r << 24) | (g << 16) | (b << 8) | 255;
+                // FIX: Use Jimp.rgbaToInt instead of bit shifting
+                const color = Jimp.rgbaToInt(r, g, b, 255);
                 barFill.setPixelColor(color, x, y);
             });
 
@@ -450,7 +451,8 @@ export class XPCardBuilder {
                     const r = Math.min(255, ((currentColor >> 24) & 0xFF) + 20);
                     const g = Math.min(255, ((currentColor >> 16) & 0xFF) + 20);
                     const b = Math.min(255, ((currentColor >> 8) & 0xFF) + 20);
-                    const newColor = (r << 24) | (g << 16) | (b << 8) | 255;
+                    // FIX: Use Jimp.rgbaToInt instead of bit shifting
+                    const newColor = Jimp.rgbaToInt(r, g, b, 255);
                     barFill.setPixelColor(newColor, x, i);
                 }
             }
@@ -490,7 +492,8 @@ export class XPCardBuilder {
                         if (dist > 1 && dist <= 3.5) {
                             const intensity = 1 - (dist - 1) / 2.5;
                             const alpha = Math.floor(intensity * 102);
-                            const glowColor = (160 << 24) | (208 << 16) | (255 << 8) | alpha;
+                            // FIX: Use Jimp.rgbaToInt instead of bit shifting
+                            const glowColor = Jimp.rgbaToInt(160, 208, 255, alpha);
 
                             const x = dotX + dx;
                             const y = dotY + dy;
@@ -502,9 +505,9 @@ export class XPCardBuilder {
                     }
                 }
             }
-        }
 
-        return this;
+            return this;
+        }
     }
 
     async addStatistics(stats: XPStats): Promise<this> {
@@ -541,7 +544,7 @@ export class XPCardBuilder {
                 alpha = Math.floor(((1 - position) / 0.5) * 178);
             }
 
-            const dividerColor = (100 << 24) | (150 << 16) | (230 << 8) | alpha;
+            const dividerColor = Jimp.rgbaToInt(100, 150, 230, alpha);
             this.image.setPixelColor(dividerColor, x, statsStartY);
         }
 

@@ -3,7 +3,6 @@ import { BotConfig, CommandExport } from './types';
 import { Command } from './Command';
 import { config } from '../config';
 import { readdirSync, writeFileSync } from 'fs';
-import { discordClient } from '../main';
 import { qbotLaunchTextDisplay, welcomeText, startedText, securityText, getListeningText } from '../handlers/locale';
 import { getLogChannels } from '../handlers/handleLogging';
 require('dotenv').config();
@@ -25,24 +24,7 @@ class QbotClient extends Client {
             ]
         });
         this.config = config;
-        this.on('ready', () => {
-            console.log(qbotLaunchTextDisplay);
-            console.log(welcomeText);
-            if (this.application.botPublic) return console.log(securityText);
-            console.log(startedText);
-            console.log(getListeningText(process.env.PORT || 3002));
-            this.loadCommands();
-            getLogChannels();
-
-            if (config.activity.enabled) {
-                this.user.setActivity(config.activity.value, {
-                    type: config.activity.type,
-                    url: config.activity.url,
-                });
-            }
-
-            if (config.status !== 'online') this.user.setStatus(config.status);
-        });
+        this.commands = [];
     }
 
     /**
@@ -66,9 +48,9 @@ class QbotClient extends Client {
             const currentCommands = require('../resources/commands.json');
             if (JSON.stringify(currentCommands) !== JSON.stringify(slashCommands)) {
                 writeFileSync('./src/resources/commands.json', JSON.stringify(slashCommands), 'utf-8');
-                discordClient.application.commands.set(slashCommands);
+                this.application?.commands.set(slashCommands);
             }
-            this.commands = commands;
+            this.commands = commands as any[];
         });
     }
 }

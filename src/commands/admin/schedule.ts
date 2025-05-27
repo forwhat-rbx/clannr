@@ -14,7 +14,94 @@ import {
 import { config } from '../../config';
 import { Logger } from '../../utils/logger';
 import { createBaseEmbed } from '../../utils/embedUtils';
-import * as chrono from 'chrono-node';
+// Remove problematic chrono-node import
+
+// Custom date parser function to replace chrono-node
+function parseDate(text: string): Date | null {
+    // First, try standard date format YYYY-MM-DD HH:MM
+    const dateRegex = /(\d{4})-(\d{1,2})-(\d{1,2})(?:\s+(\d{1,2}):(\d{1,2}))?/;
+    const match = text.match(dateRegex);
+
+    if (match) {
+        const year = parseInt(match[1]);
+        const month = parseInt(match[2]) - 1; // JS months are 0-indexed
+        const day = parseInt(match[3]);
+        const hour = match[4] ? parseInt(match[4]) : 0;
+        const minute = match[5] ? parseInt(match[5]) : 0;
+
+        return new Date(year, month, day, hour, minute);
+    }
+
+    // Try natural language formats
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    if (/today/i.test(text)) {
+        // Extract time if available (e.g., "today at 3pm")
+        const timeMatch = text.match(/(\d{1,2})(?::(\d{1,2}))?(?:\s*(am|pm))?/i);
+        if (timeMatch) {
+            let hour = parseInt(timeMatch[1]);
+            const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+            const ampm = timeMatch[3]?.toLowerCase();
+
+            if (ampm === 'pm' && hour < 12) hour += 12;
+            if (ampm === 'am' && hour === 12) hour = 0;
+
+            today.setHours(hour, minute, 0, 0);
+        }
+        return today;
+    }
+
+    if (/tomorrow/i.test(text)) {
+        // Extract time if available
+        const timeMatch = text.match(/(\d{1,2})(?::(\d{1,2}))?(?:\s*(am|pm))?/i);
+        if (timeMatch) {
+            let hour = parseInt(timeMatch[1]);
+            const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+            const ampm = timeMatch[3]?.toLowerCase();
+
+            if (ampm === 'pm' && hour < 12) hour += 12;
+            if (ampm === 'am' && hour === 12) hour = 0;
+
+            tomorrow.setHours(hour, minute, 0, 0);
+        }
+        return tomorrow;
+    }
+
+    // Try to parse month names (e.g., "May 30 at 3pm")
+    const monthNameRegex = /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2})(?:[a-z]{2})?\s+(?:at\s+)?(\d{1,2})(?::(\d{1,2}))?(?:\s*(am|pm))?/i;
+    const monthMatch = text.match(monthNameRegex);
+
+    if (monthMatch) {
+        const monthNames = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+        const monthIndex = monthNames.findIndex(m => monthMatch[1].toLowerCase().startsWith(m));
+
+        if (monthIndex !== -1) {
+            const day = parseInt(monthMatch[2]);
+            let hour = parseInt(monthMatch[3]);
+            const minute = monthMatch[4] ? parseInt(monthMatch[4]) : 0;
+            const ampm = monthMatch[5]?.toLowerCase();
+
+            if (ampm === 'pm' && hour < 12) hour += 12;
+            if (ampm === 'am' && hour === 12) hour = 0;
+
+            const date = new Date();
+            date.setMonth(monthIndex);
+            date.setDate(day);
+            date.setHours(hour, minute, 0, 0);
+
+            // If the date is in the past, assume next year
+            if (date < new Date()) {
+                date.setFullYear(date.getFullYear() + 1);
+            }
+
+            return date;
+        }
+    }
+
+    return null;
+}
 
 class ScheduleEventCommand extends Command {
     constructor() {
@@ -121,11 +208,9 @@ class ScheduleEventCommand extends Command {
                     if (/^\d+$/.test(eventTimeInput)) {
                         unixTimestamp = parseInt(eventTimeInput);
                     } else {
-                        // Try parsing as YYYY-MM-DD HH:MM
+                        // Try parsing with our custom parser
                         try {
-                            const parsedDate = chrono.en.parse(eventTimeInput, new Date(), {
-                                forwardDate: true
-                            })[0]?.date();
+                            const parsedDate = parseDate(eventTimeInput);
 
                             if (!parsedDate) {
                                 throw new Error('Could not understand the date format');

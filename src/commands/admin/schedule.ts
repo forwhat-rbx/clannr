@@ -14,7 +14,7 @@ import {
 import { config } from '../../config';
 import { Logger } from '../../utils/logger';
 import { createBaseEmbed } from '../../utils/embedUtils';
-// Remove problematic chrono-node import
+import { createReplyOptions } from '../../utils/interactionUtils';
 
 // Custom date parser function to replace chrono-node
 function parseDate(text: string): Date | null {
@@ -281,12 +281,19 @@ class ScheduleEventCommand extends Command {
                         ephemeral: true
                     });
 
-                    // Send the actual announcement to the channel
-                    await ctx.channel.send({
-                        content: '@everyone',
-                        embeds: [eventEmbed],
-                        components: [rsvpRow]
-                    });
+                    if (ctx.channel && 'send' in ctx.channel) {
+                        await ctx.channel.send({
+                            content: '@everyone',
+                            embeds: [eventEmbed],
+                            components: [rsvpRow]
+                        });
+                    } else {
+                        Logger.error('Channel does not support sending messages', 'ScheduleEventCommand');
+                        await submission.followUp({
+                            content: 'Error: Cannot send messages to this channel.',
+                            ephemeral: true
+                        });
+                    }
 
                     // Log the event creation
                     Logger.info(`Event scheduled by ${ctx.user.tag}: ${eventType} at ${new Date(unixTimestamp * 1000).toISOString()}`, 'EventScheduling');

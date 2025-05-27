@@ -34,24 +34,35 @@ async function sendUpdate(
             return;
         }
 
-        // For regular interactions - use type assertion with "as any" for the problematic line
+        // For regular interactions
         if ('deferred' in interaction && interaction.deferred) {
             if ('editReply' in interaction) {
                 await interaction.editReply({ content: message });
             } else if ('followUp' in interaction) {
-                // Use a type assertion to bypass TypeScript's type checking
-                await (interaction as any).followUp({ content: message });
+                // Verify the method exists before calling
+                const interactionWithFollowUp = interaction as any;
+                if (typeof interactionWithFollowUp.followUp === 'function') {
+                    await interactionWithFollowUp.followUp({ content: message });
+                }
             }
         } else if ('replied' in interaction && interaction.replied) {
             if ('followUp' in interaction) {
-                // Use a type assertion here as well
-                await (interaction as any).followUp({ content: message });
+                // Verify the method exists before calling
+                const interactionWithFollowUp = interaction as any;
+                if (typeof interactionWithFollowUp.followUp === 'function') {
+                    await interactionWithFollowUp.followUp({ content: message });
+                }
             }
         } else if ('reply' in interaction) {
-            await interaction.reply({
-                content: message, ephemeral: true,
-                fetchReply: true
-            });
+            // Use type guard to ensure reply method exists
+            const interactionWithReply = interaction as any;
+            if (typeof interactionWithReply.reply === 'function') {
+                await interactionWithReply.reply({
+                    content: message,
+                    ephemeral: true,
+                    fetchReply: true
+                });
+            }
         }
     } catch (error) {
         console.error('Error sending update:', error);

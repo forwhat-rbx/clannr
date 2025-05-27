@@ -134,6 +134,46 @@ export async function directGetGroup(cookie: string, groupId: number): Promise<R
     }
 }
 
+export async function directGetGroupAuditLogs(cookie: string, groupId: number, params: any = {}): Promise<any> {
+    try {
+        Logger.info(`Directly fetching audit logs for group ${groupId}...`, 'DirectAuth');
+
+        // Get a CSRF token first which is required for this endpoint
+        const csrfToken = await getXCSRFToken(cookie);
+
+        // Build URL with parameters if provided
+        let url = `https://groups.roblox.com/v1/groups/${groupId}/audit-log`;
+        if (params && Object.keys(params).length > 0) {
+            const queryParams = new URLSearchParams();
+            if (params.actionType) queryParams.append('actionType', params.actionType);
+            if (params.limit) queryParams.append('limit', params.limit.toString());
+            if (params.cursor) queryParams.append('cursor', params.cursor);
+            if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
+            url += `?${queryParams.toString()}`;
+        }
+
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Cookie': `.ROBLOSECURITY=${cookie}`,
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to get audit logs with status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        Logger.info(`Successfully fetched audit logs for group ${groupId}`, 'DirectAuth');
+        return data;
+    } catch (error) {
+        Logger.error('Failed to get group audit logs directly:', 'DirectAuth', error);
+        throw error;
+    }
+}
+
 /**
  * Get group roles directly
  */

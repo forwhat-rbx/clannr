@@ -5,6 +5,7 @@ import { config } from '../../config';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits } from 'discord.js';
 import { Logger } from '../../utils/logger';
 import { prisma } from '../../database/prisma';
+import { initializeDatabase } from '../../database/dbInit';
 
 class SetupVerifyCommand extends Command {
     constructor() {
@@ -99,33 +100,94 @@ class SetupVerifyCommand extends Command {
                 components: [row]
             });
 
-            // Store the verification channel and message ID in the database
-            await prisma.guildConfig.upsert({
-                where: {
-                    guildId: ctx.guild.id
-                },
-                update: {
-                    verificationChannelId: channel.id,
-                    verificationMessageId: message.id
-                },
-                create: {
-                    id: ctx.guild.id,
-                    guildId: ctx.guild.id,
-                    nicknameFormat: '{robloxUsername}',
-                    verificationChannelId: channel.id,
-                    verificationMessageId: message.id
-                }
-            });
+            try {
+                // Try to store the verification channel and message ID in the database
+                await prisma.guildConfig.upsert({
+                    where: {
+                        guildId: ctx.guild.id
+                    },
+                    update: {
+                        verificationChannelId: channel.id,
+                        verificationMessageId: message.id
+                    },
+                    create: {
+                        id: ctx.guild.id,
+                        guildId: ctx.guild.id,
+                        nicknameFormat: '{robloxUsername}',
+                        verificationChannelId: channel.id,
+                        verificationMessageId: message.id
+                    }
+                });
 
-            // Confirm setup success
-            return ctx.reply({
-                embeds: [
-                    createBaseEmbed('success')
-                        .setTitle('Verification Channel Setup')
-                        .setDescription(`Successfully set up verification in <#${channel.id}>!`)
-                ],
-                ephemeral: true
-            });
+                // Confirm setup success
+                return ctx.reply({
+                    embeds: [
+                        createBaseEmbed('success')
+                            .setTitle('Verification Channel Setup')
+                            .setDescription(`Successfully set up verification in <#${channel.id}>!`)
+                    ],
+                    ephemeral: true
+                });
+            } catch (dbError) {
+                Logger.error('Database error in setupverify command', 'SetupVerifyCommand', dbError);
+
+                // If the table doesn't exist, try to initialize the database
+                if (dbError.code === 'P2021') {
+                    try {
+                        Logger.info('Attempting to initialize missing database tables', 'SetupVerifyCommand');
+                        await initializeDatabase();
+
+                        // Try again after initialization
+                        await prisma.guildConfig.upsert({
+                            where: {
+                                guildId: ctx.guild.id
+                            },
+                            update: {
+                                verificationChannelId: channel.id,
+                                verificationMessageId: message.id
+                            },
+                            create: {
+                                id: ctx.guild.id,
+                                guildId: ctx.guild.id,
+                                nicknameFormat: '{robloxUsername}',
+                                verificationChannelId: channel.id,
+                                verificationMessageId: message.id
+                            }
+                        });
+
+                        // Success after retry
+                        return ctx.reply({
+                            embeds: [
+                                createBaseEmbed('success')
+                                    .setTitle('Verification Channel Setup')
+                                    .setDescription(`Successfully set up verification in <#${channel.id}>! (Database was initialized)`)
+                            ],
+                            ephemeral: true
+                        });
+                    } catch (initError) {
+                        // Database initialization or second attempt failed
+                        Logger.error('Failed to initialize database', 'SetupVerifyCommand', initError);
+                        return ctx.reply({
+                            embeds: [
+                                createBaseEmbed('danger')
+                                    .setTitle('Database Error')
+                                    .setDescription('The verification channel was created, but I couldn\'t save it to the database. Please contact the bot administrator to initialize the database.')
+                            ],
+                            ephemeral: true
+                        });
+                    }
+                }
+
+                // For other database errors
+                return ctx.reply({
+                    embeds: [
+                        createBaseEmbed('danger')
+                            .setTitle('Database Error')
+                            .setDescription(`The verification channel was created, but I couldn't save it to the database: ${dbError.message}`)
+                    ],
+                    ephemeral: true
+                });
+            }
         } catch (err) {
             Logger.error('Error in setupverify command', 'SetupVerifyCommand', err);
             return ctx.reply({

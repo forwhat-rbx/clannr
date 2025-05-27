@@ -50,6 +50,16 @@ export async function initializeDatabase() {
                     "robloxId" TEXT NOT NULL
                 )`;
 
+                // Add GuildConfig table
+                await prisma.$executeRaw`
+                CREATE TABLE IF NOT EXISTS "GuildConfig" (
+                    "id" TEXT NOT NULL PRIMARY KEY,
+                    "guildId" TEXT NOT NULL UNIQUE,
+                    "nicknameFormat" TEXT NOT NULL DEFAULT '{robloxUsername}',
+                    "verificationChannelId" TEXT,
+                    "verificationMessageId" TEXT
+                )`;
+
                 Logger.info('Database schema created successfully', 'Database');
             } catch (dbError) {
                 Logger.error('Failed to create database schema', 'Database', dbError);

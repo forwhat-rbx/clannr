@@ -19,7 +19,7 @@ import { ActivityLogger } from './utils/activityLogger';
 import { handleComponentInteraction } from './handlers/componentInteractionHandler';
 import { Logger } from './utils/logger';
 import { promiseWithTimeout } from './utils/timeoutUtil';
-import { directAuthenticate, getXCSRFToken, directGetGroup, directGetGroupRoles } from './utils/directAuth';
+import { directAuthenticate, getXCSRFToken, directGetGroup, directGetGroupRoles, directGetGroupAuditLogs } from './utils/directAuth';
 import { initializeDatabase } from './database/dbInit';
 
 require('dotenv').config();
@@ -222,7 +222,15 @@ class DirectGroupMember {
                 },
 
                 // Add other required methods as needed
-                getAuditLogs: async () => { return []; },
+                getAuditLogs: async (params = {}) => {
+                    try {
+                        const data = await directGetGroupAuditLogs(process.env.ROBLOX_COOKIE, config.groupId, params);
+                        return data;
+                    } catch (err) {
+                        Logger.error(`Failed to get audit logs: ${err.message}`, 'DirectAuth');
+                        return { data: [] }; // Return empty data on error
+                    }
+                },
                 getSettings: async () => { return { isLocked: false }; },
                 getJoinRequests: async () => { return []; },
 

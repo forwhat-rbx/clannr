@@ -2,20 +2,23 @@ import { config } from '../config';
 import { robloxClient } from '../main';
 import { prisma } from '../database/prisma';
 import { User } from 'bloxy/dist/structures';
+import { Logger } from '../utils/logger';
 
 /**
  * Get a Roblox user linked to a Discord ID from the database
  */
 export const getLinkedRobloxUser = async (discordId: string): Promise<User | null> => {
     try {
-        // Use findFirst instead of findUnique to avoid schema conflicts
-        const userLink = await prisma.userLink.findFirst({
-            where: {
-                discordId: discordId
-            }
-        });
+        // Use raw SQL query to bypass schema validation
+        const result = await prisma.$queryRaw`
+            SELECT * FROM UserLink WHERE discordId = ${discordId} LIMIT 1
+        `;
 
-        if (!userLink) return null;
+        if (!result || result.length === 0) {
+            return null;
+        }
+
+        const userLink = result[0];
 
         // Use the Roblox ID from our database to fetch the Roblox user through bloxy API
         const robloxUser = await robloxClient.getUser(Number(userLink.robloxId));
@@ -36,30 +39,36 @@ export const createUserLink = async (discordId: string, robloxId: string) => {
         // Ensure robloxId is always a string
         const robloxIdString = String(robloxId);
 
-        // Use upsert with findFirst precondition instead of relying on unique constraints
-        const existingLink = await prisma.userLink.findFirst({
-            where: { discordId: discordId }
-        });
+        // Check if link already exists
+        const existingLinks = await prisma.$queryRaw`
+            SELECT * FROM UserLink WHERE discordId = ${discordId}
+        `;
 
-        if (existingLink) {
+        if (existingLinks && existingLinks.length > 0) {
             // Update existing link
-            const result = await prisma.userLink.update({
-                where: { discordId: discordId },
-                data: {
-                    robloxId: robloxIdString,
-                    verifiedAt: new Date()
-                }
-            });
-            console.log(`[LINK DEBUG] Link updated successfully:`, result);
-            return result;
-        } else {
-            // Create new link
-            const result = await prisma.$queryRaw`
-                INSERT INTO UserLink (discordId, robloxId, verifiedAt)
-                VALUES (${discordId}, ${robloxIdString}, ${new Date()})
+            await prisma.$executeRaw`
+                UPDATE UserLink 
+                SET robloxId = ${robloxIdString} 
+                WHERE discordId = ${discordId}
             `;
+            console.log(`[LINK DEBUG] Link updated successfully via raw query`);
+            return { discordId, robloxId: robloxIdString };
+        } else {
+            // Create new link - try with verifiedAt first, fall back if needed
+            try {
+                await prisma.$executeRaw`
+                    INSERT INTO UserLink (discordId, robloxId, verifiedAt)
+                    VALUES (${discordId}, ${robloxIdString}, ${new Date()})
+                `;
+            } catch (error) {
+                // If verifiedAt column doesn't exist, try without it
+                await prisma.$executeRaw`
+                    INSERT INTO UserLink (discordId, robloxId)
+                    VALUES (${discordId}, ${robloxIdString})
+                `;
+            }
             console.log(`[LINK DEBUG] Link created successfully via raw query`);
-            return { discordId, robloxId: robloxIdString, verifiedAt: new Date() };
+            return { discordId, robloxId: robloxIdString };
         }
     } catch (err) {
         console.error("Failed to create user link:", err);

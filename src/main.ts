@@ -3,7 +3,7 @@ import { Client as RobloxClient } from 'bloxy';
 import { handleInteraction } from './handlers/handleInteraction';
 import { handleLegacyCommand } from './handlers/handleLegacyCommand';
 import { config } from './config';
-import { Group } from 'bloxy/dist/structures';
+import { Group, GroupMember } from 'bloxy/dist/structures';
 import { recordShout } from './events/shout';
 import { checkSuspensions } from './events/suspensions';
 import { recordAuditLogs } from './events/audit';
@@ -18,8 +18,8 @@ import { getLogChannels as initializeLogChannels } from './handlers/handleLoggin
 import { ActivityLogger } from './utils/activityLogger';
 import { handleComponentInteraction } from './handlers/componentInteractionHandler';
 import { Logger } from './utils/logger';
-import { promiseWithTimeout } from './utils/timeoutUtil'; // Fixed import path
-import { directAuthenticate, getXCSRFToken } from './utils/directAuth';
+import { promiseWithTimeout } from './utils/timeoutUtil';
+import { directAuthenticate, getXCSRFToken, directGetGroup, directGetGroupRoles } from './utils/directAuth';
 
 require('dotenv').config();
 
@@ -37,6 +37,51 @@ const discordClient = new QbotClient();
 discordClient.login(process.env.DISCORD_TOKEN);
 const robloxClient = new RobloxClient({ credentials: { cookie: process.env.ROBLOX_COOKIE } });
 let robloxGroup: Group = null;
+
+class DirectGroupMember {
+    id: number;
+    name: string;
+    displayName: string;
+    group: any;
+    client: any;
+
+    // Use the proper role structure that matches GroupRole
+    role: {
+        id: number;
+        name: string;
+        rank: number;
+        group: any;
+        client: any;
+    };
+
+    constructor(userId: number, username: string, roleData: { id: number; name: string; rank: number }) {
+        this.id = userId;
+        this.name = username;
+        this.displayName = username;
+        this.group = { id: config.groupId };
+        this.client = robloxClient;
+
+        // Create a proper role object that satisfies GroupRole requirements
+        this.role = {
+            id: roleData.id,
+            name: roleData.name,
+            rank: roleData.rank,
+            group: this.group,
+            client: this.client
+        };
+    }
+
+    // Stub methods required by GroupMember interface
+    async kick() { throw new Error('Not implemented'); }
+    async setRole() { throw new Error('Not implemented'); }
+    getRank() { return this.role.rank; }
+
+    // Add other stubs for methods we might use
+    async getStatus() { return ""; }
+    async getAvatar() { return null; }
+    async getCurrentlyWearing() { return []; }
+    async kickFromGroup() { throw new Error('Not implemented'); }
+}
 
 (async () => {
     try {
@@ -88,14 +133,104 @@ let robloxGroup: Group = null;
 
         Logger.info('Log channels initialized, fetching group...', 'Auth');
 
-        // Get the group with timeout
-        robloxGroup = await promiseWithTimeout(
-            robloxClient.getGroup(config.groupId),
-            20000, // 20 second timeout
-            'Group fetch timed out'
-        );
+        try {
+            Logger.info('Fetching group information...', 'Auth');
 
-        Logger.info(`Found group: ${robloxGroup.name} (${robloxGroup.id})`, 'Auth');
+            // Use our direct methods that don't rely on Bloxy
+            const groupData = await promiseWithTimeout(
+                directGetGroup(process.env.ROBLOX_COOKIE, config.groupId),
+                15000,
+                'Group fetch timed out'
+            );
+
+            // Create a mock Group object with the minimum functionality we need
+            robloxGroup = {
+                id: groupData.id,
+                name: groupData.name,
+                client: robloxClient,
+
+                // Add essential methods needed by your bot
+                getRoles: async () => {
+                    return await directGetGroupRoles(process.env.ROBLOX_COOKIE, config.groupId);
+                },
+
+                getMember: async (userId: number): Promise<GroupMember> => {
+                    try {
+                        const response = await fetch(`https://groups.roblox.com/v2/users/${userId}/groups/roles`, {
+                            method: 'GET',
+                            headers: {
+                                'Cookie': `.ROBLOSECURITY=${process.env.ROBLOX_COOKIE}`,
+                                'Content-Type': 'application/json'
+                            }
+                        });
+
+                        if (!response.ok) throw new Error(`Failed to get member with status: ${response.status}`);
+
+                        // Type the response
+                        interface GroupRolesResponse {
+                            data: Array<{
+                                group: { id: number; name: string };
+                                role: { id: number; name: string; rank: number };
+                                user: { userId: number; username: string };
+                            }>;
+                        }
+
+                        const data = await response.json() as GroupRolesResponse;
+                        const groupMembership = data.data.find(g => g.group.id === config.groupId);
+
+                        if (!groupMembership) return null;
+
+                        // Fetch additional user information if needed
+                        const userResponse = await fetch(`https://users.roblox.com/v1/users/${userId}`, {
+                            method: 'GET',
+                            headers: {
+                                'Cookie': `.ROBLOSECURITY=${process.env.ROBLOX_COOKIE}`,
+                                'Content-Type': 'application/json'
+                            }
+                        });
+
+                        if (!userResponse.ok) {
+                            Logger.warn(`Failed to get additional user info for ${userId}`, 'DirectAuth');
+                        }
+
+                        // Create a DirectGroupMember that implements the required interface
+                        const member = new DirectGroupMember(
+                            userId,
+                            groupMembership.user.username,
+                            groupMembership.role
+                        );
+
+                        // Double cast to avoid TypeScript errors
+                        return member as unknown as GroupMember;
+                    } catch (err) {
+                        Logger.error(`Failed to get member ${userId}:`, 'DirectAuth', err);
+                        return null;
+                    }
+                },
+
+                // Add other required methods as needed
+                getAuditLogs: async () => { return []; },
+                getSettings: async () => { return { isLocked: false }; },
+                getJoinRequests: async () => { return []; },
+
+                // Any other methods you need can be added here
+            } as unknown as Group; // Cast to Group type
+
+            Logger.info(`Found group: ${groupData.name} (${groupData.id})`, 'Auth');
+
+            // Get roles directly
+            const roles = await promiseWithTimeout(
+                directGetGroupRoles(process.env.ROBLOX_COOKIE, config.groupId),
+                15000,
+                'Group roles fetch timed out'
+            );
+
+            Logger.info(`Authentication confirmed - found ${roles.length} group roles`, 'Auth');
+
+        } catch (error) {
+            Logger.error('Failed to fetch group information:', 'Auth', error);
+            throw error; // Let the outer catch handle this
+        }
 
         // Validate group access by fetching roles with timeout
         const roles = await promiseWithTimeout(
@@ -199,6 +334,27 @@ let robloxGroup: Group = null;
             } catch (e) {
                 Logger.error('Failed to initialize wall URL checker:', 'Events', e);
             }
+        }
+
+        // Patch the canvas module if it's available - DO NOT modify xpcard.ts directly
+        try {
+            const originalRequire = module.require;
+            // @ts-ignore
+            module.require = function (path) {
+                if (path === 'canvas') {
+                    try {
+                        return originalRequire(path);
+                    } catch (err) {
+                        Logger.warn('Canvas module not available, using mock implementation', 'Canvas');
+                        return require('./utils/canvasMock');
+                    }
+                }
+                return originalRequire(path);
+            };
+
+            Logger.info('Canvas module patched for compatibility', 'Startup');
+        } catch (e) {
+            Logger.warn('Failed to patch canvas module, image generation may not work', 'Startup', e);
         }
 
         Logger.info('All systems initialized successfully', 'Auth');

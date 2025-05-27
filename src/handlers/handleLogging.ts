@@ -16,13 +16,16 @@ let verificationLogChannel: TextChannel | null = null;
  * Should be called once at bot startup.
  */
 const getLogChannels = async () => {
-    // Existing code for action log channel
-    if (config.logChannels.actions) {
+    let initSuccessful = false;
+
+    // For action log channel
+    if (config.logChannels && config.logChannels.actions) {
         try {
             const channel = await discordClient.channels.fetch(config.logChannels.actions);
             if (channel && channel.isTextBased()) {
                 actionLogChannel = channel as TextChannel;
                 Logger.info(`Action log channel "${actionLogChannel.name}" fetched successfully.`, 'LogInit');
+                initSuccessful = true;
             } else {
                 Logger.error('Failed to fetch action log channel or it is not a text channel.', 'LogInit');
                 actionLogChannel = null;
@@ -35,13 +38,14 @@ const getLogChannels = async () => {
         Logger.warn('No action log channel ID configured.', 'LogInit');
     }
 
-    // Add this new code for verification log channel
-    if (config.logChannels.verification) {
+    // For verification log channel
+    if (config.logChannels && config.logChannels.verification) {
         try {
             const channel = await discordClient.channels.fetch(config.logChannels.verification);
             if (channel && channel.isTextBased()) {
                 verificationLogChannel = channel as TextChannel;
                 Logger.info(`Verification log channel "${verificationLogChannel.name}" fetched successfully.`, 'LogInit');
+                initSuccessful = true;
             } else {
                 Logger.error('Failed to fetch verification log channel or it is not a text channel.', 'LogInit');
                 verificationLogChannel = null;
@@ -53,6 +57,35 @@ const getLogChannels = async () => {
     } else {
         Logger.warn('No verification log channel ID configured.', 'LogInit');
     }
+
+    // Check other channels like shout and rankup
+    // These are non-critical, so we don't fail if they're not available
+    if (config.logChannels && config.logChannels.shout) {
+        try {
+            await discordClient.channels.fetch(config.logChannels.shout);
+            // No need to store this channel, just validate it exists
+            Logger.info('Shout log channel fetched successfully.', 'LogInit');
+        } catch (error) {
+            Logger.warn(`Shout log channel not available: ${error.message}`, 'LogInit');
+        }
+    }
+
+    if (config.logChannels && config.logChannels.rankup) {
+        try {
+            await discordClient.channels.fetch(config.logChannels.rankup);
+            // No need to store this channel, just validate it exists
+            Logger.info('Rankup log channel fetched successfully.', 'LogInit');
+        } catch (error) {
+            Logger.warn(`Rankup log channel not available: ${error.message}`, 'LogInit');
+        }
+    }
+
+    // As long as at least one channel was initialized, consider it successful
+    if (!initSuccessful) {
+        Logger.warn('No log channels were initialized successfully', 'LogInit');
+    }
+
+    return { actionLogChannel, verificationLogChannel };
 };
 
 const logVerificationEvent = async (

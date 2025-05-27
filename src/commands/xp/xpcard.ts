@@ -9,7 +9,6 @@ import { provider } from '../../database';
 import { createCanvas, loadImage, registerFont, Canvas, CanvasRenderingContext2D as NodeCanvasRenderingContext2D } from 'canvas';
 import { findHighestEligibleRole } from '../ranking/xprankup';
 
-
 // Register custom fonts (ensure these files exist in your assets folder)
 try {
     registerFont('./assets/fonts/Exo2-Bold.ttf', { family: 'Exo2', weight: 'bold' });

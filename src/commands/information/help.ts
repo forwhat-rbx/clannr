@@ -27,15 +27,14 @@ class HelpCommand extends Command {
     }
 
     async run(ctx: CommandContext) {
-        // Filter out disabled commands
+        // Filter out disabled commands - no need to instantiate, they're already instances
         const commands = discordClient.commands
-            .map((cmd) => new (cmd))
             .filter(cmd => cmd.enabled !== false);
 
         if (ctx.args['command-name']) {
             const command = commands.find((cmd) =>
                 cmd.trigger.toLowerCase() === ctx.args['command-name'].toLowerCase() ||
-                cmd.aliases.map((alias) => alias.toLowerCase()).includes(ctx.args['command-name'].toLowerCase())
+                (cmd.aliases && cmd.aliases.map((alias) => alias.toLowerCase()).includes(ctx.args['command-name'].toLowerCase()))
             );
             if (!command) return ctx.reply({ embeds: [getCommandNotFoundEmbed()] });
             return ctx.reply({ embeds: [getCommandInfoEmbed(command)] });

@@ -37,13 +37,14 @@ export class CommandContext {
      * 
      * @param payload
      */
-    constructor(payload: BaseInteraction | CommandInteraction | Message, command: any, args?: Args) {
+    constructor(payload: BaseInteraction | CommandInteraction | Message, command: Command, args?: Args) {
         this.type = payload instanceof Message ? 'message' : 'interaction';
         this.subject = payload instanceof BaseInteraction ? payload as CommandInteraction : payload;
         this.user = payload instanceof Message ? payload.author : payload.user;
         this.member = payload.member as GuildMember;
         this.guild = payload.guild;
-        this.command = new command();
+        // FIX: Use the command instance directly instead of trying to instantiate it
+        this.command = command;
         this.replied = false;
         this.deferred = false;
 

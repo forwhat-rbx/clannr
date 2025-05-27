@@ -6,9 +6,58 @@ import { getLinkedRobloxUser } from '../../handlers/accountLinks';
 import { config } from '../../config';
 import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { provider } from '../../database';
-import { createCanvas, loadImage, registerFont, Canvas, CanvasRenderingContext2D as NodeCanvasRenderingContext2D } from 'canvas';
 import { findHighestEligibleRole } from '../ranking/xprankup';
 import { Logger } from '../../utils/logger';
+
+
+interface RenderingContext {
+    fillStyle: any;
+    strokeStyle: any;
+    lineWidth: number;
+    lineJoin: string;
+    miterLimit: number;
+    globalAlpha: number;
+    shadowColor: string;
+    shadowBlur: number;
+    shadowOffsetX: number;
+    shadowOffsetY: number;
+    font: string;
+    textAlign: string;
+    beginPath(): void;
+    closePath(): void;
+    moveTo(x: number, y: number): void;
+    lineTo(x: number, y: number): void;
+    quadraticCurveTo(cpx: number, cpy: number, x: number, y: number): void;
+    arc(x: number, y: number, radius: number, startAngle: number, endAngle: number, anticlockwise?: boolean): void;
+    rect(x: number, y: number, width: number, height: number): void;
+    fillRect(x: number, y: number, width: number, height: number): void;
+    strokeRect(x: number, y: number, width: number, height: number): void;
+    fill(): void;
+    stroke(): void;
+    clip(): void;
+    save(): void;
+    restore(): void;
+    fillText(text: string, x: number, y: number): void;
+    strokeText(text: string, x: number, y: number): void;
+    measureText(text: string): { width: number };
+    createLinearGradient(x0: number, y0: number, x1: number, y1: number): any;
+    createRadialGradient(x0: number, y0: number, r0: number, x1: number, y1: number, r1: number): any;
+    drawImage(image: any, dx: number, dy: number, dWidth?: number, dHeight?: number): void;
+}
+
+
+let canvasModule;
+try {
+    canvasModule = require('canvas');
+} catch (error) {
+    Logger.warn('Canvas module not available, using mock implementation', 'Canvas');
+    canvasModule = require('../../utils/canvasMock');
+}
+
+const { createCanvas, loadImage, registerFont, Canvas } = canvasModule;
+// Define NodeCanvasRenderingContext2D based on the available module
+const NodeCanvasRenderingContext2D = canvasModule.CanvasRenderingContext2D || canvasModule.MockContext;
+
 
 // Register custom fonts (ensure these files exist in your assets folder)
 try {
@@ -40,7 +89,7 @@ try {
 }
 
 // Helper function for drawing rounded rectangles
-function roundedRect(ctx: NodeCanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
+function roundedRect(ctx: RenderingContext, x: number, y: number, width: number, height: number, radius: number) {
     ctx.beginPath();
     ctx.moveTo(x + radius, y);
     ctx.lineTo(x + width - radius, y);
@@ -55,7 +104,8 @@ function roundedRect(ctx: NodeCanvasRenderingContext2D, x: number, y: number, wi
 }
 
 // Helper function to draw sharp-edged rectangles (more industrial)
-function sharpRect(ctx: NodeCanvasRenderingContext2D, x: number, y: number, width: number, height: number, cornerSize: number = 5) {
+function sharpRect(ctx: RenderingContext, x: number, y: number, width: number, height: number, cornerSize: number = 5) {
+
     ctx.beginPath();
     ctx.moveTo(x + cornerSize, y);
     ctx.lineTo(x + width - cornerSize, y);
@@ -69,7 +119,8 @@ function sharpRect(ctx: NodeCanvasRenderingContext2D, x: number, y: number, widt
 }
 
 // Helper function to draw a star (used for high-rank decoration)
-function drawStar(ctx: NodeCanvasRenderingContext2D, cx: number, cy: number, outerRadius: number, innerRadius: number, color: string) {
+function drawStar(ctx: RenderingContext, cx: number, cy: number, outerRadius: number, innerRadius: number, color: string) {
+
     let rot = Math.PI / 2 * 3;
     let step = Math.PI / 5;
 
@@ -90,7 +141,7 @@ function drawStar(ctx: NodeCanvasRenderingContext2D, cx: number, cy: number, out
 }
 
 // Helper function to create worn edge effect
-function createWornEdge(ctx: NodeCanvasRenderingContext2D, x: number, y: number, width: number, height: number) {
+function createWornEdge(ctx: RenderingContext, x: number, y: number, width: number, height: number) {
     const wornAmount = 1.2; // Slightly reduced for a more subtle effect
     const noise = 0.7;     // Reduced for cleaner edges
 

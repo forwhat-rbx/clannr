@@ -116,27 +116,6 @@ async function handleEventCreateModal(interaction: ModalSubmitInteraction): Prom
                 eventEmbed.setColor('#FF9800'); // Orange
                 break;
         }
-
-        // Add buttons for RSVP
-        const rsvpRow = new ActionRowBuilder<ButtonBuilder>()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId(`event_rsvp_yes:${Date.now()}`)
-                    .setLabel('Attending')
-                    .setStyle(ButtonStyle.Success)
-                    .setEmoji('✅'),
-                new ButtonBuilder()
-                    .setCustomId(`event_rsvp_no:${Date.now()}`)
-                    .setLabel('Not Attending')
-                    .setStyle(ButtonStyle.Danger)
-                    .setEmoji('❌'),
-                new ButtonBuilder()
-                    .setCustomId(`event_rsvp_maybe:${Date.now()}`)
-                    .setLabel('Maybe')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setEmoji('❓')
-            );
-
         // Send success message to the user
         await interaction.editReply({
             content: 'Event scheduled successfully!',
@@ -147,8 +126,7 @@ async function handleEventCreateModal(interaction: ModalSubmitInteraction): Prom
         if (channel) {
             await channel.send({
                 content: '@everyone',
-                embeds: [eventEmbed],
-                components: [rsvpRow]
+                embeds: [eventEmbed]
             });
         }
 

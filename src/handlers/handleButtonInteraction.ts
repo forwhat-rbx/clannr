@@ -58,12 +58,6 @@ export async function handleButtonInteraction(interaction: ButtonInteraction): P
         await handleVerifyButton(interaction);
     } else if (customId.startsWith('cancel_verify_')) {
         await handleCancelVerifyButton(interaction);
-    } else if (customId.startsWith('event_rsvp_yes:')) {
-        await handleEventRsvpButton(interaction, 'yes');
-    } else if (customId.startsWith('event_rsvp_no:')) {
-        await handleEventRsvpButton(interaction, 'no');
-    } else if (customId.startsWith('event_rsvp_maybe:')) {
-        await handleEventRsvpButton(interaction, 'maybe');
     }
 }
 
@@ -180,81 +174,6 @@ export async function handleModalSubmit(interaction) {
     }
 }
 
-async function handleEventRsvpButton(interaction: ButtonInteraction, response: 'yes' | 'no' | 'maybe'): Promise<void> {
-    // Prevent the "interaction failed" message
-    await interaction.deferUpdate();
-
-    // Get the message with the event information
-    const message = interaction.message;
-    const embed = message.embeds[0];
-
-    // Get existing fields
-    const fields = [...embed.fields];
-
-    // Find or create RSVP fields
-    let attendingField = fields.find(f => f.name === 'Attending');
-    let notAttendingField = fields.find(f => f.name === 'Not Attending');
-    let maybeField = fields.find(f => f.name === 'Maybe');
-
-    // Initialize fields if they don't exist
-    if (!attendingField) {
-        attendingField = { name: 'Attending', value: 'None', inline: true };
-        fields.push(attendingField);
-    }
-    if (!notAttendingField) {
-        notAttendingField = { name: 'Not Attending', value: 'None', inline: true };
-        fields.push(notAttendingField);
-    }
-    if (!maybeField) {
-        maybeField = { name: 'Maybe', value: 'None', inline: true };
-        fields.push(maybeField);
-    }
-
-    // Process the user's response
-    const userId = `<@${interaction.user.id}>`;
-
-    // Remove user from all lists first
-    ['Attending', 'Not Attending', 'Maybe'].forEach(fieldName => {
-        const field = fields.find(f => f.name === fieldName);
-        if (field && field.value !== 'None') {
-            const users = field.value.split(', ');
-            const filteredUsers = users.filter(user => user !== userId);
-            field.value = filteredUsers.length ? filteredUsers.join(', ') : 'None';
-        }
-    });
-
-    // Add user to the appropriate list
-    const targetField = fields.find(f => {
-        if (response === 'yes') return f.name === 'Attending';
-        if (response === 'no') return f.name === 'Not Attending';
-        return f.name === 'Maybe';
-    });
-
-    if (targetField) {
-        targetField.value = targetField.value === 'None'
-            ? userId
-            : `${targetField.value}, ${userId}`;
-    }
-
-    // Update the embed
-    const updatedEmbed = new EmbedBuilder(embed.data)
-        .setFields(fields);
-
-    // Update the message
-    await message.edit({ embeds: [updatedEmbed] });
-
-    // Send ephemeral confirmation to the user
-    const responseText = {
-        'yes': 'attending',
-        'no': 'not attending',
-        'maybe': 'maybe attending'
-    }[response];
-
-    await interaction.followUp({
-        content: `You are now marked as ${responseText} this event.`,
-        ephemeral: true
-    });
-}
 
 // Add these new handler functions for verification
 

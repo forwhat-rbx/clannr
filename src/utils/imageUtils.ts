@@ -12,34 +12,29 @@ export async function createCanvas(
 }
 
 /**
- * Load an image from URL or path
+ * Load an image from URL or file path
  */
 export async function loadImage(src: string): Promise<Jimp> {
     try {
         return await Jimp.read(src);
     } catch (err) {
-        console.error(`🖼️  loadImage failed: ${src}`, err);
+        console.error(`🖼️ loadImage failed: ${src}`, err);
         throw err;
     }
 }
 
-
-
 /**
- * Turn #RRGGBB[AA] into a Jimp-int
+ * Convert hex "#RRGGBB" or "#RRGGBBAA" to Jimp color int
  */
 export function hexToJimpColor(hex: string): number {
-    hex = hex.replace(/^#/, '');
-    if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
-    if (hex.length === 6) hex += 'FF';
-    return parseInt(hex, 16);
+    let h = hex.replace(/^#/, '');
+    if (h.length === 3) h = h.split('').map(c => c + c).join('');
+    if (h.length === 6) h += 'FF';
+    return parseInt(h, 16);
 }
 
 /**
- * GENERAL MASK HELPER
- * - build a transparent mask
- * - call your drawMask(mask)
- * - returns the mask
+ * INTERNAL: build a transparent mask then call drawMask(mask)
  */
 async function maskShape(
     w: number,
@@ -52,38 +47,7 @@ async function maskShape(
 }
 
 /**
- * Draw any filled polygon on `image` given a list of points.
- */
-export async function drawPolygon(
-    image: Jimp,
-    points: { x: number; y: number }[],
-    fillColor: number,
-    offsetX = 0,
-    offsetY = 0
-): Promise<void> {
-    // bounding-box scan
-    const xs = points.map(p => p.x), ys = points.map(p => p.y);
-    const minX = Math.max(0, Math.min(...xs)), maxX = Math.min(image.bitmap.width, Math.max(...xs));
-    const minY = Math.max(0, Math.min(...ys)), maxY = Math.min(image.bitmap.height, Math.max(...ys));
-
-    for (let y = minY; y <= maxY; y++) {
-        for (let x = minX; x <= maxX; x++) {
-            // point-in-poly
-            let inside = false;
-            for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
-                const { x: xi, y: yi } = points[i], { x: xj, y: yj } = points[j];
-                if (((yi > y) !== (yj > y)) &&
-                    (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
-                    inside = !inside;
-                }
-            }
-            if (inside) image.setPixelColor(fillColor, x + offsetX, y + offsetY);
-        }
-    }
-}
-
-/**
- * Rounded rectangle
+ * Draw a filled rounded rectangle
  */
 export async function drawRoundedRect(
     image: Jimp,
@@ -91,39 +55,32 @@ export async function drawRoundedRect(
     w: number, h: number,
     r: number,
     color: number
-): Promise<void> {
-    // prepare the filled rect
+): Promise<Jimp> {
     const rect = await createCanvas(w, h, color);
 
-    // mask out corners
-    const mask = await maskShape(w, h, mask => {
-        // fill center rect
-        mask.scan(r, 0, w - 2 * r, h, (_x, _y, idx) => mask.bitmap.data.writeUInt32BE(0xFFFFFFFF, idx));
-        mask.scan(0, r, w, h - 2 * r, (_x, _y, idx) => mask.bitmap.data.writeUInt32BE(0xFFFFFFFF, idx));
-
-        // draw four quarter-circles
-        const drawQuarter = (cx: number, cy: number) => {
-            for (let yy = -r; yy <= r; yy++) {
-                for (let xx = -r; xx <= r; xx++) {
-                    if (xx * xx + yy * yy <= r * r) {
-                        mask.setPixelColor(0xFFFFFFFF, cx + xx, cy + yy);
+    const mask = await maskShape(w, h, m => {
+        // fill center
+        m.scan(r, 0, w - 2 * r, h, (_xx, _yy, idx) => m.bitmap.data.writeUInt32BE(0xFFFFFFFF, idx));
+        m.scan(0, r, w, h - 2 * r, (_xx, _yy, idx) => m.bitmap.data.writeUInt32BE(0xFFFFFFFF, idx));
+        // draw corners
+        for (let cy of [r - 1, h - r]) {
+            for (let cx of [r - 1, w - r]) {
+                for (let dy = -r; dy <= r; dy++) {
+                    for (let dx = -r; dx <= r; dx++) {
+                        if (dx * dx + dy * dy <= r * r) m.setPixelColor(0xFFFFFFFF, cx + dx, cy + dy);
                     }
                 }
             }
-        };
-        drawQuarter(r, r);
-        drawQuarter(w - r - 1, r);
-        drawQuarter(r, h - r - 1);
-        drawQuarter(w - r - 1, h - r - 1);
+        }
     });
 
-    // apply & composite
     rect.mask(mask, 0, 0);
     image.composite(rect, x, y);
+    return image;
 }
 
 /**
- * Rounded rectangle with border
+ * Draw a rounded rectangle with a 1px border
  */
 export async function drawRoundedRectWithBorder(
     image: Jimp,
@@ -131,145 +88,148 @@ export async function drawRoundedRectWithBorder(
     w: number, h: number,
     r: number,
     fillColor: number,
-    borderColor: number
-): Promise<void> {
-    // First draw the fill
+    borderColor: number,
+    borderWidth = 1
+): Promise<Jimp> {
+    // fill
     await drawRoundedRect(image, x, y, w, h, r, fillColor);
 
-    // Then draw border (just the edges)
-    const borderWidth = 1;
+    // border via two concentric rounded rect masks
+    const outer = await maskShape(w, h, m => {
+        // full
+        m.scan(0, 0, w, h, (_xx, _yy, idx) => m.bitmap.data.writeUInt32BE(0xFFFFFFFF, idx));
+    });
+    const inner = await maskShape(w - 2 * borderWidth, h - 2 * borderWidth, m => {
+        // round inside
+        // reuse drawRoundedRect logic for inner mask
+        drawMaskRounded(m, 0, 0, w - 2 * borderWidth, h - 2 * borderWidth, r - borderWidth);
+    });
 
-    // Top edge
-    for (let i = r; i < w - r; i++) {
-        for (let j = 0; j < borderWidth; j++) {
-            image.setPixelColor(borderColor, x + i, y + j);
-        }
-    }
+    // subtract inner from outer to get ring
+    outer.scan(0, 0, w, h, (px, py, idx) => {
+        const insideInner = inner.getPixelColor(px - borderWidth, py - borderWidth) !== 0;
+        if (insideInner) outer.bitmap.data.writeUInt32BE(0x00000000, idx);
+    });
 
-    // Bottom edge
-    for (let i = r; i < w - r; i++) {
-        for (let j = 0; j < borderWidth; j++) {
-            image.setPixelColor(borderColor, x + i, y + h - 1 - j);
-        }
-    }
-
-    // Left edge
-    for (let i = r; i < h - r; i++) {
-        for (let j = 0; j < borderWidth; j++) {
-            image.setPixelColor(borderColor, x + j, y + i);
-        }
-    }
-
-    // Right edge
-    for (let i = r; i < h - r; i++) {
-        for (let j = 0; j < borderWidth; j++) {
-            image.setPixelColor(borderColor, x + w - 1 - j, y + i);
-        }
-    }
-
-    // Draw curved corners with border
-    // This is simplified - a proper implementation would draw curved borders
+    // color the ring
+    const ring = await createCanvas(w, h, borderColor);
+    ring.mask(outer, 0, 0);
+    image.composite(ring, x, y);
+    return image;
 }
 
 /**
- * Sharp-cornered rectangle
+ * Helper to draw a rounded mask (used by border above)
+ */
+function drawMaskRounded(
+    mask: Jimp,
+    x: number, y: number,
+    w: number, h: number,
+    r: number
+) {
+    // fill center
+    mask.scan(x + r, y, w - 2 * r, h, (_xx, _yy, idx) => mask.bitmap.data.writeUInt32BE(0xFFFFFFFF, idx));
+    mask.scan(x, y + r, w, h - 2 * r, (_xx, _yy, idx) => mask.bitmap.data.writeUInt32BE(0xFFFFFFFF, idx));
+    // corners
+    for (let cy of [y + r - 1, y + h - r]) {
+        for (let cx of [x + r - 1, x + w - r]) {
+            for (let dy = -r; dy <= r; dy++) {
+                for (let dx = -r; dx <= r; dx++) {
+                    if (dx * dx + dy * dy <= r * r) mask.setPixelColor(0xFFFFFFFF, cx + dx, cy + dy);
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Draw a sharp-cornered rectangle
  */
 export async function drawSharpRect(
     image: Jimp,
     x: number, y: number,
     w: number, h: number,
     color: number
-): Promise<void> {
-    // Simple rectangle
-    for (let i = 0; i < w; i++) {
-        for (let j = 0; j < h; j++) {
-            image.setPixelColor(color, x + i, y + j);
-        }
-    }
+): Promise<Jimp> {
+    image.scan(x, y, w, h, (_px, _py, idx) => image.bitmap.data.writeUInt32BE(color, idx));
+    return image;
 }
 
 /**
- * Star (5-point)
+ * Draw a 5-point star
  */
 export async function drawStar(
     image: Jimp,
     cx: number, cy: number,
     outer: number, inner: number,
     color: number
-): Promise<void> {
+): Promise<Jimp> {
+    // build points
     const pts: { x: number, y: number }[] = [];
-    let angle = -Math.PI / 2;
+    let ang = -Math.PI / 2;
     for (let i = 0; i < 5; i++) {
-        pts.push({ x: Math.cos(angle) * outer + cx, y: Math.sin(angle) * outer + cy });
-        angle += Math.PI / 5;
-        pts.push({ x: Math.cos(angle) * inner + cx, y: Math.sin(angle) * inner + cy });
-        angle += Math.PI / 5;
+        pts.push({ x: Math.cos(ang) * outer + cx, y: Math.sin(ang) * outer + cy });
+        ang += Math.PI / 5;
+        pts.push({ x: Math.cos(ang) * inner + cx, y: Math.sin(ang) * inner + cy });
+        ang += Math.PI / 5;
     }
-    await drawPolygon(image, pts, color, 0, 0);
+
+    // bounding box
+    const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+    const minX = Math.floor(Math.min(...xs)), maxX = Math.ceil(Math.max(...xs));
+    const minY = Math.floor(Math.min(...ys)), maxY = Math.ceil(Math.max(...ys));
+    // point-in-poly scan
+    for (let y = minY; y <= maxY; y++) {
+        for (let x = minX; x <= maxX; x++) {
+            let inside = false;
+            for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+                const { x: xi, y: yi } = pts[i], { x: xj, y: yj } = pts[j];
+                if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) inside = !inside;
+            }
+            if (inside) image.setPixelColor(color, x, y);
+        }
+    }
+
+    return image;
 }
 
 /**
- * Worn-edge (grunge) border
+ * Apply a noisy "worn edge" along the border
  */
 export async function createWornEdge(
     image: Jimp,
     x: number, y: number,
     w: number, h: number
-): Promise<void> {
-    // Create a greyish semi-transparent color without using Jimp namespace
-    const alpha = 0x80808080; // Directly use the hex value
-    for (let i = 0; i < w; i += 8) {
+): Promise<Jimp> {
+    const col = Jimp.rgbaToInt(50, 50, 50, 150);
+    for (let i = 0; i < w; i += 6) {
         const dy = Math.floor((Math.random() - .5) * 4);
-        image.setPixelColor(alpha, x + i, y + dy);
-        image.setPixelColor(alpha, x + i, y + h - dy - 1);
+        image.setPixelColor(col, x + i, y + dy);
+        image.setPixelColor(col, x + i, y + h - dy - 1);
     }
-    for (let i = 0; i < h; i += 8) {
+    for (let i = 0; i < h; i += 6) {
         const dx = Math.floor((Math.random() - .5) * 4);
-        image.setPixelColor(alpha, x + dx, y + i);
-        image.setPixelColor(alpha, x + w - dx - 1, y + i);
+        image.setPixelColor(col, x + dx, y + i);
+        image.setPixelColor(col, x + w - dx - 1, y + i);
     }
+    return image;
 }
 
 /**
- * Text + shadow
- */
-/**
- * Text + shadow
+ * Print text with a subtle drop-shadow
  */
 export async function printTextWithShadow(
     image: Jimp,
-    font: null,
+    font: any,
     text: string,
     x: number,
     y: number,
     color = 0xFFFFFFFF,
     shadowColor = 0x00000080
-): Promise<void> {
-    // Apply shadow first (positioned slightly offset)
-    image.print(
-        font,
-        x + 2,
-        y + 2,
-        {
-            text: text,
-            alignmentX: 1,
-            alignmentY: 1
-        },
-        image.bitmap.width,
-        image.bitmap.height
-    );
-
-    // Then apply main text on top
-    image.print(
-        font,
-        x,
-        y,
-        {
-            text: text,
-            alignmentX: 1,
-            alignmentY: 1
-        },
-        image.bitmap.width,
-        image.bitmap.height
-    );
+): Promise<Jimp> {
+    // shadow
+    image.print(font, x + 2, y + 2, { text, alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT, alignmentY: Jimp.VERTICAL_ALIGN_TOP });
+    // main
+    image.print(font, x, y, { text, alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT, alignmentY: Jimp.VERTICAL_ALIGN_TOP });
+    return image;
 }

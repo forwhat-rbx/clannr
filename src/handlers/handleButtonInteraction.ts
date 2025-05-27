@@ -45,7 +45,7 @@ export async function handleButtonInteraction(interaction: ButtonInteraction): P
     } else if (customId === 'check_promotions') {
         await handleCheckPromotionsButton(interaction);
     } else if (customId.startsWith('purge_members:')) {
-        await handleCheckPromotionsButton(interaction);
+        await handlePurgeMembersButton(interaction);
     } else if (customId.startsWith('promote_all')) {
         await handlePromoteAllButton(interaction);
     } else if (customId.startsWith('dm_members:')) {
@@ -337,26 +337,49 @@ async function handleRequestPromotionButton(interaction: ButtonInteraction): Pro
     }
 }
 
+// Improve the handleCheckPromotionsButton function:
 async function handleCheckPromotionsButton(interaction: ButtonInteraction): Promise<void> {
-    // Check permissions
-    const member = interaction.guild?.members.cache.get(interaction.user.id);
-    if (!member || !member.roles.cache.some(role => config.permissions.admin?.includes(role.id))) {
-        await interaction.reply({
-            content: 'You do not have permission to use this button.',
-            ephemeral: true
-        });
-        return;
+    try {
+        // Check permissions
+        const member = interaction.guild?.members.cache.get(interaction.user.id);
+        if (!member || !member.roles.cache.some(role => config.permissions.admin?.includes(role.id))) {
+            await interaction.reply({
+                content: 'You do not have permission to use this button.',
+                ephemeral: true
+            });
+            return;
+        }
+
+        await interaction.deferReply({ ephemeral: true });
+
+        // Use promotion service to check for promotions
+        const service = promotionService.getInstance();
+
+        try {
+            await service.checkForPromotions();
+            await interaction.editReply({
+                content: 'Promotion check completed. The promotion embed has been updated.'
+            });
+        } catch (serviceError) {
+            console.error('Error in promotion service:', serviceError);
+            await interaction.editReply({
+                content: 'An error occurred while checking promotions. Please check the server logs.'
+            });
+        }
+    } catch (error) {
+        console.error('Error handling check_promotions button:', error);
+        // Only reply if we haven't already
+        if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({
+                content: 'An error occurred while processing this button.',
+                ephemeral: true
+            });
+        } else if (interaction.deferred) {
+            await interaction.editReply({
+                content: 'An error occurred while checking promotions.'
+            });
+        }
     }
-
-    await interaction.deferReply({ ephemeral: true });
-
-    // Use promotion service to check for promotions
-    const service = promotionService.getInstance();
-    await service.checkForPromotions();
-
-    await interaction.editReply({
-        content: 'Promotion check completed. The promotion embed has been updated.'
-    });
 }
 
 // Moved these functions out of the handleButtonInteraction scope

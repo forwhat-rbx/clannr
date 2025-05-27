@@ -4,6 +4,7 @@ import { DatabaseUser } from '../structures/types';
 import { ActivityLogger } from '../utils/activityLogger';
 import { robloxClient } from '../main';
 import { discordClient } from '../main';
+import { Logger } from '../utils/logger';
 
 require('dotenv').config();
 
@@ -94,11 +95,29 @@ class PrismaProvider extends DatabaseProvider {
     }
 
     async findSuspendedUsers(): Promise<DatabaseUser[]> {
-        return await this.db.user.findMany({ where: { suspendedUntil: { not: null } } });
+        try {
+            return await this.db.user.findMany({ where: { suspendedUntil: { not: null } } });
+        } catch (error) {
+            if (error.code === 'P2021') {
+                // Table doesn't exist yet
+                Logger.warn('Database tables not ready yet, returning empty suspended users list', 'Database');
+                return [];
+            }
+            throw error;
+        }
     }
 
     async findBannedUsers(): Promise<DatabaseUser[]> {
-        return await this.db.user.findMany({ where: { isBanned: true } });
+        try {
+            return await this.db.user.findMany({ where: { isBanned: true } });
+        } catch (error) {
+            if (error.code === 'P2021') {
+                // Table doesn't exist yet
+                Logger.warn('Database tables not ready yet, returning empty banned users list', 'Database');
+                return [];
+            }
+            throw error;
+        }
     }
 
     async getAllUsers(): Promise<DatabaseUser[]> {

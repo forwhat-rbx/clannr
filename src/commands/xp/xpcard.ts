@@ -8,6 +8,7 @@ import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle } from 
 import { provider } from '../../database';
 import { createCanvas, loadImage, registerFont, Canvas, CanvasRenderingContext2D as NodeCanvasRenderingContext2D } from 'canvas';
 import { findHighestEligibleRole } from '../ranking/xprankup';
+import { Logger } from '../../utils/logger';
 
 // Register custom fonts (ensure these files exist in your assets folder)
 try {
@@ -16,6 +17,26 @@ try {
     registerFont('./assets/fonts/Orbitron-Bold.ttf', { family: 'Orbitron', weight: 'bold' });
 } catch (err) {
     console.warn('Could not register custom fonts, falling back to system fonts', err);
+}
+
+try {
+    const originalRequire = module.require;
+    // @ts-ignore
+    module.require = function (path) {
+        if (path === 'canvas') {
+            try {
+                return originalRequire(path);
+            } catch (err) {
+                Logger.warn('Canvas module not available, using mock implementation', 'Canvas');
+                return require('./utils/canvasMock');
+            }
+        }
+        return originalRequire(path);
+    };
+
+    Logger.info('Canvas module patched for compatibility', 'Startup');
+} catch (e) {
+    Logger.warn('Failed to patch canvas module, image generation may not work', 'Startup', e);
 }
 
 // Helper function for drawing rounded rectangles

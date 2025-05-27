@@ -30,6 +30,9 @@ if (!process.env.ROBLOX_COOKIE) {
 }
 
 require('./database');
+initializeDatabase().catch(err => {
+    Logger.error('Failed to initialize database', 'Database', err);
+});
 require('./api');
 
 // [Clients]

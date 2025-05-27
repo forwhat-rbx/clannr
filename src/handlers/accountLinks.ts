@@ -14,17 +14,19 @@ export const getLinkedRobloxUser = async (discordId: string): Promise<User | nul
             SELECT * FROM UserLink WHERE discordId = ${discordId} LIMIT 1
         `;
 
-        if (!result || result.length === 0) {
+        // Fix line 17: Properly type-check the result before accessing length
+        const links = result as any[];
+        if (!links || links.length === 0) {
             return null;
         }
 
-        const userLink = result[0];
+        const userLink = links[0];
 
         // Use the Roblox ID from our database to fetch the Roblox user through bloxy API
         const robloxUser = await robloxClient.getUser(Number(userLink.robloxId));
         return robloxUser;
     } catch (err) {
-        console.error("Failed to get linked Roblox user:", err);
+        Logger.error("Failed to get linked Roblox user:", "AccountLinks", err as Error);
         return null;
     }
 };
@@ -34,7 +36,7 @@ export const getLinkedRobloxUser = async (discordId: string): Promise<User | nul
  */
 export const createUserLink = async (discordId: string, robloxId: string) => {
     try {
-        console.log(`[LINK DEBUG] Creating link: Discord ID ${discordId} -> Roblox ID ${robloxId}`);
+        Logger.info(`Creating link: Discord ID ${discordId} -> Roblox ID ${robloxId}`, "AccountLinks");
 
         // Ensure robloxId is always a string
         const robloxIdString = String(robloxId);
@@ -44,14 +46,16 @@ export const createUserLink = async (discordId: string, robloxId: string) => {
             SELECT * FROM UserLink WHERE discordId = ${discordId}
         `;
 
-        if (existingLinks && existingLinks.length > 0) {
+        // Fix line 47: Properly type-check before accessing length
+        const links = existingLinks as any[];
+        if (links && links.length > 0) {
             // Update existing link
             await prisma.$executeRaw`
                 UPDATE UserLink 
                 SET robloxId = ${robloxIdString} 
                 WHERE discordId = ${discordId}
             `;
-            console.log(`[LINK DEBUG] Link updated successfully via raw query`);
+            Logger.info(`Link updated successfully via raw query`, "AccountLinks");
             return { discordId, robloxId: robloxIdString };
         } else {
             // Create new link - try with verifiedAt first, fall back if needed
@@ -67,11 +71,11 @@ export const createUserLink = async (discordId: string, robloxId: string) => {
                     VALUES (${discordId}, ${robloxIdString})
                 `;
             }
-            console.log(`[LINK DEBUG] Link created successfully via raw query`);
+            Logger.info(`Link created successfully via raw query`, "AccountLinks");
             return { discordId, robloxId: robloxIdString };
         }
     } catch (err) {
-        console.error("Failed to create user link:", err);
+        Logger.error("Failed to create user link:", "AccountLinks", err as Error);
         throw err;
     }
 };
@@ -83,7 +87,7 @@ export const removeUserLink = async (discordId: string) => {
     try {
         return await prisma.$executeRaw`DELETE FROM UserLink WHERE discordId = ${discordId}`;
     } catch (err) {
-        console.error("Failed to remove user link:", err);
+        Logger.error("Failed to remove user link:", "AccountLinks", err as Error);
         throw err;
     }
 };
@@ -94,9 +98,9 @@ export const removeUserLink = async (discordId: string) => {
 export const isUserVerified = async (discordId: string): Promise<boolean> => {
     try {
         const count = await prisma.$queryRaw`SELECT COUNT(*) as count FROM UserLink WHERE discordId = ${discordId}`;
-        return count[0].count > 0;
+        return (count as any[])[0].count > 0;
     } catch (err) {
-        console.error("Failed to check verification status:", err);
+        Logger.error("Failed to check verification status:", "AccountLinks", err as Error);
         return false;
     }
 };

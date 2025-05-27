@@ -125,11 +125,20 @@ class DirectGroupMember {
         Logger.info('Initializing log channels...', 'Auth');
 
         // Add timeout to log channel initialization
-        await promiseWithTimeout(
-            initializeLogChannels(),
-            10000, // 10 second timeout
-            'Log channel initialization timed out'
-        );
+        try {
+            await promiseWithTimeout(
+                initializeLogChannels(),
+                30000, // Increased from 10 to 30 seconds
+                'Log channel initialization timed out'
+            );
+            Logger.info('Log channels initialized successfully', 'Auth');
+        } catch (logChannelError) {
+            // Continue even if log channels fail to initialize
+            Logger.warn(`Log channel initialization issue: ${logChannelError.message}`, 'Auth');
+            Logger.warn('Continuing startup with limited logging capabilities', 'Auth');
+        }
+
+        Logger.info('Proceeding with group initialization...', 'Auth');
 
         Logger.info('Log channels initialized, fetching group...', 'Auth');
 

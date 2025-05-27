@@ -255,11 +255,15 @@ export class XPCardBuilder {
             const x = Math.round(avatarX + size / 2 + Math.cos(angle) * ringRadius);
             const y = Math.round(avatarY + size / 2 + Math.sin(angle) * ringRadius);
 
-            // Gradient based on angle - FIX: ensure brightness values stay in range
+            // Fix: Ensure brightness values stay in valid range
             const brightness = Math.max(0, Math.min(255, 176 + Math.floor(80 * Math.sin(angle))));
 
-            // FIX: Use correct bit operations to prevent negative values
-            const ringColor = (brightness & 0xFF) << 24 | (brightness & 0xFF) << 16 | (brightness & 0xFF) << 8 | 0xFF;
+            // Fix: Use proper bit operations to create a valid color value
+            const r = brightness;
+            const g = brightness;
+            const b = brightness;
+            const a = 255;
+            const ringColor = Jimp.rgbaToInt(r, g, b, a);
 
             if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
                 this.image.setPixelColor(ringColor, x, y);
@@ -338,7 +342,7 @@ export class XPCardBuilder {
         const usernameFont = await loadFont(38, true);
         const rankFont = await loadFont(26);
 
-        // Draw username with shadow
+        // Fix: Use printText function instead of direct print
         await printTextWithShadow(this.image, usernameFont, username, nameX, nameY - 30);
 
         // Add rank stars for higher ranks
@@ -372,12 +376,17 @@ export class XPCardBuilder {
             this.image.setPixelColor(borderColor, rankX + rankWidth - 1, y);
         }
 
-        // Print rank text
-        this.image.print(rankFont, rankX + 10, rankY + 5, {
-            text: rankText,
-        }, 0, 0, {
-            r: 160, g: 208, b: 255, a: 255
-        });
+        // Fix: Use correct print method with proper parameters
+        this.image.print(
+            rankFont,
+            rankX + 10,
+            rankY + 5,
+            {
+                text: rankText,
+                alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT,
+                alignmentY: Jimp.VERTICAL_ALIGN_TOP
+            }
+        );
 
         return this;
     }

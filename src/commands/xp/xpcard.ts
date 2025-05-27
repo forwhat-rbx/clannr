@@ -169,10 +169,10 @@ export default class XPCommand extends Command {
             await cardBuilder.addProgressBar(userData.xp, nextXp);
             await cardBuilder.addStatistics(stats);
             try {
-                await cardBuilder.initialize('https://i.ibb.co/zhtwc0np/NEW-SOH-FRONT.png');
+                // Don't initialize again, use addLogo instead
+                await cardBuilder.addLogo('https://i.ibb.co/zhtwc0np/NEW-SOH-FRONT.png');
             } catch (bgError) {
-                Logger.warn('Failed to load background image, using default background', 'XPCard');
-                await cardBuilder.initialize();
+                Logger.warn('Failed to load logo image', 'XPCard');
             }
 
             const imageBuffer = await cardBuilder.build();

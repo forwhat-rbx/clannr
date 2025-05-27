@@ -224,21 +224,30 @@ export async function createWornEdge(
 /**
  * Print text with a shadow effect
  */
-export async function printTextWithShadow(
-    image: any,
-    font: any,
-    text: string,
-    x: number, y: number,
-    shadowColor: number = 0x00000080,
-    shadowOffset: number = 1
-): Promise<any> {
-    // Print shadow
-    image.print(font, x + shadowOffset, y + shadowOffset, { text });
+export async function printTextWithShadow(image: any, font: any, text: string, x: number, y: number, color: number = 0xFFFFFFFF, shadowColor: number = 0x00000099): Promise<void> {
+    // Add shadow first
+    image.print(
+        font,
+        x + 2,
+        y + 2,
+        {
+            text: text,
+            alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT,
+            alignmentY: Jimp.VERTICAL_ALIGN_TOP
+        }
+    );
 
-    // Print main text
-    image.print(font, x, y, { text });
-
-    return image;
+    // Then print main text
+    image.print(
+        font,
+        x,
+        y,
+        {
+            text: text,
+            alignmentX: Jimp.HORIZONTAL_ALIGN_LEFT,
+            alignmentY: Jimp.VERTICAL_ALIGN_TOP
+        }
+    );
 }
 
 /**

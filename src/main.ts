@@ -49,6 +49,22 @@ require('./api');
 
 // [Clients]
 const discordClient = new QbotClient();
+
+discordClient.on('debug', (info) => {
+    // Only log specific useful debug information, ignore heartbeats
+    if (!info.includes('Heartbeat') && !info.includes('Gateway')) {
+        Logger.debug(info, 'Discord');
+    }
+});
+
+discordClient.on('warn', (info) => {
+    Logger.warn(info, 'Discord');
+});
+
+discordClient.on('error', (error) => {
+    Logger.error('Discord client error:', 'Discord', error);
+});
+
 discordClient.login(process.env.DISCORD_TOKEN);
 discordClient.once('ready', async () => {
 
@@ -431,24 +447,33 @@ class DirectGroupMember {
 })();
 
 // [Handlers]
+// REPLACE the existing interactionCreate handler with this:
 discordClient.on('interactionCreate', async (interaction) => {
-    // Log minimal info about interaction type
-    Logger.info(`Interaction received: ${interaction.type}`, 'Interaction');
+    // Enhanced logging with user information
+    Logger.info(`Interaction received: ${interaction.type} from ${interaction.user.tag} (${interaction.user.id})`, 'Interaction');
+
+    // Add more verbose logging for command interactions
+    if (interaction.isCommand()) {
+        Logger.info(`Command: ${interaction.commandName} | Options: ${JSON.stringify(interaction.options.data)}`, 'Command');
+    }
 
     // Handle each interaction type
     try {
         if (interaction.isCommand()) {
+            Logger.info(`Processing command: ${interaction.commandName}`, 'Command');
             await handleInteraction(interaction);
         } else if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isRoleSelectMenu()) {
-            // IMPORTANT: Use only ONE handler for component interactions
+            Logger.info(`Processing component interaction: ${interaction.customId}`, 'Component');
             await handleComponentInteraction(interaction);
         } else if (interaction.isModalSubmit()) {
+            Logger.info(`Processing modal submission: ${interaction.customId}`, 'Modal');
             await handleModalSubmit(interaction);
         } else if (interaction.isAutocomplete()) {
+            Logger.info(`Processing autocomplete: ${interaction.commandName}`, 'Autocomplete');
             await handleInteraction(interaction);
         }
     } catch (error) {
-        Logger.error('Error handling interaction:', 'Interaction', error);
+        Logger.error(`Error handling interaction: ${error.message}`, 'Interaction', error);
         // Try to respond to the user if possible
         if (!('replied' in interaction && interaction.replied) && !('deferred' in interaction && interaction.deferred)) {
             try {

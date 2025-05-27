@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits } from 'discord.js';
+import { Client, GatewayIntentBits, Partials } from 'discord.js';
 import { BotConfig, CommandExport } from './types';
 import { Command } from './Command';
 import { config } from '../config';
@@ -22,7 +22,9 @@ class QbotClient extends Client {
                 GatewayIntentBits.MessageContent,
                 GatewayIntentBits.GuildPresences,
                 GatewayIntentBits.GuildVoiceStates,
-            ]
+                GatewayIntentBits.DirectMessages,
+            ],
+            partials: [Partials.Channel, Partials.Message, Partials.User],
         });
         this.config = config;
         this.on('ready', () => {

@@ -458,11 +458,13 @@ async function handleCheckPromotionsButton(interaction: ButtonInteraction): Prom
         await interaction.deferReply({ ephemeral: true });
 
         // Get promotion service
-        Logger.info(`Getting promotion service instance`, 'CheckPromotions');
-        const service = promotionService.getInstance();
-
-        if (!service) {
-            Logger.error(`Failed to get promotion service instance`, 'CheckPromotions');
+        let service;
+        try {
+            Logger.info(`Getting promotion service instance`, 'CheckPromotions');
+            service = promotionService.getInstance();
+            Logger.info(`Service instance obtained: ${!!service}`, 'CheckPromotions');
+        } catch (initError) {
+            Logger.error(`Failed to get promotion service instance`, 'CheckPromotions', initError);
             await interaction.editReply({
                 content: 'Failed to initialize promotion service. Check server logs.'
             });
@@ -478,9 +480,9 @@ async function handleCheckPromotionsButton(interaction: ButtonInteraction): Prom
                 content: 'Promotion check completed. The promotion embed has been updated.'
             });
         } catch (serviceError) {
-            Logger.error(`Error in promotion service`, 'CheckPromotions', serviceError);
+            Logger.error(`Error in promotion service: ${serviceError.message}`, 'CheckPromotions', serviceError);
             await interaction.editReply({
-                content: 'An error occurred while checking promotions. Please check the server logs.'
+                content: `Error: ${serviceError.message || 'Unknown error'}`
             });
         }
     } catch (error) {

@@ -8,6 +8,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'disc
 import { safeUpdateMember } from '../utils/robloxUtils';
 import { logSystemAction, logAction as legacyLogAction } from '../handlers/handleLogging'; // Import new and keep old if needed elsewhere
 import { PartialUser, User as RobloxUser } from 'bloxy/dist/structures';
+import { Logger } from '../utils/logger';
 
 
 export class promotionService {
@@ -114,6 +115,7 @@ export class promotionService {
     public async updatePromotionEmbed(): Promise<void> {
         const actor = "Promotion Service";
         const channelId = '1304989133026099251'; //replace with channel id
+        Logger.info(`Using channel ID: ${channelId} for promotions`, 'PromotionService');
         if (!channelId) {
             logSystemAction('Embed Update Error', actor, undefined, undefined, 'Promotion channel ID not configured.');
             return;

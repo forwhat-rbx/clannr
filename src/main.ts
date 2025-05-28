@@ -1,3 +1,4 @@
+import { QbotClient } from './structures/QbotClient';
 import { Client as RobloxClient } from 'bloxy';
 import { handleInteraction } from './handlers/handleInteraction';
 import { handleLegacyCommand } from './handlers/handleLegacyCommand';
@@ -16,7 +17,7 @@ import { fetchWithRetry } from './utils/robloxUtils';
 import { handleModalSubmit } from './handlers/modalSubmitHandler';
 import { getLogChannels as initializeLogChannels } from './handlers/handleLogging';
 import { ActivityLogger } from './utils/activityLogger';
-import { QbotClient } from './structures/QbotClient';
+import { Logger } from './utils/logger';
 
 require('dotenv').config();
 
@@ -31,18 +32,30 @@ require('./api');
 
 // [Clients]
 const discordClient = new QbotClient();
-discordClient.login(process.env.DISCORD_TOKEN);
-const robloxClient = new RobloxClient({ credentials: { cookie: process.env.ROBLOX_COOKIE } });
-let robloxGroup: Group = null;
 
+// [Initialization]
 (async () => {
     try {
+        // Load and register commands BEFORE logging in
+        console.log('Loading Discord commands...');
+        await discordClient.loadCommands();
+        console.log(`✅ Loaded ${discordClient.commands.length} commands`);
+
+        // Log available commands for debugging
+        console.log(`Available commands: ${discordClient.commands.map(cmd => cmd.trigger).join(', ')}`);
+
+        // Now login to Discord with commands ready
+        console.log('Logging in to Discord...');
+        await discordClient.login(process.env.DISCORD_TOKEN);
+        console.log('✅ Successfully logged in to Discord');
+
+        // Initialize Roblox client
         console.log('Attempting to login to Roblox...');
+        const robloxClient = new RobloxClient({ credentials: { cookie: process.env.ROBLOX_COOKIE } });
         await robloxClient.login();
 
-        // Instead of getCurrentUser (which doesn't exist), verify authentication by getting user info
+        // Verify authentication by getting user info
         try {
-            // This is the typical way to get authenticated user info in Bloxy
             const userInfo = await robloxClient.apis.usersAPI.getAuthenticatedUserInformation();
             console.log(`✅ Successfully logged in as: ${userInfo.name} (${userInfo.id})`);
         } catch (userErr) {
@@ -52,8 +65,11 @@ let robloxGroup: Group = null;
         await initializeLogChannels();
 
         // Get the group (this will fail if not authenticated)
-        robloxGroup = await robloxClient.getGroup(config.groupId);
+        const robloxGroup = await robloxClient.getGroup(config.groupId);
         console.log(`✅ Found group: ${robloxGroup.name} (${robloxGroup.id})`);
+
+        // Make the group available globally via module exports
+        module.exports.robloxGroup = robloxGroup;
 
         // Validate group access by fetching roles (crucial for ranking permissions)
         const roles = await robloxGroup.getRoles();
@@ -91,31 +107,41 @@ let robloxGroup: Group = null;
         if (config.memberCount.enabled) recordMemberCount();
         if (config.antiAbuse.enabled) clearActions();
         if (config.deleteWallURLs) checkWallForAds();
+
+        // Export clients for use in other modules
+        module.exports.robloxClient = robloxClient;
+
     } catch (error) {
-        console.error('❌ AUTHENTICATION FAILED - Your Roblox cookie may be invalid or expired');
-        console.error(error);
-        // Consider adding process.exit(1) here if you want to fail hard on auth issues
+        console.error('❌ INITIALIZATION FAILED:', error);
+        // Hard fail on critical errors
+        process.exit(1);
     }
 })();
 
 // [Handlers]
 discordClient.on('interactionCreate', async (interaction) => {
-    // Log minimal info about interaction type
-    console.log('Interaction received:', interaction.type);
+    // More detailed logging
+    Logger.info(`Interaction received: ${interaction.type}`, 'Interaction');
+    console.log(`Interaction details: ${interaction.isButton() ? interaction.customId :
+        interaction.isCommand() ? interaction.commandName : 'other'}`);
 
     // Handle each interaction type
     try {
         if (interaction.isCommand()) {
+            Logger.debug(`Command interaction: ${interaction.commandName}`, 'Interaction');
             await handleInteraction(interaction);
         } else if (interaction.isButton()) {
+            Logger.debug(`Button interaction: ${interaction.customId}`, 'Interaction');
             await handleButtonInteraction(interaction);
         } else if (interaction.isModalSubmit()) {
+            Logger.debug(`Modal interaction: ${interaction.customId}`, 'Interaction');
             await handleModalSubmit(interaction);
         } else if (interaction.isAutocomplete()) {
+            Logger.debug(`Autocomplete interaction for: ${interaction.commandName}`, 'Interaction');
             await handleInteraction(interaction);
         }
     } catch (error) {
-        console.error('Error handling interaction:', error);
+        Logger.error('Error handling interaction:', 'Interaction', error);
         // Try to respond to the user if possible
         if (!('replied' in interaction && interaction.replied) && !('deferred' in interaction && interaction.deferred)) {
             try {
@@ -126,7 +152,7 @@ discordClient.on('interactionCreate', async (interaction) => {
                     });
                 }
             } catch (responseError) {
-                console.error('Failed to send error message:', responseError);
+                Logger.error('Failed to send error message:', 'Interaction', responseError);
             }
         }
     }
@@ -136,4 +162,4 @@ discordClient.on('messageCreate', handleLegacyCommand);
 ActivityLogger.testLogging();
 
 // [Module]
-export { discordClient, robloxClient, robloxGroup };
+export { discordClient };

@@ -32,6 +32,9 @@ require('./api');
 
 // [Clients]
 const discordClient = new QbotClient();
+// Declare these at module level so they can be exported
+let robloxClient: RobloxClient;
+let robloxGroup: Group;
 
 // [Initialization]
 (async () => {
@@ -51,7 +54,7 @@ const discordClient = new QbotClient();
 
         // Initialize Roblox client
         console.log('Attempting to login to Roblox...');
-        const robloxClient = new RobloxClient({ credentials: { cookie: process.env.ROBLOX_COOKIE } });
+        robloxClient = new RobloxClient({ credentials: { cookie: process.env.ROBLOX_COOKIE } });
         await robloxClient.login();
 
         // Verify authentication by getting user info
@@ -65,11 +68,8 @@ const discordClient = new QbotClient();
         await initializeLogChannels();
 
         // Get the group (this will fail if not authenticated)
-        const robloxGroup = await robloxClient.getGroup(config.groupId);
+        robloxGroup = await robloxClient.getGroup(config.groupId);
         console.log(`✅ Found group: ${robloxGroup.name} (${robloxGroup.id})`);
-
-        // Make the group available globally via module exports
-        module.exports.robloxGroup = robloxGroup;
 
         // Validate group access by fetching roles (crucial for ranking permissions)
         const roles = await robloxGroup.getRoles();
@@ -107,9 +107,6 @@ const discordClient = new QbotClient();
         if (config.memberCount.enabled) recordMemberCount();
         if (config.antiAbuse.enabled) clearActions();
         if (config.deleteWallURLs) checkWallForAds();
-
-        // Export clients for use in other modules
-        module.exports.robloxClient = robloxClient;
 
     } catch (error) {
         console.error('❌ INITIALIZATION FAILED:', error);
@@ -162,4 +159,5 @@ discordClient.on('messageCreate', handleLegacyCommand);
 ActivityLogger.testLogging();
 
 // [Module]
-export { discordClient };
+// Export everything that needs to be used elsewhere
+export { discordClient, robloxClient, robloxGroup };

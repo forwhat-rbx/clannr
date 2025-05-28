@@ -26,7 +26,7 @@ export const config: BotConfig = {
     api: true,
     maximumRank: 255,
     verificationChecks: false,
-    bloxlinkGuildId: '1225166398532223116',
+    bloxlinkGuildId: '1115179981866278933',
     firedRank: 1,
     suspendedRank: 1,
     recordManualActions: true,

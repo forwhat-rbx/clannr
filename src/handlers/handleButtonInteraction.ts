@@ -45,7 +45,8 @@ export async function handleButtonInteraction(interaction: ButtonInteraction): P
 
     try {
         // Handle different button types 
-        if (customId === 'verify_start') {
+        if (customId === 'verify' || customId === 'verify_start') {
+            Logger.info(`Routing to verify button handler`, 'ButtonHandler');
             await handleVerifyStartButton(interaction);
         } else if (customId === 'check_promotions') {
             Logger.info(`Routing to check_promotions handler`, 'ButtonHandler');
@@ -79,16 +80,16 @@ export async function handleButtonInteraction(interaction: ButtonInteraction): P
         try {
             if (!interaction.replied && !interaction.deferred) {
                 await interaction.reply({
-                    content: 'An error occurred while processing this button. Check server logs for details.',
+                    content: 'An error occurred while processing this button.',
                     ephemeral: true
                 });
             } else if (interaction.deferred) {
                 await interaction.editReply({
-                    content: 'An error occurred while processing this button. Check server logs for details.'
+                    content: 'An error occurred while processing this button.'
                 });
             }
         } catch (replyError) {
-            Logger.error(`Failed to send error response for button ${customId}`, 'ButtonHandler', replyError);
+            Logger.error('Failed to send error response:', 'ButtonHandler', replyError);
         }
     }
 }

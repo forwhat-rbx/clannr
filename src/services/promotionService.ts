@@ -12,9 +12,9 @@ import { Logger } from '../utils/logger';
 
 
 export class promotionService {
-    private static instance: promotionService;
-    private pendingPromotions: Array<{ robloxId: string; name: string; currentRank: string; newRank: string; roleId: number }> = [];
-    private lastMessageId: string | null = null;
+    public static instance: promotionService;
+    public pendingPromotions: Array<{ robloxId: string; name: string; currentRank: string; newRank: string; roleId: number }> = [];
+    public lastMessageId: string | null = null;
 
     private constructor() { }
 
@@ -114,26 +114,45 @@ export class promotionService {
 
     public async updatePromotionEmbed(): Promise<void> {
         const actor = "Promotion Service";
-        const channelId = '1304989133026099251'; //replace with channel id
+        const channelId = config.logChannels.actions || '1304989133026099251';
+
+        console.log(`[PROMOTION DEBUG] Using channel ID: ${channelId} for promotions`);
         Logger.info(`Using channel ID: ${channelId} for promotions`, 'PromotionService');
+
+
+
         if (!channelId) {
+            console.error('[PROMOTION ERROR] No channel ID configured');
             logSystemAction('Embed Update Error', actor, undefined, undefined, 'Promotion channel ID not configured.');
             return;
         }
 
         let channel: TextChannel | null = null;
         try {
-            const fetchedChannel = await discordClient.channels.fetch(channelId);
-            if (fetchedChannel && fetchedChannel.isTextBased()) {
-                channel = fetchedChannel as TextChannel;
-            }
-        } catch (err) {
-            logSystemAction('Embed Update Error', actor, `Failed to fetch promotion channel ${channelId}.`, undefined, err.message);
-            return;
-        }
+            console.log(`[PROMOTION DEBUG] Fetching channel ${channelId}`);
+            // Add better error handling for channel fetching
+            const fetchedChannel = await discordClient.channels.fetch(channelId).catch(err => {
+                console.error(`[PROMOTION ERROR] Failed to fetch channel: ${err.message}`);
+                return null;
+            });
 
-        if (!channel) {
-            logSystemAction('Embed Update Error', actor, undefined, undefined, `Promotion channel ${channelId} not found or not a text channel.`);
+            if (!fetchedChannel) {
+                console.error(`[PROMOTION ERROR] Channel ${channelId} not found`);
+                logSystemAction('Embed Update Error', actor, undefined, undefined, `Failed to fetch channel ${channelId}`);
+                return;
+            }
+
+            if (!fetchedChannel.isTextBased()) {
+                console.error(`[PROMOTION ERROR] Channel ${channelId} is not a text channel`);
+                logSystemAction('Embed Update Error', actor, undefined, undefined, `Channel ${channelId} is not a text channel`);
+                return;
+            }
+
+            channel = fetchedChannel as TextChannel;
+            console.log(`[PROMOTION DEBUG] Successfully fetched channel #${channel.name}`);
+        } catch (err) {
+            console.error(`[PROMOTION ERROR] Error fetching channel: ${err.message}`);
+            logSystemAction('Embed Update Error', actor, `Failed to fetch promotion channel ${channelId}.`, undefined, err.message);
             return;
         }
 

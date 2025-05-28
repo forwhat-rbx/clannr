@@ -42,27 +42,56 @@ export class promotionService {
             const oldMessages = messagesToDelete.filter(msg => msg.createdTimestamp <= twoWeeksAgo);
 
             let purgedCount = 0;
-            if (recentMessages.size > 0) {
-                const deletedMessages = await channel.bulkDelete(recentMessages, true); // true to filter out messages older than 2 weeks if any slip through
-                purgedCount += deletedMessages.size;
-                logSystemAction('Channel Purge Success', actor, undefined, undefined, `Bulk deleted ${deletedMessages.size} recent messages from #${channel.name}.`);
-            }
+            let failedCount = 0;
 
-            for (const message of oldMessages.values()) {
+            // Handle bulk deletion for recent messages
+            if (recentMessages.size > 0) {
                 try {
-                    await message.delete();
-                    purgedCount++;
-                } catch (err) {
-                    logSystemAction('Channel Purge Error', actor, `Failed to delete old message ${message.id} from #${channel.name}.`, undefined, err.message);
+                    const deletedMessages = await channel.bulkDelete(recentMessages, true);
+                    purgedCount += deletedMessages.size;
+                    logSystemAction('Channel Purge Success', actor, undefined, undefined,
+                        `Bulk deleted ${deletedMessages.size} recent messages from #${channel.name}.`);
+                } catch (bulkError) {
+                    logSystemAction('Channel Purge Error', actor,
+                        `Failed to bulk delete recent messages from #${channel.name}.`, undefined, bulkError.message);
                 }
             }
-            if (purgedCount > 0 && oldMessages.size > 0 && recentMessages.size === 0) { // If only old messages were deleted
-                logSystemAction('Channel Purge Success', actor, undefined, undefined, `Individually deleted ${oldMessages.size} old messages from #${channel.name}. Total purged: ${purgedCount}`);
-            } else if (purgedCount > 0 && oldMessages.size > 0 && recentMessages.size > 0) {
-                // Logged by bulk and individual will be logged if any succeed
-                logSystemAction('Channel Purge Info', actor, undefined, undefined, `Additionally, individually deleted ${oldMessages.filter(m => !recentMessages.has(m.id)).size} old messages from #${channel.name}.`);
+
+            // Handle individual deletion for older messages
+            if (oldMessages.size > 0) {
+                logSystemAction('Channel Purge Info', actor, undefined, undefined,
+                    `Attempting to delete ${oldMessages.size} old messages individually from #${channel.name}.`);
+
+                // Delete older messages one by one with better error handling
+                for (const message of oldMessages.values()) {
+                    try {
+                        await message.delete();
+                        purgedCount++;
+                    } catch (err) {
+                        // Don't log every individual error, just count them
+                        failedCount++;
+
+                        // Only log serious errors, not "Unknown Message" errors
+                        if (err.message !== "Unknown Message") {
+                            logSystemAction('Channel Purge Error', actor,
+                                `Failed to delete message from #${channel.name}.`, undefined, err.message);
+                        }
+                    }
+                }
+
+                // Log a summary of individual deletions
+                if (failedCount > 0) {
+                    logSystemAction('Channel Purge Info', actor, undefined, undefined,
+                        `Deleted ${purgedCount - (recentMessages.size || 0)} old messages, ${failedCount} deletions failed (message may no longer exist).`);
+                } else if (purgedCount > recentMessages.size) {
+                    logSystemAction('Channel Purge Success', actor, undefined, undefined,
+                        `Successfully deleted ${purgedCount - recentMessages.size} old messages from #${channel.name}.`);
+                }
             }
 
+            // Log final summary
+            logSystemAction('Channel Purge Complete', actor, undefined, undefined,
+                `Total messages purged: ${purgedCount}, Failed: ${failedCount} from #${channel.name}.`);
 
         } catch (err) {
             logSystemAction('Channel Purge Error', actor, `Error purging promotion channel #${channel.name}.`, undefined, err.message);

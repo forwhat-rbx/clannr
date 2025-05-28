@@ -43,6 +43,12 @@ export async function handleButtonInteraction(interaction: ButtonInteraction): P
     // Add debug logging to track all button interactions
     Logger.info(`Button interaction received: ${customId} from user ${interaction.user.tag}`, 'ButtonHandler');
 
+    // IMPORTANT: Skip handling pagination buttons - let the collectors handle these
+    if (customId === 'next' || customId === 'previous') {
+        Logger.debug(`Skipping global handling for pagination button: ${customId}`, 'ButtonHandler');
+        return; // Don't handle these buttons globally - let the collectors handle them
+    }
+
     try {
         // Handle different button types 
         if (customId === 'verify' || customId === 'verify_start') {

@@ -449,10 +449,15 @@ async function handleRolesToBindSelection(interaction: RoleSelectMenuInteraction
  * Handle selection of roles to remove for a binding
  */
 async function handleRolesToRemoveSelection(interaction: RoleSelectMenuInteraction) {
+    // IMMEDIATELY defer the interaction to extend the 3-second window
+    await interaction.deferUpdate().catch(err => {
+        if (err.code !== 10062) Logger.error("Error deferring update", 'ComponentHandler', err);
+    });
+
     // Get binding parameters from the custom ID
     const parts = interaction.customId.split(':');
     if (parts.length < 5) {
-        await interaction.update({
+        await interaction.editReply({
             content: 'Invalid binding parameters.',
             components: []
         }).catch(err => {
@@ -471,11 +476,6 @@ async function handleRolesToRemoveSelection(interaction: RoleSelectMenuInteracti
     const rolesToRemove = interaction.values || [];
 
     try {
-        // Immediately defer the update to prevent timeout
-        await interaction.deferUpdate().catch(err => {
-            if (err.code !== 10062) Logger.error("Error deferring update", 'ComponentHandler', err);
-        });
-
         // Get role information for display
         const discordRole = interaction.guild.roles.cache.get(discordRoleId);
         if (!discordRole) {

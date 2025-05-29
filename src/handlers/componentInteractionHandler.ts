@@ -343,19 +343,35 @@ async function handleRoleSelectMenuInteraction(interaction: RoleSelectMenuIntera
                         roleRemovalText = '\n\nNo roles will be removed when this binding is active.';
                     }
 
-                    // Update the message for confirmation
-                    await interaction.update({
-                        embeds: [
-                            createBaseEmbed()
-                                .setTitle('Confirm Role Bindings')
-                                .setDescription(
-                                    `You're about to create **${global.bindingWorkflows[workflowKey].discordRoleIds.length} binding(s)** to Roblox rank "${global.bindingWorkflows[workflowKey].rankName}".\n\n` +
-                                    `**Roles being bound:**\n${global.bindingWorkflows[workflowKey].discordRoleIds.map(id => `• <@&${id}>`).join('\n')}${roleRemovalText}\n\n` +
-                                    `Please confirm that you want to create these bindings.`
-                                )
-                        ],
-                        components: [finalButtonRow]
-                    });
+                    // Add defer to extend the 3-second interaction window
+                    if (!interaction.deferred && !interaction.replied) {
+                        await interaction.deferUpdate().catch(err => {
+                            if (err.code !== 10062) Logger.error("Error deferring update", 'ComponentHandler', err);
+                        });
+                    }
+
+                    // Update the message for confirmation with safe handling
+                    try {
+                        await interaction.editReply({
+                            embeds: [
+                                createBaseEmbed()
+                                    .setTitle('Confirm Role Bindings')
+                                    .setDescription(
+                                        `You're about to create **${global.bindingWorkflows[workflowKey].discordRoleIds.length} binding(s)** to Roblox rank "${global.bindingWorkflows[workflowKey].rankName}".\n\n` +
+                                        `**Roles being bound:**\n${global.bindingWorkflows[workflowKey].discordRoleIds.map(id => `• <@&${id}>`).join('\n')}${roleRemovalText}\n\n` +
+                                        `Please confirm that you want to create these bindings.`
+                                    )
+                            ],
+                            components: [finalButtonRow]
+                        });
+                    } catch (updateError) {
+                        // Handle interaction expiration gracefully
+                        if (updateError.code === 10062) {
+                            Logger.warn("Interaction expired before we could respond", 'ComponentHandler');
+                        } else {
+                            throw updateError; // Re-throw if it's a different error
+                        }
+                    }
                 } catch (updateError) {
                     // Handle interaction expiration gracefully
                     if (updateError.code === 10062) {
@@ -365,15 +381,19 @@ async function handleRoleSelectMenuInteraction(interaction: RoleSelectMenuIntera
                     }
                 }
             } else {
-                // Only try to update if we haven't responded yet
+                // Only try to update if we haven't responded yet and interaction is still valid
                 if (!interaction.replied && !interaction.deferred) {
-                    await interaction.update({
-                        content: 'Your binding session has expired. Please try again.',
-                        components: [],
-                        embeds: []
-                    }).catch(err => {
+                    try {
+                        await interaction.update({
+                            content: 'Your binding session has expired. Please try again.',
+                            components: [],
+                            embeds: []
+                        }).catch(err => {
+                            if (err.code !== 10062) Logger.error("Error updating interaction", 'ComponentHandler', err);
+                        });
+                    } catch (err) {
                         if (err.code !== 10062) Logger.error("Error updating interaction", 'ComponentHandler', err);
-                    });
+                    }
                 }
             }
         }

@@ -43,13 +43,21 @@ export async function handleButtonInteraction(interaction: ButtonInteraction): P
     // Add debug logging to track all button interactions
     Logger.info(`Button interaction received: ${customId} from user ${interaction.user.tag}`, 'ButtonHandler');
 
-    // IMPORTANT: Skip handling pagination buttons - let the collectors handle these
-    if (customId === 'next' || customId === 'previous') {
+    // Skip handling pagination buttons - let the collectors handle these
+    if (customId === 'previous' || customId === 'next') {
         Logger.debug(`Skipping global handling for pagination button: ${customId}`, 'ButtonHandler');
         return; // Don't handle these buttons globally - let the collectors handle them
     }
 
     try {
+        // Skip role binding selection - handled by componentInteractionHandler
+        if (customId === 'binds_add_roles_selection' ||
+            customId.startsWith('binds_select_roles:') ||
+            customId.startsWith('binds_select_remove_roles_multi')) {
+            Logger.debug(`Skipping button handler for role binding interaction: ${customId}`, 'ButtonHandler');
+            return;
+        }
+
         // Handle different button types 
         if (customId === 'verify' || customId === 'verify_start') {
             Logger.info(`Routing to verify button handler`, 'ButtonHandler');
@@ -72,6 +80,23 @@ export async function handleButtonInteraction(interaction: ButtonInteraction): P
             await handleVerifyButton(interaction);
         } else if (customId.startsWith('cancel_verify_')) {
             await handleCancelVerifyButton(interaction);
+        } else if (customId === 'role_binding_confirm') {
+            // Make sure we handle the role binding confirm button
+            Logger.info(`Routing to role binding confirmation handler`, 'ButtonHandler');
+            const { handleRoleBindingConfirmation } = require('./componentInteractionHandler');
+            await handleRoleBindingConfirmation(interaction);
+        } else if (customId === 'role_binding_cancel') {
+            // Handle cancellation
+            Logger.info(`Routing to role binding cancel handler`, 'ButtonHandler');
+            // Clean up workflow data
+            if (global.bindingWorkflows && global.bindingWorkflows[interaction.user.id]) {
+                delete global.bindingWorkflows[interaction.user.id];
+            }
+            await interaction.update({
+                content: 'Role binding cancelled.',
+                components: [],
+                embeds: []
+            });
         } else {
             Logger.warn(`Unknown button ID: ${customId}`, 'ButtonHandler');
             await interaction.reply({

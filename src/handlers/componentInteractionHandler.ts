@@ -14,7 +14,7 @@ import {
 import { createBaseEmbed } from '../utils/embedUtils';
 import { addRoleBinding, getRoleBindings } from './roleBindHandler';
 import { checkVerification } from '../commands/verification/verify';
-import { robloxClient } from '../main';
+import { robloxClient, robloxGroup } from '../main';
 import { updateUserRoles } from './roleBindHandler';
 import { updateNickname } from './nicknameHandler';
 import { Logger } from '../utils/logger';
@@ -28,11 +28,20 @@ interface BindingWorkflowData {
     rolesToRemove?: string[];
 }
 
+// Structure for verification data
+interface VerificationData {
+    robloxId: string;
+    robloxUsername: string;
+    code: string;
+    expires: number;
+}
+
 // Global storage for binding workflow data
 declare global {
     var bindingWorkflows: {
         [key: string]: BindingWorkflowData
     };
+    var pendingVerifications: Map<string, VerificationData>;
 }
 
 // Initialize if not exists
@@ -40,24 +49,62 @@ if (!global.bindingWorkflows) {
     global.bindingWorkflows = {};
 }
 
+if (!global.pendingVerifications) {
+    global.pendingVerifications = new Map();
+}
+
+/**
+ * Main entry point for handling component interactions
+ */
 export async function handleComponentInteraction(interaction) {
-    // Handle different component types
-    if (interaction.isButton()) {
-        await handleButtonInteraction(interaction);
-    } else if (interaction.isRoleSelectMenu()) {
-        await handleRoleSelectMenuInteraction(interaction);
-    } else if (interaction.isStringSelectMenu()) {
-        await handleStringSelectMenuInteraction(interaction);
+    try {
+        if (interaction.isButton()) {
+            await handleButtonInteraction(interaction);
+        } else if (interaction.isRoleSelectMenu()) {
+            await handleRoleSelectMenuInteraction(interaction);
+        } else if (interaction.isStringSelectMenu()) {
+            await handleStringSelectMenuInteraction(interaction);
+        }
+    } catch (error) {
+        Logger.error('Error handling component interaction:', 'ComponentHandler', error);
+        try {
+            await interaction.reply({
+                content: 'An error occurred while processing your selection.',
+                ephemeral: true
+            });
+        } catch (err) {
+            // Already replied, try to update
+            try {
+                if (!interaction.replied && !interaction.deferred) {
+                    await interaction.reply({
+                        content: 'An error occurred while processing your selection.',
+                        ephemeral: true
+                    });
+                } else {
+                    await interaction.editReply({
+                        content: 'An error occurred while processing your selection.'
+                    });
+                }
+            } catch (finalErr) {
+                Logger.error('Failed to respond to error', 'ComponentHandler', finalErr);
+            }
+        }
     }
 }
 
-// Only including the relevant parts that need to be fixed
-
-// Find the handleButtonInteraction function and update it:
+/**
+ * Handle button interactions
+ */
 async function handleButtonInteraction(interaction: ButtonInteraction) {
     const customId = interaction.customId;
 
     try {
+        // Skip pagination buttons - let the collectors handle these
+        if (customId === 'previous' || customId === 'next') {
+            Logger.debug(`Skipping component handler for pagination button: ${customId}`, 'ComponentHandler');
+            return;
+        }
+
         // Universal verification button - works anywhere
         if (customId === 'verify' || customId === 'verify_start') {
             await handleVerifyStartButton(interaction);
@@ -79,8 +126,10 @@ async function handleButtonInteraction(interaction: ButtonInteraction) {
                 embeds: [],
                 components: []
             });
+        } else {
+            // Log unknown button IDs
+            Logger.warn(`Unknown button ID in component handler: ${customId}`, 'ComponentHandler');
         }
-        // Handle other button types here...
     } catch (err) {
         Logger.error('Error handling button interaction:', 'ButtonInteraction', err);
         try {
@@ -110,7 +159,9 @@ async function handleButtonInteraction(interaction: ButtonInteraction) {
     }
 }
 
-// Update the handleVerifyStartButton function to use a simpler approach
+/**
+ * Show verification modal to user
+ */
 async function handleVerifyStartButton(interaction: ButtonInteraction): Promise<void> {
     // Create a modal for the user to enter their Roblox username
     const modal = new ModalBuilder()
@@ -150,7 +201,9 @@ async function handleVerifyStartButton(interaction: ButtonInteraction): Promise<
     }
 }
 
-// Handle verification button click
+/**
+ * Handle verification button click
+ */
 async function handleVerifyButton(interaction: ButtonInteraction): Promise<void> {
     // Important: Defer the update first to prevent timeout
     await interaction.deferUpdate();
@@ -212,7 +265,9 @@ async function handleVerifyButton(interaction: ButtonInteraction): Promise<void>
     }
 }
 
-// Handle cancel verification button
+/**
+ * Handle cancel verification button
+ */
 async function handleCancelVerifyButton(interaction: ButtonInteraction): Promise<void> {
     await interaction.deferUpdate();
     const userId = interaction.customId.replace('cancel_verify_', '');
@@ -236,39 +291,87 @@ async function handleCancelVerifyButton(interaction: ButtonInteraction): Promise
     });
 }
 
-// Add other function handlers for role selections, etc.
+/**
+ * Handle string select menu interactions
+ */
 async function handleStringSelectMenuInteraction(interaction: StringSelectMenuInteraction) {
-    // Handle string select menu interactions
-    console.log('String select menu interaction received:', interaction.customId);
+    // Handle string select menus if needed
+    const customId = interaction.customId;
+    Logger.info(`String select menu interaction: ${customId}`, 'ComponentHandler');
 }
 
+/**
+ * Handle role select menu interactions
+ */
 async function handleRoleSelectMenuInteraction(interaction: RoleSelectMenuInteraction) {
     const customId = interaction.customId;
+    Logger.info(`Role select menu interaction: ${customId}`, 'ComponentHandler');
 
     try {
         if (customId === 'binds_add_roles_selection') {
             await handleRolesToBindSelection(interaction);
         } else if (customId.startsWith('binds_select_roles:')) {
             await handleRolesToRemoveSelection(interaction);
+        } else if (customId.startsWith('binds_select_remove_roles_multi')) {
+            // Add handler for this ID if needed
+            Logger.info(`Handling multi-role removal selection: ${interaction.values.length} roles selected`, 'ComponentHandler');
+
+            // Update workflow data
+            const workflowKey = interaction.user.id;
+            if (global.bindingWorkflows[workflowKey]) {
+                global.bindingWorkflows[workflowKey].rolesToRemove = interaction.values;
+
+                // Create confirmation buttons
+                const finalButtonRow = new ActionRowBuilder<ButtonBuilder>()
+                    .addComponents(
+                        new ButtonBuilder()
+                            .setCustomId('role_binding_confirm')
+                            .setLabel('Confirm Bindings')
+                            .setStyle(ButtonStyle.Success),
+                        new ButtonBuilder()
+                            .setCustomId('role_binding_cancel')
+                            .setLabel('Cancel')
+                            .setStyle(ButtonStyle.Danger)
+                    );
+
+                // Format role removal message
+                let roleRemovalText = '';
+                if (interaction.values.length > 0) {
+                    roleRemovalText = `\n\n**Will remove:** ${interaction.values.map(id => `<@&${id}>`).join(' ')}`;
+                } else {
+                    roleRemovalText = '\n\nNo roles will be removed when this binding is active.';
+                }
+
+                // Update the message for confirmation
+                await interaction.update({
+                    embeds: [
+                        createBaseEmbed()
+                            .setTitle('Confirm Role Bindings')
+                            .setDescription(
+                                `You're about to create **${global.bindingWorkflows[workflowKey].discordRoleIds.length} binding(s)** to Roblox rank "${global.bindingWorkflows[workflowKey].rankName}".\n\n` +
+                                `**Roles being bound:**\n${global.bindingWorkflows[workflowKey].discordRoleIds.map(id => `• <@&${id}>`).join('\n')}${roleRemovalText}\n\n` +
+                                `Please confirm that you want to create these bindings.`
+                            )
+                    ],
+                    components: [finalButtonRow]
+                });
+            } else {
+                await interaction.update({
+                    content: 'Your binding session has expired. Please try again.',
+                    components: [],
+                    embeds: []
+                });
+            }
         }
     } catch (err) {
-        console.error('Error handling role select menu interaction:', err);
-        try {
-            await interaction.update({
-                embeds: [
-                    createBaseEmbed('danger')
-                        .setTitle('Error')
-                        .setDescription('An error occurred while processing your selection.')
-                ],
-                components: []
-            });
-        } catch (e) {
-            console.error('Failed to send error message:', e);
-        }
+        Logger.error('Error handling role select menu interaction:', 'ComponentHandler', err);
+        throw err;
     }
 }
 
-// Handle selection of roles to bind
+/**
+ * Handle selection of roles to bind
+ */
 async function handleRolesToBindSelection(interaction: RoleSelectMenuInteraction) {
     // Validate that roles were selected
     if (!interaction.values || interaction.values.length === 0) {
@@ -304,7 +407,9 @@ async function handleRolesToBindSelection(interaction: RoleSelectMenuInteraction
     await interaction.showModal(modal);
 }
 
-// Handle selection of roles to remove when binding is active
+/**
+ * Handle selection of roles to remove for a binding
+ */
 async function handleRolesToRemoveSelection(interaction: RoleSelectMenuInteraction) {
     // Get binding parameters from the custom ID
     const parts = interaction.customId.split(':');
@@ -349,7 +454,7 @@ async function handleRolesToRemoveSelection(interaction: RoleSelectMenuInteracti
         // Format message
         let roleRemovalText = '';
         if (rolesToRemove.length > 0) {
-            roleRemovalText = `\n\n**Will remove:** ${rolesToRemove.map(id => `<@&${String(id)}>`).join(' ')}`;
+            roleRemovalText = `\n\n**Will remove:** ${rolesToRemove.map(id => `<@&${id}>`).join(' ')}`;
         } else {
             roleRemovalText = '\n\nNo roles will be removed when this binding is active.';
         }
@@ -383,8 +488,10 @@ async function handleRolesToRemoveSelection(interaction: RoleSelectMenuInteracti
     }
 }
 
-// Handle confirmation to add multiple role bindings
-async function handleRoleBindingConfirmation(interaction: ButtonInteraction) {
+/**
+ * Handle role binding confirmation
+ */
+export async function handleRoleBindingConfirmation(interaction: ButtonInteraction) {
     const workflowKey = interaction.user.id;
     const workflowData = global.bindingWorkflows[workflowKey];
 
@@ -416,7 +523,6 @@ async function handleRoleBindingConfirmation(interaction: ButtonInteraction) {
             components: [],
             embeds: []
         });
-        // In handleRoleBindingConfirmation:
 
         const results = [];
         for (const roleId of discordRoleIds) {
@@ -431,10 +537,10 @@ async function handleRoleBindingConfirmation(interaction: ButtonInteraction) {
                     rankName,
                     rolesToRemove || []
                 );
-                results.push(`<@&${String(roleId)}> (${role ? role.name : 'Unknown Role'})`);
+                results.push(`<@&${roleId}> (${role ? role.name : 'Unknown Role'})`);
             } catch (bindError) {
                 console.error(`Error adding binding for role ${roleId}:`, bindError);
-                results.push(`<@&${String(roleId)}> (${role ? role.name : 'Unknown Role'})`);
+                results.push(`❌ <@&${roleId}> (${role ? role.name : 'Unknown Role'}) - Error: ${bindError.message}`);
             }
         }
 
@@ -446,17 +552,13 @@ async function handleRoleBindingConfirmation(interaction: ButtonInteraction) {
             ? `Roblox rank "${rankName}" (${minRankId})`
             : `Roblox ranks from "${rankName}" (${minRankId} to ${maxRankId})`;
 
-        // In handleRoleBindingConfirmation:
-
         // Format roles to remove display
         let removalText = '';
         if (rolesToRemove && rolesToRemove.length > 0) {
-            removalText = `\n\n**Will remove:** ${rolesToRemove.map(id => `<@&${String(id)}>`).join(' ')}`;
+            removalText = `\n\n**Will remove:** ${rolesToRemove.map(id => `<@&${id}>`).join(' ')}`;
         }
 
         // Send success message
-        // In handleRoleBindingConfirmation:
-
         await interaction.editReply({
             embeds: [
                 createBaseEmbed('success')
@@ -480,3 +582,6 @@ async function handleRoleBindingConfirmation(interaction: ButtonInteraction) {
         });
     }
 }
+
+// Export functions needed by other files
+export { handleRolesToBindSelection, handleRolesToRemoveSelection };

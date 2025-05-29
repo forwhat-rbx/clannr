@@ -124,6 +124,7 @@ discordClient.on('interactionCreate', async (interaction) => {
 
     // Handle each interaction type
     try {
+        // Add more detailed logging
         if (interaction.isCommand()) {
             Logger.debug(`Command interaction: ${interaction.commandName}`, 'Interaction');
             await handleInteraction(interaction);
@@ -136,6 +137,12 @@ discordClient.on('interactionCreate', async (interaction) => {
         } else if (interaction.isAutocomplete()) {
             Logger.debug(`Autocomplete interaction for: ${interaction.commandName}`, 'Interaction');
             await handleInteraction(interaction);
+        } else if (interaction.isRoleSelectMenu() || interaction.isStringSelectMenu()) {
+            // Add this block to handle role select interactions
+            Logger.debug(`Select menu interaction: ${interaction.customId}`, 'Interaction');
+            // Import this function from componentInteractionHandler
+            const { handleComponentInteraction } = require('./handlers/componentInteractionHandler');
+            await handleComponentInteraction(interaction);
         }
     } catch (error) {
         Logger.error('Error handling interaction:', 'Interaction', error);

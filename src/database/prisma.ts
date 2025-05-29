@@ -4,6 +4,7 @@ import { DatabaseUser } from '../structures/types';
 import { ActivityLogger } from '../utils/activityLogger';
 import { robloxClient } from '../main';
 import { discordClient } from '../main';
+import { Logger } from '../utils/logger';
 
 require('dotenv').config();
 
@@ -111,7 +112,17 @@ class PrismaProvider extends DatabaseProvider {
 
     async safeDeleteUser(robloxId: string) {
         try {
-            // First delete all related records in a transaction
+            // First check if the user exists
+            const userExists = await this.db.user.findUnique({
+                where: { robloxId }
+            });
+
+            if (!userExists) {
+                // User doesn't exist, just return success
+                return true;
+            }
+
+            // Delete related records in a transaction
             await this.db.$transaction([
                 // Delete any XP logs referencing this user
                 this.db.xpLog.deleteMany({
@@ -126,8 +137,8 @@ class PrismaProvider extends DatabaseProvider {
 
             return true;
         } catch (error) {
-            console.error(`Error in safeDeleteUser for ${robloxId}:`, error);
-            throw error; // Re-throw to handle in the command
+            Logger.error(`Error in safeDeleteUser for ${robloxId}:`, error);
+            throw error;
         }
     }
 

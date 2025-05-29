@@ -46,6 +46,25 @@ class VerifyCommand extends Command {
         // Check if user is already verified
         const existingLink = await getLinkedRobloxUser(ctx.user.id);
         if (existingLink) {
+            // Get the username they're trying to verify with
+            const username = ctx.args['username'] as string;
+
+            // Log this as a potential alt account attempt
+            try {
+                // Try to find the Roblox user they're attempting to verify with
+                const potentialAltUsers = await robloxClient.getUsersByUsernames([username]);
+                const potentialAltUser = potentialAltUsers.length > 0 ? potentialAltUsers[0] : null;
+
+                await logVerificationEvent(
+                    ctx.user,
+                    'Verification Failed',
+                    existingLink ? { id: existingLink.id, username: existingLink.name } : null,
+                    `User attempted to verify with another account: "${username}"${potentialAltUser ? ` (ID: ${potentialAltUser.id})` : ''} while already verified as ${existingLink.name}`
+                );
+            } catch (logErr) {
+                console.error("Failed to log potential alt account attempt:", logErr);
+            }
+
             return ctx.reply({
                 embeds: [
                     createBaseEmbed('primary')

@@ -87,12 +87,17 @@ class ExileCommand extends Command {
         }
 
         const userData = await provider.findUser(robloxUser.id.toString());
-        if (userData.xp !== 0) return provider.updateUser(robloxUser.id.toString(), { xp: 0 });
+        if (userData.xp !== 0) {
+            await provider.updateUser(robloxUser.id.toString(), { xp: 0 });
+            Logger.info(`Reset XP to 0 for user ${robloxUser.name} (${robloxUser.id})`, 'Exile');
+        }
+
+        // This return should stay - we don't want to exile suspended users
         if (userData.suspendedUntil) return ctx.reply({ embeds: [getUserSuspendedEmbed()] });
 
         try {
             await robloxMember.kickFromGroup(config.groupId);
-            ctx.reply({ embeds: [await getSuccessfulExileEmbed(robloxUser)] })
+            ctx.reply({ embeds: [await getSuccessfulExileEmbed(robloxUser)] });
             logAction('Exile', ctx.user, ctx.args['reason'], robloxUser);
         } catch (err) {
             Logger.error('Failed to exile user:', 'Exile', err);

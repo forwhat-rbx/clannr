@@ -36,7 +36,6 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction): Pr
         }
     } catch (error) {
         Logger.error('Error in modal submit handler:', 'ModalSubmit', error);
-        // Error handling...
     }
 }
 async function handleEventCreateModal(interaction: ModalSubmitInteraction): Promise<void> {
@@ -67,115 +66,43 @@ async function handleEventCreateModal(interaction: ModalSubmitInteraction): Prom
         let parsedDate: Date | null = null;
         let friendlyDateDisplay: string;
 
-        // Try different parsing approaches
-        if (/^\d+$/.test(eventTimeInput)) {
-            // It's a Unix timestamp
-            unixTimestamp = parseInt(eventTimeInput);
-            parsedDate = new Date(unixTimestamp * 1000);
+        try {
+            // Handle direct Unix timestamp input
+            if (/^\d+$/.test(eventTimeInput)) {
+                unixTimestamp = parseInt(eventTimeInput);
+                parsedDate = new Date(unixTimestamp * 1000);
+                friendlyDateDisplay = parsedDate.toLocaleString('pt-BR');
+                Logger.info(`Unix timestamp fornecido diretamente: ${unixTimestamp}`, 'EventScheduling');
+            }
+            // Use standard chrono parsing with forwardDate option
+            else {
+                // Try to parse with chrono (more reliable approach)
+                const results = chrono.parse(eventTimeInput, new Date(), { forwardDate: true });
 
-            // Format based on locale
-            friendlyDateDisplay = parsedDate.toLocaleString('pt-BR');
-        } else {
-            // Try natural language parsing
-            try {
-                // Improved dictionary of Portuguese date expressions
-                const commonPhrases: Record<string, () => Date> = {
-                    'amanhã': () => {
-                        const tomorrow = new Date();
-                        tomorrow.setDate(tomorrow.getDate() + 1);
-                        return tomorrow;
-                    },
-                    'hoje': () => new Date(),
-                    'agora': () => new Date(),
-                    'próxima segunda': () => getNextDayOfWeek(1),
-                    'proxima segunda': () => getNextDayOfWeek(1),
-                    'próxima terça': () => getNextDayOfWeek(2),
-                    'proxima terca': () => getNextDayOfWeek(2),
-                    'próxima quarta': () => getNextDayOfWeek(3),
-                    'proxima quarta': () => getNextDayOfWeek(3),
-                    'próxima quinta': () => getNextDayOfWeek(4),
-                    'proxima quinta': () => getNextDayOfWeek(4),
-                    'próxima sexta': () => getNextDayOfWeek(5),
-                    'proxima sexta': () => getNextDayOfWeek(5),
-                    'próximo sábado': () => getNextDayOfWeek(6),
-                    'proximo sabado': () => getNextDayOfWeek(6),
-                    'próximo domingo': () => getNextDayOfWeek(0),
-                    'proximo domingo': () => getNextDayOfWeek(0)
-                };
-
-                // Improved regex to extract time (more flexible)
-                const timeRegex = /\b(?:às|as|à|a)\s+(\d{1,2})(?::(\d{2}))?(?:h|hr|hrs|horas)?/i;
-                const timeMatch = eventTimeInput.match(timeRegex);
-
-                // Try to find a matching common phrase
-                let baseDate: Date | null = null;
-
-                // Check for common phrases
-                for (const [phrase, getDate] of Object.entries(commonPhrases)) {
-                    if (eventTimeInput.toLowerCase().includes(phrase.toLowerCase())) {
-                        baseDate = getDate();
-                        Logger.info(`Frase comum detectada: "${phrase}"`, 'EventScheduling');
-                        break;
-                    }
-                }
-
-                // If a base date was found and there's a time
-                if (baseDate && timeMatch) {
-                    const hours = parseInt(timeMatch[1], 10);
-                    const minutes = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
-
-                    baseDate.setHours(hours, minutes, 0, 0);
-                    parsedDate = baseDate;
-                    unixTimestamp = Math.floor(parsedDate.getTime() / 1000);
-
-                    // Format the date according to Brazilian locale
-                    friendlyDateDisplay = parsedDate.toLocaleString('pt-BR');
-
-                    Logger.info(`Data/hora processada manualmente: "${eventTimeInput}" como ${friendlyDateDisplay}`, 'EventScheduling');
-                } else if (baseDate) {
-                    // If we have a base date but no time, set to a default time (like 8:00 PM)
-                    baseDate.setHours(20, 0, 0, 0);
-                    parsedDate = baseDate;
+                if (results.length > 0 && results[0].start) {
+                    parsedDate = results[0].start.date();
                     unixTimestamp = Math.floor(parsedDate.getTime() / 1000);
                     friendlyDateDisplay = parsedDate.toLocaleString('pt-BR');
-
-                    Logger.info(`Data detectada sem hora específica, usando 20:00: "${eventTimeInput}" como ${friendlyDateDisplay}`, 'EventScheduling');
+                    Logger.info(`Data/hora processada: "${eventTimeInput}" como ${friendlyDateDisplay}`, 'EventScheduling');
                 } else {
-                    // Try a simple fallback with chrono (safer approach)
-                    try {
-                        // Avoid importing specific locale modules
-                        const results = chrono.parse(eventTimeInput, { forwardDate: true } as any);
-
-                        if (results.length > 0 && results[0].start) {
-                            parsedDate = results[0].start.date();
-                            unixTimestamp = Math.floor(parsedDate.getTime() / 1000);
-                            friendlyDateDisplay = parsedDate.toLocaleString('pt-BR');
-
-                            Logger.info(`Analisado com chrono: "${eventTimeInput}" como ${friendlyDateDisplay}`, 'EventScheduling');
-                        } else {
-                            throw new Error('Não foi possível entender o formato da data');
-                        }
-                    } catch (chronoError) {
-                        Logger.warn(`Chrono parser falhou: ${chronoError.message}`, 'EventScheduling');
-                        throw new Error('Não foi possível entender o formato da data');
-                    }
+                    throw new Error('Não foi possível entender o formato da data');
                 }
-            } catch (error) {
-                // Show Portuguese examples
-                const examples = '• "amanhã às 17h"\n• "próxima sexta às 20h"\n• "30 de maio às 15h"\n• "em 3 dias às 19h"\n• "hoje à noite"';
+            }
 
+            // Validate the date is in the future
+            const now = Date.now() / 1000;
+            if (unixTimestamp < now) {
                 await interaction.editReply({
-                    content: 'Não foi possível entender o formato da data. Tente frases como:\n' + examples
+                    content: 'Por favor, especifique uma data e hora no futuro para o evento.'
                 });
                 return;
             }
-        }
+        } catch (error) {
+            // Show Portuguese examples
+            const examples = '• "amanhã às 17h"\n• "próxima sexta às 20h"\n• "30 de maio às 15h"\n• "em 3 dias às 19h"\n• "hoje às 21h"';
 
-        // Validate the date is in the future
-        const now = Date.now() / 1000;
-        if (unixTimestamp < now) {
             await interaction.editReply({
-                content: 'Por favor, especifique uma data e hora no futuro para o evento.'
+                content: 'Não foi possível entender o formato da data. Tente frases como:\n' + examples
             });
             return;
         }

@@ -595,57 +595,104 @@ async function handleMultiBindsAddModalSubmit(interaction: ModalSubmitInteractio
             time: 300000, // 5 minutes
         });
 
-        // Fixed collector.on('collect') function:
+        // Refactored collector.on('collect') function with proper error handling
         collector.on('collect', async (i) => {
-            if (i.user.id !== interaction.user.id) {
-                await i.reply({
-                    content: 'This interaction is not for you.',
-                    ephemeral: true
-                });
-                return;
-            }
-
-            if (i.customId.startsWith('binds_select_remove_roles_multi')) {
-                // Store the selected roles to remove
-                workflowData.rolesToRemove = i.values.map(id => String(id)); // Cast to string array
-
-                // Create final confirmation buttons
-                const finalButtonRow = new ActionRowBuilder<ButtonBuilder>()
-                    .addComponents(
-                        new ButtonBuilder()
-                            .setCustomId('role_binding_confirm')
-                            .setLabel('Confirm Bindings')
-                            .setStyle(ButtonStyle.Success),
-                        new ButtonBuilder()
-                            .setCustomId('role_binding_cancel')
-                            .setLabel('Cancel')
-                            .setStyle(ButtonStyle.Danger)
-                    );
-
-                // Format roles to remove display - FIXED: using workflowData.rolesToRemove
-                let roleRemovalText = '';
-                if (workflowData.rolesToRemove && workflowData.rolesToRemove.length > 0) {
-                    roleRemovalText = `\n\n**Will remove:** ${workflowData.rolesToRemove.map(id => `<@&${String(id)}>`).join(' ')}`;
-                } else {
-                    roleRemovalText = '\n\nNo roles will be removed when this binding is active.';
+            try {
+                // Verify user permissions
+                if (i.user.id !== interaction.user.id) {
+                    await i.reply({
+                        content: 'This interaction is not for you.',
+                        ephemeral: true
+                    }).catch(err => {
+                        Logger.warn(`Failed to reply to wrong user: ${err.message}`, 'ModalSubmitHandler');
+                    });
+                    return;
                 }
 
-                // Update the message for confirmation - FIXED: using roleRemovalText
-                await i.update({
-                    embeds: [
-                        createBaseEmbed()
-                            .setTitle('Confirm Role Bindings')
-                            .setDescription(
-                                `You're about to create **${workflowData.discordRoleIds.length} binding(s)** to Roblox rank "${rankName}".\n\n` +
-                                `**Roles being bound:**\n${workflowData.discordRoleIds.map(id => `• <@&${String(id)}>`).join('\n')}${roleRemovalText}\n\n` +
-                                `Please confirm that you want to create these bindings.`
-                            )
-                    ],
-                    components: [finalButtonRow]
-                });
+                if (i.customId.startsWith('binds_select_remove_roles_multi')) {
+                    // IMMEDIATELY defer the update to extend the 3-second window
+                    await i.deferUpdate().catch(err => {
+                        if (err.code === 10062) {
+                            Logger.warn("Interaction expired before deferring", 'ModalSubmitHandler');
+                        } else if (err.code === 40060) {
+                            Logger.warn("Interaction already acknowledged elsewhere", 'ModalSubmitHandler');
+                        } else {
+                            Logger.error("Error deferring update", 'ModalSubmitHandler', err);
+                        }
+                    });
 
-                // End the collector as we don't need it anymore
-                collector.stop();
+                    // Store the selected roles to remove
+                    workflowData.rolesToRemove = i.values.map(id => String(id));
+
+                    // Create final confirmation buttons
+                    const finalButtonRow = new ActionRowBuilder<ButtonBuilder>()
+                        .addComponents(
+                            new ButtonBuilder()
+                                .setCustomId('role_binding_confirm')
+                                .setLabel('Confirm Bindings')
+                                .setStyle(ButtonStyle.Success),
+                            new ButtonBuilder()
+                                .setCustomId('role_binding_cancel')
+                                .setLabel('Cancel')
+                                .setStyle(ButtonStyle.Danger)
+                        );
+
+                    // Format roles to remove display
+                    let roleRemovalText = '';
+                    if (workflowData.rolesToRemove && workflowData.rolesToRemove.length > 0) {
+                        roleRemovalText = `\n\n**Will remove:** ${workflowData.rolesToRemove.map(id => `<@&${String(id)}>`).join(' ')}`;
+                    } else {
+                        roleRemovalText = '\n\nNo roles will be removed when this binding is active.';
+                    }
+
+                    // Update the message for confirmation with proper error handling
+                    try {
+                        await i.editReply({
+                            embeds: [
+                                createBaseEmbed()
+                                    .setTitle('Confirm Role Bindings')
+                                    .setDescription(
+                                        `You're about to create **${workflowData.discordRoleIds.length} binding(s)** to Roblox rank "${rankName}".\n\n` +
+                                        `**Roles being bound:**\n${workflowData.discordRoleIds.map(id => `• <@&${String(id)}>`).join('\n')}${roleRemovalText}\n\n` +
+                                        `Please confirm that you want to create these bindings.`
+                                    )
+                            ],
+                            components: [finalButtonRow]
+                        });
+                    } catch (updateErr) {
+                        if (updateErr.code === 10062) {
+                            Logger.warn("Interaction expired before update could be sent", 'ModalSubmitHandler');
+                        } else if (updateErr.code === 40060) {
+                            Logger.warn("Interaction already acknowledged", 'ModalSubmitHandler');
+                        } else {
+                            Logger.error("Error updating interaction", 'ModalSubmitHandler', updateErr);
+                        }
+                    }
+
+                    // End the collector as we don't need it anymore
+                    collector.stop();
+                }
+            } catch (err) {
+                // Main error handling for any errors in the collector
+                if (err.code === 10062) {
+                    Logger.warn("Interaction expired in collector", 'ModalSubmitHandler');
+                } else if (err.code === 40060) {
+                    Logger.warn("Interaction already acknowledged in collector", 'ModalSubmitHandler');
+                } else {
+                    Logger.error("Error in role select collector", 'ModalSubmitHandler', err);
+
+                    // Try to send a generic error message if possible
+                    try {
+                        if (!i.replied && !i.deferred) {
+                            await i.reply({
+                                content: "An error occurred processing your selection.",
+                                ephemeral: true
+                            });
+                        }
+                    } catch (finalErr) {
+                        Logger.error("Failed to send error message", 'ModalSubmitHandler', finalErr);
+                    }
+                }
             }
         });
 

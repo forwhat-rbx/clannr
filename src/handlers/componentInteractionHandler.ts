@@ -58,6 +58,13 @@ if (!global.pendingVerifications) {
  */
 export async function handleComponentInteraction(interaction) {
     try {
+        // Skip interactions that are handled by collectors
+        if (interaction.isRoleSelectMenu() &&
+            interaction.customId.startsWith('binds_select_remove_roles_multi')) {
+            Logger.debug('Skipping component handler for collector-managed interaction', 'ComponentHandler');
+            return;
+        }
+
         if (interaction.isButton()) {
             await handleButtonInteraction(interaction);
         } else if (interaction.isRoleSelectMenu()) {
@@ -67,25 +74,21 @@ export async function handleComponentInteraction(interaction) {
         }
     } catch (error) {
         Logger.error('Error handling component interaction:', 'ComponentHandler', error);
+
+        // Only respond if we haven't already
         try {
-            await interaction.reply({
-                content: 'An error occurred while processing your selection.',
-                ephemeral: true
-            });
-        } catch (err) {
-            // Already replied, try to update
-            try {
-                if (!interaction.replied && !interaction.deferred) {
-                    await interaction.reply({
-                        content: 'An error occurred while processing your selection.',
-                        ephemeral: true
-                    });
-                } else {
-                    await interaction.editReply({
-                        content: 'An error occurred while processing your selection.'
-                    });
-                }
-            } catch (finalErr) {
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction.reply({
+                    content: 'An error occurred while processing your selection.',
+                    ephemeral: true
+                }).catch(err => {
+                    if (err.code !== 10062 && err.code !== 40060) {
+                        Logger.error("Error sending error response", 'ComponentHandler', err);
+                    }
+                });
+            }
+        } catch (finalErr) {
+            if (finalErr.code !== 10062 && finalErr.code !== 40060) {
                 Logger.error('Failed to respond to error', 'ComponentHandler', finalErr);
             }
         }
@@ -313,94 +316,19 @@ async function handleRoleSelectMenuInteraction(interaction: RoleSelectMenuIntera
         } else if (customId.startsWith('binds_select_roles:')) {
             await handleRolesToRemoveSelection(interaction);
         } else if (customId.startsWith('binds_select_remove_roles_multi')) {
-            // Add handler for this ID if needed
-            Logger.info(`Handling multi-role removal selection: ${interaction.values.length} roles selected`, 'ComponentHandler');
+            // This ID is being handled by a collector in modalSubmitHandler.ts
+            // Just log it and return to avoid conflict
+            Logger.info(`Delegating multi-role removal selection to collector: ${interaction.values.length} roles selected`, 'ComponentHandler');
+            return;
 
-            // Update workflow data
-            const workflowKey = interaction.user.id;
-            if (global.bindingWorkflows[workflowKey]) {
-                try {
-                    global.bindingWorkflows[workflowKey].rolesToRemove = interaction.values;
-
-                    // Create confirmation buttons
-                    const finalButtonRow = new ActionRowBuilder<ButtonBuilder>()
-                        .addComponents(
-                            new ButtonBuilder()
-                                .setCustomId('role_binding_confirm')
-                                .setLabel('Confirm Bindings')
-                                .setStyle(ButtonStyle.Success),
-                            new ButtonBuilder()
-                                .setCustomId('role_binding_cancel')
-                                .setLabel('Cancel')
-                                .setStyle(ButtonStyle.Danger)
-                        );
-
-                    // Format role removal message
-                    let roleRemovalText = '';
-                    if (interaction.values.length > 0) {
-                        roleRemovalText = `\n\n**Will remove:** ${interaction.values.map(id => `<@&${id}>`).join(' ')}`;
-                    } else {
-                        roleRemovalText = '\n\nNo roles will be removed when this binding is active.';
-                    }
-
-                    // Add defer to extend the 3-second interaction window
-                    if (!interaction.deferred && !interaction.replied) {
-                        await interaction.deferUpdate().catch(err => {
-                            if (err.code !== 10062) Logger.error("Error deferring update", 'ComponentHandler', err);
-                        });
-                    }
-
-                    // Update the message for confirmation with safe handling
-                    try {
-                        await interaction.editReply({
-                            embeds: [
-                                createBaseEmbed()
-                                    .setTitle('Confirm Role Bindings')
-                                    .setDescription(
-                                        `You're about to create **${global.bindingWorkflows[workflowKey].discordRoleIds.length} binding(s)** to Roblox rank "${global.bindingWorkflows[workflowKey].rankName}".\n\n` +
-                                        `**Roles being bound:**\n${global.bindingWorkflows[workflowKey].discordRoleIds.map(id => `• <@&${id}>`).join('\n')}${roleRemovalText}\n\n` +
-                                        `Please confirm that you want to create these bindings.`
-                                    )
-                            ],
-                            components: [finalButtonRow]
-                        });
-                    } catch (updateError) {
-                        // Handle interaction expiration gracefully
-                        if (updateError.code === 10062) {
-                            Logger.warn("Interaction expired before we could respond", 'ComponentHandler');
-                        } else {
-                            throw updateError; // Re-throw if it's a different error
-                        }
-                    }
-                } catch (updateError) {
-                    // Handle interaction expiration gracefully
-                    if (updateError.code === 10062) {
-                        Logger.warn("Interaction expired before we could respond", 'ComponentHandler');
-                    } else {
-                        throw updateError; // Re-throw if it's a different error
-                    }
-                }
-            } else {
-                // Only try to update if we haven't responded yet and interaction is still valid
-                if (!interaction.replied && !interaction.deferred) {
-                    try {
-                        await interaction.update({
-                            content: 'Your binding session has expired. Please try again.',
-                            components: [],
-                            embeds: []
-                        }).catch(err => {
-                            if (err.code !== 10062) Logger.error("Error updating interaction", 'ComponentHandler', err);
-                        });
-                    } catch (err) {
-                        if (err.code !== 10062) Logger.error("Error updating interaction", 'ComponentHandler', err);
-                    }
-                }
-            }
+            // DO NOT process this interaction here as it's being handled elsewhere
         }
     } catch (err) {
-        // Only log non-expiration errors as errors
+        // Expanded error handling
         if (err.code === 10062) {
             Logger.warn('Interaction expired before handling completed', 'ComponentHandler');
+        } else if (err.code === 40060) {
+            Logger.warn('Interaction has already been acknowledged elsewhere', 'ComponentHandler');
         } else {
             Logger.error('Error handling role select menu interaction:', 'ComponentHandler', err);
         }

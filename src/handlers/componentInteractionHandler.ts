@@ -449,20 +449,30 @@ async function handleRolesToBindSelection(interaction: RoleSelectMenuInteraction
  * Handle selection of roles to remove for a binding
  */
 async function handleRolesToRemoveSelection(interaction: RoleSelectMenuInteraction) {
-    // IMMEDIATELY defer the interaction to extend the 3-second window
-    await interaction.deferUpdate().catch(err => {
-        if (err.code !== 10062) Logger.error("Error deferring update", 'ComponentHandler', err);
-    });
+    // IMMEDIATELY defer the interaction - MUST be the very first action
+    try {
+        await interaction.deferUpdate();
+    } catch (err) {
+        // If interaction already expired, just log and exit
+        if (err.code === 10062) {
+            Logger.warn("Interaction expired before we could defer it", 'ComponentHandler');
+            return; // Exit early - can't do anything with an expired interaction
+        }
+        Logger.error("Error deferring update", 'ComponentHandler', err);
+        return;
+    }
 
     // Get binding parameters from the custom ID
     const parts = interaction.customId.split(':');
     if (parts.length < 5) {
-        await interaction.editReply({
-            content: 'Invalid binding parameters.',
-            components: []
-        }).catch(err => {
+        try {
+            await interaction.editReply({
+                content: 'Invalid binding parameters.',
+                components: []
+            });
+        } catch (err) {
             if (err.code !== 10062) Logger.error("Error updating interaction", 'ComponentHandler', err);
-        });
+        }
         return;
     }
 
@@ -479,12 +489,14 @@ async function handleRolesToRemoveSelection(interaction: RoleSelectMenuInteracti
         // Get role information for display
         const discordRole = interaction.guild.roles.cache.get(discordRoleId);
         if (!discordRole) {
-            await interaction.editReply({
-                content: 'The Discord role you selected no longer exists.',
-                components: []
-            }).catch(err => {
+            try {
+                await interaction.editReply({
+                    content: 'The Discord role you selected no longer exists.',
+                    components: []
+                });
+            } catch (err) {
                 if (err.code !== 10062) Logger.error("Error editing reply", 'ComponentHandler', err);
-            });
+            }
             return;
         }
 
@@ -511,23 +523,25 @@ async function handleRolesToRemoveSelection(interaction: RoleSelectMenuInteracti
             ? `Roblox rank "${rankName}" (${minRankId})`
             : `Roblox ranks from "${rankName}" (${minRankId} to ${maxRankId})`;
 
-        // Send success message
-        await interaction.editReply({
-            embeds: [
-                createBaseEmbed()
-                    .setTitle('Role Binding Added')
-                    .setDescription(
-                        `Successfully bound Discord role <@&${discordRoleId}> to ${rankDisplay}.${roleRemovalText}`
-                    )
-            ],
-            components: []
-        }).catch(err => {
+        // Send success message with proper error handling
+        try {
+            await interaction.editReply({
+                embeds: [
+                    createBaseEmbed()
+                        .setTitle('Role Binding Added')
+                        .setDescription(
+                            `Successfully bound Discord role <@&${discordRoleId}> to ${rankDisplay}.${roleRemovalText}`
+                        )
+                ],
+                components: []
+            });
+        } catch (err) {
             if (err.code !== 10062) Logger.error("Error sending success message", 'ComponentHandler', err);
-        });
+        }
     } catch (err) {
         Logger.error('Error saving role binding:', 'ComponentHandler', err);
 
-        // Only try to update if we haven't already lost the interaction
+        // Only try to update if interaction should still be valid
         try {
             await interaction.editReply({
                 embeds: [

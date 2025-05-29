@@ -319,53 +319,71 @@ async function handleRoleSelectMenuInteraction(interaction: RoleSelectMenuIntera
             // Update workflow data
             const workflowKey = interaction.user.id;
             if (global.bindingWorkflows[workflowKey]) {
-                global.bindingWorkflows[workflowKey].rolesToRemove = interaction.values;
+                try {
+                    global.bindingWorkflows[workflowKey].rolesToRemove = interaction.values;
 
-                // Create confirmation buttons
-                const finalButtonRow = new ActionRowBuilder<ButtonBuilder>()
-                    .addComponents(
-                        new ButtonBuilder()
-                            .setCustomId('role_binding_confirm')
-                            .setLabel('Confirm Bindings')
-                            .setStyle(ButtonStyle.Success),
-                        new ButtonBuilder()
-                            .setCustomId('role_binding_cancel')
-                            .setLabel('Cancel')
-                            .setStyle(ButtonStyle.Danger)
-                    );
+                    // Create confirmation buttons
+                    const finalButtonRow = new ActionRowBuilder<ButtonBuilder>()
+                        .addComponents(
+                            new ButtonBuilder()
+                                .setCustomId('role_binding_confirm')
+                                .setLabel('Confirm Bindings')
+                                .setStyle(ButtonStyle.Success),
+                            new ButtonBuilder()
+                                .setCustomId('role_binding_cancel')
+                                .setLabel('Cancel')
+                                .setStyle(ButtonStyle.Danger)
+                        );
 
-                // Format role removal message
-                let roleRemovalText = '';
-                if (interaction.values.length > 0) {
-                    roleRemovalText = `\n\n**Will remove:** ${interaction.values.map(id => `<@&${id}>`).join(' ')}`;
-                } else {
-                    roleRemovalText = '\n\nNo roles will be removed when this binding is active.';
+                    // Format role removal message
+                    let roleRemovalText = '';
+                    if (interaction.values.length > 0) {
+                        roleRemovalText = `\n\n**Will remove:** ${interaction.values.map(id => `<@&${id}>`).join(' ')}`;
+                    } else {
+                        roleRemovalText = '\n\nNo roles will be removed when this binding is active.';
+                    }
+
+                    // Update the message for confirmation
+                    await interaction.update({
+                        embeds: [
+                            createBaseEmbed()
+                                .setTitle('Confirm Role Bindings')
+                                .setDescription(
+                                    `You're about to create **${global.bindingWorkflows[workflowKey].discordRoleIds.length} binding(s)** to Roblox rank "${global.bindingWorkflows[workflowKey].rankName}".\n\n` +
+                                    `**Roles being bound:**\n${global.bindingWorkflows[workflowKey].discordRoleIds.map(id => `• <@&${id}>`).join('\n')}${roleRemovalText}\n\n` +
+                                    `Please confirm that you want to create these bindings.`
+                                )
+                        ],
+                        components: [finalButtonRow]
+                    });
+                } catch (updateError) {
+                    // Handle interaction expiration gracefully
+                    if (updateError.code === 10062) {
+                        Logger.warn("Interaction expired before we could respond", 'ComponentHandler');
+                    } else {
+                        throw updateError; // Re-throw if it's a different error
+                    }
                 }
-
-                // Update the message for confirmation
-                await interaction.update({
-                    embeds: [
-                        createBaseEmbed()
-                            .setTitle('Confirm Role Bindings')
-                            .setDescription(
-                                `You're about to create **${global.bindingWorkflows[workflowKey].discordRoleIds.length} binding(s)** to Roblox rank "${global.bindingWorkflows[workflowKey].rankName}".\n\n` +
-                                `**Roles being bound:**\n${global.bindingWorkflows[workflowKey].discordRoleIds.map(id => `• <@&${id}>`).join('\n')}${roleRemovalText}\n\n` +
-                                `Please confirm that you want to create these bindings.`
-                            )
-                    ],
-                    components: [finalButtonRow]
-                });
             } else {
-                await interaction.update({
-                    content: 'Your binding session has expired. Please try again.',
-                    components: [],
-                    embeds: []
-                });
+                // Only try to update if we haven't responded yet
+                if (!interaction.replied && !interaction.deferred) {
+                    await interaction.update({
+                        content: 'Your binding session has expired. Please try again.',
+                        components: [],
+                        embeds: []
+                    }).catch(err => {
+                        if (err.code !== 10062) Logger.error("Error updating interaction", 'ComponentHandler', err);
+                    });
+                }
             }
         }
     } catch (err) {
-        Logger.error('Error handling role select menu interaction:', 'ComponentHandler', err);
-        throw err;
+        // Only log non-expiration errors as errors
+        if (err.code === 10062) {
+            Logger.warn('Interaction expired before handling completed', 'ComponentHandler');
+        } else {
+            Logger.error('Error handling role select menu interaction:', 'ComponentHandler', err);
+        }
     }
 }
 

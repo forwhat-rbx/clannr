@@ -252,8 +252,6 @@ export class promotionService {
             return 0;
         }
 
-        // For the start of a user-initiated multi-step action, legacyLogAction might be better if you want it in Discord.
-        legacyLogAction('Promotion Execution Start', staffActor, undefined, undefined, `Attempting to promote ${this.pendingPromotions.length} users.`);
         let successCount = 0;
         const initialPendingCount = this.pendingPromotions.length; // Store initial count
 
@@ -277,7 +275,6 @@ export class promotionService {
 
         this.lastMessageId = null; // Force new message after promotions attempt
 
-        legacyLogAction('Promotion Execution Finish', staffActor, undefined, undefined, `Executed ${successCount} of ${initialPendingCount} promotions. Pending list cleared.`);
         await this.updatePromotionEmbed(); // This will now show an empty list or new pending ones if any occurred during execution
         return successCount;
     }

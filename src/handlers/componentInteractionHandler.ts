@@ -455,6 +455,8 @@ async function handleRolesToRemoveSelection(interaction: RoleSelectMenuInteracti
         await interaction.update({
             content: 'Invalid binding parameters.',
             components: []
+        }).catch(err => {
+            if (err.code !== 10062) Logger.error("Error updating interaction", 'ComponentHandler', err);
         });
         return;
     }
@@ -469,12 +471,19 @@ async function handleRolesToRemoveSelection(interaction: RoleSelectMenuInteracti
     const rolesToRemove = interaction.values || [];
 
     try {
+        // Immediately defer the update to prevent timeout
+        await interaction.deferUpdate().catch(err => {
+            if (err.code !== 10062) Logger.error("Error deferring update", 'ComponentHandler', err);
+        });
+
         // Get role information for display
         const discordRole = interaction.guild.roles.cache.get(discordRoleId);
         if (!discordRole) {
-            await interaction.update({
+            await interaction.editReply({
                 content: 'The Discord role you selected no longer exists.',
                 components: []
+            }).catch(err => {
+                if (err.code !== 10062) Logger.error("Error editing reply", 'ComponentHandler', err);
             });
             return;
         }
@@ -503,7 +512,7 @@ async function handleRolesToRemoveSelection(interaction: RoleSelectMenuInteracti
             : `Roblox ranks from "${rankName}" (${minRankId} to ${maxRankId})`;
 
         // Send success message
-        await interaction.update({
+        await interaction.editReply({
             embeds: [
                 createBaseEmbed()
                     .setTitle('Role Binding Added')
@@ -512,17 +521,27 @@ async function handleRolesToRemoveSelection(interaction: RoleSelectMenuInteracti
                     )
             ],
             components: []
+        }).catch(err => {
+            if (err.code !== 10062) Logger.error("Error sending success message", 'ComponentHandler', err);
         });
     } catch (err) {
-        console.error('Error saving role binding:', err);
-        await interaction.update({
-            embeds: [
-                createBaseEmbed('danger')
-                    .setTitle('Error')
-                    .setDescription('An error occurred while saving the role binding.')
-            ],
-            components: []
-        });
+        Logger.error('Error saving role binding:', 'ComponentHandler', err);
+
+        // Only try to update if we haven't already lost the interaction
+        try {
+            await interaction.editReply({
+                embeds: [
+                    createBaseEmbed('danger')
+                        .setTitle('Error')
+                        .setDescription('An error occurred while saving the role binding.')
+                ],
+                components: []
+            });
+        } catch (updateErr) {
+            if (updateErr.code !== 10062) {
+                Logger.error("Error sending error message", 'ComponentHandler', updateErr);
+            }
+        }
     }
 }
 

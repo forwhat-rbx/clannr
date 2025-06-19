@@ -70,16 +70,16 @@ class SetupVerifyCommand extends Command {
 
             // Create the verification embed
             const verifyEmbed = createBaseEmbed()
-                .setTitle('Sistema de verificação')
+                .setTitle('Silver Crew Verification System')
                 .setDescription(
-                    '**Bem-vindo ao nosso sistema de verificação!**\n\n' +
-                    'Para obter acesso ao servidor, você precisa verificar sua conta Roblox.\n\n' +
-                    '**Como verificar:**\n' +
-                    '1. Clique no botão "Verify" abaixo\n' +
-                    '2. Digite seu nome de usuário do Roblox quando solicitado\n' +
-                    '3. Adicione o código de verificação ao seu perfil do Roblox\n' +
-                    '4. Clique no botão de verificação na DM\n\n' +
-                    'Depois de verificado, você receberá automaticamente as funções apropriadas com base na classificação do seu grupo.'
+                    '**Welcome to Silver Crew!**\n\n' +
+                    'To gain access to the server, you need to verify your Roblox account.\n\n' +
+                    '**How to Verify:**\n' +
+                    '1. Click on the "Verify" button below\n' +
+                    '2. Enter your Roblox username when prompted\n' +
+                    '3. Add the verification code to your Roblox profile\n' +
+                    '4. Click on the verification button in DM\n\n' +
+                    'Once you are verified, you will automatically gain access to the server.\n\n'
                 )
 
             // Create the verification button
@@ -88,7 +88,7 @@ class SetupVerifyCommand extends Command {
                     new ButtonBuilder()
                         // IMPORTANT: Use 'verify' instead of 'verify_start'
                         .setCustomId('verify')
-                        .setLabel('Verificar')
+                        .setLabel('Verify')
                         .setStyle(ButtonStyle.Success)
                         .setEmoji('✅')
                 );

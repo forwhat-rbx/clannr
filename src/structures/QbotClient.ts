@@ -67,7 +67,11 @@ class QbotClient extends Client {
                                 Logger.warn(`Command in ${file} does not export a valid default class`, 'CommandLoader');
                             }
                         } catch (error) {
-                            Logger.error(`Error loading command in ${file}:`, 'CommandLoader', error);
+                            const errorMessage = error instanceof Error
+                                ? error.message
+                                : 'Unknown error';
+                            Logger.error(`Error loading command in ${file}: ${errorMessage}`, 'CommandLoader');
+                            console.error(`Failed to load command in ${file}:`, error);
                         }
                     }
                 }

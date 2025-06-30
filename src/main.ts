@@ -19,17 +19,9 @@ import { getLogChannels as initializeLogChannels } from './handlers/handleLoggin
 import { ActivityLogger } from './utils/activityLogger';
 import { Logger } from './utils/logger';
 import { directAuthenticate, directGetGroup, directGetGroupRoles } from './utils/directAuth';
+import { Routes, REST } from 'discord.js';
 
 require('dotenv').config();
-
-// [Ensure Setup]
-if (!process.env.ROBLOX_COOKIE) {
-    console.error('ROBLOX_COOKIE is not set in the .env file.');
-    process.exit(1);
-}
-
-require('./database');
-require('./api');
 
 // [Initialize Globals]
 declare global {
@@ -40,158 +32,250 @@ declare global {
 
 // [Clients]
 const discordClient = new QbotClient();
-// Declare these at module level so they can be exported
 let robloxClient: RobloxClient;
 let robloxGroup: Group;
 let robloxAuthenticated = false;
 
-// [Initialization]
-(async () => {
-    try {
-        // Load and register commands BEFORE logging in
-        console.log('Loading Discord commands...');
-        await discordClient.loadCommands();
-        console.log(`✅ Loaded ${discordClient.commands.length} commands`);
+// ====================================
+// INITIALIZATION FUNCTIONS
+// ====================================
 
-        // Log available commands for debugging
-        console.log(`Available commands: ${discordClient.commands.map(cmd => cmd.trigger).join(', ')}`);
-
-        // Now login to Discord with commands ready
-        console.log('Logging in to Discord...');
-        await discordClient.login(process.env.DISCORD_TOKEN);
-        console.log('✅ Successfully logged in to Discord');
-
-        // Initialize log channels early
-        await initializeLogChannels();
-
-        // ROBLOX AUTHENTICATION - TWO METHODS
-        // --------------------------------------
-
-        // Clean up the cookie first
-        const cookie = process.env.ROBLOX_COOKIE.trim();
-
-        // Method 1: Try Bloxy authentication first
-        console.log('Attempting to login to Roblox via Bloxy...');
-        try {
-            robloxClient = new RobloxClient();
-
-            // First attempt with normal login
-            try {
-                await robloxClient.login(cookie);
-
-                // Verify authentication by getting user info
-                const userInfo = await robloxClient.apis.usersAPI.getAuthenticatedUserInformation();
-                console.log(`✅ Successfully logged in via Bloxy as: ${userInfo.name} (${userInfo.id})`);
-
-                // Get the group and verify we can access it
-                robloxGroup = await robloxClient.getGroup(config.groupId);
-                const roles = await robloxGroup.getRoles();
-
-                console.log(`✅ Found group: ${robloxGroup.name} (${robloxGroup.id}) with ${roles.length} roles`);
-                robloxAuthenticated = true;
-            } catch (loginErr) {
-                Logger.warn('Bloxy login failed, trying alternative methods...', 'Roblox', loginErr);
-            }
-        } catch (bloxyErr) {
-            Logger.error('Bloxy client initialization failed:', 'Roblox', bloxyErr);
-        }
-
-        // Method 2: If Bloxy failed, try direct authentication
-        if (!robloxAuthenticated) {
-            console.log('Attempting direct Roblox authentication...');
-            try {
-                // Authenticate directly using the custom util
-                const directAuthUser = await directAuthenticate(cookie);
-
-                if (directAuthUser && directAuthUser.id) {
-                    console.log(`✅ Successfully authenticated directly as ${directAuthUser.name} (${directAuthUser.id})`);
-
-                    // Store authenticated user info for global use
-                    global.directAuthUser = directAuthUser;
-                    global.robloxCookie = cookie;
-
-                    // Get group info directly
-                    const groupInfo = await directGetGroup(cookie, config.groupId);
-                    console.log(`✅ Connected to group: ${groupInfo.name} (${groupInfo.id})`);
-
-                    // Store group info globally
-                    global.directGroupInfo = groupInfo;
-
-                    // Verify role access
-                    const roles = await directGetGroupRoles(cookie, config.groupId);
-                    console.log(`✅ Authentication confirmed - found ${roles.length} group roles`);
-
-                    robloxAuthenticated = true;
-
-                    // Since we're using direct auth, create a minimal group object for compatibility
-                    robloxGroup = {
-                        id: groupInfo.id,
-                        name: groupInfo.name,
-                        // Add other required properties or methods as needed
-                    } as any;
-                } else {
-                    throw new Error('Direct authentication returned invalid user data');
-                }
-            } catch (directErr) {
-                Logger.error('Direct authentication failed:', 'Roblox', directErr);
-                throw new Error(`All authentication methods failed: ${directErr.message}`);
-            }
-        }
-
-        // Grab a CSRF token to use for future requests
-        try {
-            console.log('Fetching initial XSRF token...');
-            const response = await fetchWithRetry('https://auth.roblox.com/v2/logout', {
-                method: 'POST',
-                headers: {
-                    'Cookie': `.ROBLOSECURITY=${cookie}`
-                }
-            }, 3, 5000);
-            console.log('✅ Initial XSRF token fetched successfully');
-        } catch (tokenErr) {
-            Logger.warn('Failed to fetch initial XSRF token, some operations may fail', 'Roblox', tokenErr);
-        }
-
-        // Initialize promotion service AFTER we've confirmed authentication
-        schedulePromotionChecks();
-
-        // [Events]
-        checkSuspensions();
-        checkBans();
-        if (config.logChannels.shout) recordShout();
-        if (config.recordManualActions) recordAuditLogs();
-        if (config.memberCount.enabled) recordMemberCount();
-        if (config.antiAbuse.enabled) clearActions();
-        if (config.deleteWallURLs) checkWallForAds();
-
-    } catch (error) {
-        console.error('❌ INITIALIZATION FAILED:', error);
-
-        // Provide more helpful error information
-        if (error.message && error.message.includes('401')) {
-            console.error('\n🔑 AUTHENTICATION ERROR: Your Roblox cookie appears to be invalid or expired.');
-            console.error('Please get a new cookie by:');
-            console.error('1. Logging into Roblox in your browser');
-            console.error('2. Opening DevTools (F12) → Application tab → Cookies → roblox.com');
-            console.error('3. Copy the value of .ROBLOSECURITY cookie (without quotes)');
-            console.error('4. Update your .env file with the new cookie\n');
-        }
-
-        // Hard fail on critical errors
-        process.exit(1);
+/**
+ * Validates required environment variables
+ */
+function validateEnvironment() {
+    if (!process.env.DISCORD_TOKEN) {
+        throw new Error('DISCORD_TOKEN is not set in the .env file');
     }
-})();
 
-// [Handlers]
-discordClient.on('interactionCreate', async (interaction) => {
-    // More detailed logging
-    Logger.info(`Interaction received: ${interaction.type}`, 'Interaction');
-    console.log(`Interaction details: ${interaction.isButton() ? interaction.customId :
-        interaction.isCommand() ? interaction.commandName : 'other'}`);
+    if (!process.env.ROBLOX_COOKIE) {
+        throw new Error('ROBLOX_COOKIE is not set in the .env file');
+    }
 
-    // Handle each interaction type
+    // Add CLIENT_ID for command registration
+    if (!process.env.CLIENT_ID) {
+        Logger.warn('CLIENT_ID is not set in .env file. Command registration may fail.', 'Setup');
+    }
+}
+
+/**
+ * Initializes the Discord client and registers commands
+ */
+async function initializeDiscord() {
+    // Load and register commands
+    Logger.info('Loading Discord commands...', 'Discord');
+    await discordClient.loadCommands();
+    Logger.info(`Loaded ${discordClient.commands.length} commands: ${discordClient.commands.map(cmd => cmd.trigger).join(', ')}`, 'Discord');
+
+    // Login to Discord
+    Logger.info('Logging in to Discord...', 'Discord');
+    await discordClient.login(process.env.DISCORD_TOKEN);
+    Logger.info('Successfully logged in to Discord', 'Discord');
+
+    // Register slash commands with Discord API
+    await registerSlashCommands();
+
+    // Initialize log channels
+    await initializeLogChannels();
+}
+
+/**
+ * Registers slash commands with Discord API
+ */
+async function registerSlashCommands() {
     try {
-        // Add more detailed logging
+        Logger.info('Registering slash commands with Discord API...', 'Discord');
+
+        if (!discordClient.application?.id) {
+            Logger.error('Cannot register commands - application ID not available', 'Discord');
+            return;
+        }
+
+        const commands = discordClient.commands.map(cmd => ({
+            name: cmd.trigger,
+            description: cmd.description || 'No description provided',
+            options: cmd.args || [],
+            // Include any other required properties
+        }));
+
+        const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+
+        // Register to a specific guild for faster testing
+        const testGuildId = process.env.TEST_GUILD_ID || '1297746235889025156';
+        if (testGuildId) {
+            await rest.put(
+                Routes.applicationGuildCommands(discordClient.application.id, testGuildId),
+                { body: commands }
+            );
+            Logger.info(`Registered ${commands.length} commands to test guild ${testGuildId}`, 'Discord');
+        }
+
+        // Also register globally (takes up to an hour to propagate)
+        await rest.put(
+            Routes.applicationCommands(discordClient.application.id),
+            { body: commands }
+        );
+        Logger.info(`Registered ${commands.length} commands globally`, 'Discord');
+    } catch (error) {
+        Logger.error(`Failed to register slash commands: ${error.message}`, 'Discord', error);
+    }
+}
+
+/**
+ * Initializes Roblox client with authentication
+ */
+async function initializeRoblox() {
+    // Clean up the cookie first
+    const cookie = process.env.ROBLOX_COOKIE.trim();
+
+    // Method 1: Try Bloxy authentication first
+    await tryBloxyAuthentication(cookie);
+
+    // Method 2: If Bloxy failed, try direct authentication
+    if (!robloxAuthenticated) {
+        await tryDirectAuthentication(cookie);
+    }
+
+    // If all authentication methods failed
+    if (!robloxAuthenticated) {
+        throw new Error('All Roblox authentication methods failed');
+    }
+
+    // Fetch initial XSRF token
+    await fetchInitialXsrfToken(cookie);
+}
+
+/**
+ * Try to authenticate with Bloxy
+ */
+async function tryBloxyAuthentication(cookie: string) {
+    Logger.info('Attempting to login to Roblox via Bloxy...', 'Roblox');
+    try {
+        robloxClient = new RobloxClient();
+
+        // Try to login
+        await robloxClient.login(cookie);
+
+        // Verify authentication by getting user info
+        const userInfo = await robloxClient.apis.usersAPI.getAuthenticatedUserInformation();
+        Logger.info(`Successfully logged in via Bloxy as: ${userInfo.name} (${userInfo.id})`, 'Roblox');
+
+        // Get the group and verify we can access it
+        robloxGroup = await robloxClient.getGroup(config.groupId);
+        const roles = await robloxGroup.getRoles();
+
+        Logger.info(`Found group: ${robloxGroup.name} (${robloxGroup.id}) with ${roles.length} roles`, 'Roblox');
+        robloxAuthenticated = true;
+    } catch (error) {
+        Logger.warn('Bloxy authentication failed, will try alternative methods', 'Roblox', error);
+    }
+}
+
+/**
+ * Try to authenticate with direct method
+ */
+async function tryDirectAuthentication(cookie: string) {
+    Logger.info('Attempting direct Roblox authentication...', 'Roblox');
+    try {
+        // Authenticate directly using the custom util
+        const user = await directAuthenticate(cookie);
+
+        if (user && user.id) {
+            Logger.info(`Successfully authenticated directly as ${user.name} (${user.id})`, 'Roblox');
+
+            // Store authenticated user info for global use
+            global.directAuthUser = user;
+            global.robloxCookie = cookie;
+
+            // Get group info directly
+            const groupInfo = await directGetGroup(cookie, config.groupId);
+            Logger.info(`Connected to group: ${groupInfo.name} (${groupInfo.id})`, 'Roblox');
+
+            // Store group info globally
+            global.directGroupInfo = groupInfo;
+
+            // Verify role access
+            const roles = await directGetGroupRoles(cookie, config.groupId);
+            Logger.info(`Authentication confirmed - found ${roles.length} group roles`, 'Roblox');
+
+            robloxAuthenticated = true;
+
+            // Since we're using direct auth, create a minimal group object for compatibility
+            robloxGroup = {
+                id: groupInfo.id,
+                name: groupInfo.name,
+                // Add other required properties or methods as needed
+            } as any;
+        } else {
+            throw new Error('Direct authentication returned invalid user data');
+        }
+    } catch (error) {
+        Logger.error('Direct authentication failed', 'Roblox', error);
+        throw new Error(`All authentication methods failed: ${error.message}`);
+    }
+}
+
+/**
+ * Fetch initial XSRF token for future requests
+ */
+async function fetchInitialXsrfToken(cookie: string) {
+    try {
+        Logger.info('Fetching initial XSRF token...', 'Roblox');
+        await fetchWithRetry('https://auth.roblox.com/v2/logout', {
+            method: 'POST',
+            headers: {
+                'Cookie': `.ROBLOSECURITY=${cookie}`
+            }
+        }, 3, 5000);
+        Logger.info('Initial XSRF token fetched successfully', 'Roblox');
+    } catch (error) {
+        Logger.warn('Failed to fetch initial XSRF token, some operations may fail', 'Roblox', error);
+    }
+}
+
+/**
+ * Initialize services and event listeners
+ */
+function initializeServices() {
+    // Initialize promotion service
+    schedulePromotionChecks();
+
+    // Set up event listeners
+    checkSuspensions();
+    checkBans();
+    if (config.logChannels.shout) recordShout();
+    if (config.recordManualActions) recordAuditLogs();
+    if (config.memberCount.enabled) recordMemberCount();
+    if (config.antiAbuse.enabled) clearActions();
+    if (config.deleteWallURLs) checkWallForAds();
+
+    Logger.info('All services initialized successfully', 'Services');
+}
+
+/**
+ * Set up Discord event handlers
+ */
+function setupDiscordEvents() {
+    // Interaction handler
+    discordClient.on('interactionCreate', handleDiscordInteraction);
+
+    // Message handler for legacy commands
+    discordClient.on('messageCreate', handleLegacyCommand);
+
+    // Test logging
+    ActivityLogger.testLogging();
+}
+
+/**
+ * Handle Discord interactions
+ */
+async function handleDiscordInteraction(interaction) {
+    // Log interaction details
+    Logger.info(`Interaction received: ${interaction.type}`, 'Interaction');
+    Logger.debug(`Interaction details: ${interaction.isButton() ? interaction.customId :
+        interaction.isCommand() ? interaction.commandName : 'other'}`, 'Interaction');
+
+    try {
         if (interaction.isCommand()) {
             Logger.debug(`Command interaction: ${interaction.commandName}`, 'Interaction');
             await handleInteraction(interaction);
@@ -205,14 +289,13 @@ discordClient.on('interactionCreate', async (interaction) => {
             Logger.debug(`Autocomplete interaction for: ${interaction.commandName}`, 'Interaction');
             await handleInteraction(interaction);
         } else if (interaction.isRoleSelectMenu() || interaction.isStringSelectMenu()) {
-            // Add this block to handle role select interactions
             Logger.debug(`Select menu interaction: ${interaction.customId}`, 'Interaction');
-            // Import this function from componentInteractionHandler
             const { handleComponentInteraction } = require('./handlers/componentInteractionHandler');
             await handleComponentInteraction(interaction);
         }
     } catch (error) {
-        Logger.error('Error handling interaction:', 'Interaction', error);
+        Logger.error('Error handling interaction', 'Interaction', error);
+
         // Try to respond to the user if possible
         if (!('replied' in interaction && interaction.replied) && !('deferred' in interaction && interaction.deferred)) {
             try {
@@ -223,15 +306,59 @@ discordClient.on('interactionCreate', async (interaction) => {
                     });
                 }
             } catch (responseError) {
-                Logger.error('Failed to send error message:', 'Interaction', responseError);
+                Logger.error('Failed to send error message', 'Interaction', responseError);
             }
         }
     }
-});
+}
 
-discordClient.on('messageCreate', handleLegacyCommand);
-ActivityLogger.testLogging();
+// ====================================
+// MAIN EXECUTION FLOW
+// ====================================
 
-// [Module]
+// Start the bot
+(async () => {
+    try {
+        // Load dependencies
+        require('./database');
+        require('./api');
+
+        // Validate environment
+        validateEnvironment();
+
+        // Initialize Discord
+        await initializeDiscord();
+
+        // Initialize Roblox
+        await initializeRoblox();
+
+        // Initialize services and events
+        initializeServices();
+
+        // Set up Discord event handlers
+        setupDiscordEvents();
+
+        Logger.info('✅ Bot startup complete', 'Startup');
+    } catch (error) {
+        Logger.error('❌ INITIALIZATION FAILED', 'Startup', error);
+
+        // Provide more helpful error information for common issues
+        if (error.message && error.message.includes('401')) {
+            console.error('\n🔑 AUTHENTICATION ERROR: Your Roblox cookie appears to be invalid or expired.');
+            console.error('Please get a new cookie by:');
+            console.error('1. Logging into Roblox in your browser');
+            console.error('2. Opening DevTools (F12) → Application tab → Cookies → roblox.com');
+            console.error('3. Copy the value of .ROBLOSECURITY cookie (without quotes)');
+            console.error('4. Update your .env file with the new cookie\n');
+        } else if (error.message && error.message.includes('DISCORD_TOKEN')) {
+            console.error('\n🔑 DISCORD TOKEN ERROR: Your Discord bot token is missing or invalid.');
+            console.error('Please check your .env file and ensure DISCORD_TOKEN is properly set.\n');
+        }
+
+        // Hard fail on critical errors
+        process.exit(1);
+    }
+})();
+
 // Export everything that needs to be used elsewhere
 export { discordClient, robloxClient, robloxGroup };

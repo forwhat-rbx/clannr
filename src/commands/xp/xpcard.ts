@@ -25,7 +25,7 @@ const COLORS = {
     cardBg: 'rgba(32, 22, 48, 0.8)',     // Card background
     textPrimary: '#ffffff',               // White text
     textSecondary: '#c4a0f0',             // Light purple text
-    accent: '#a0d0ff',                    // Light blue-purple accent
+    accent: '#c4a0f0',                    // Light blue-purple accent
 
     // Data visualizations
     statsItem: '#1a142a',                 // Stats box background

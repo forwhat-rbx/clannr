@@ -1,6 +1,6 @@
 import { discordClient, robloxClient } from '../../main';
 import { CommandContext } from '../../structures/addons/CommandAddons';
-import { Command } from '../../structures/Command';
+import Command from '../../structures/Command';
 import { PartialUser, User } from 'bloxy/dist/structures';
 import { getLinkedRobloxUser } from '../../handlers/accountLinks';
 import { getInvalidRobloxUserEmbed, getUnexpectedErrorEmbed } from '../../handlers/locale';

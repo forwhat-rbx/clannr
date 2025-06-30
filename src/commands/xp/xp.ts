@@ -1,6 +1,6 @@
 import { discordClient, robloxClient, robloxGroup } from '../../main';
 import { CommandContext } from '../../structures/addons/CommandAddons';
-import { Command } from '../../structures/Command';
+import Command from '../../structures/Command';
 import { getInvalidXPEmbed } from '../../handlers/locale';
 import { logAction, logSystemAction } from '../../handlers/handleLogging';
 import { getLinkedRobloxUser } from '../../handlers/accountLinks';

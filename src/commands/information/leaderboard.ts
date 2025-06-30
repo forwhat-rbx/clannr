@@ -1,5 +1,5 @@
 import { CommandContext } from '../../structures/addons/CommandAddons';
-import { Command } from '../../structures/Command';
+import Command from '../../structures/Command';
 import { robloxClient } from '../../main';
 import { provider } from '../../database';
 import { createBaseEmbed } from '../../utils/embedUtils';

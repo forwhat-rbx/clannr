@@ -1,5 +1,5 @@
 import { CommandContext } from '../../structures/addons/CommandAddons';
-import { Command } from '../../structures/Command';
+import Command from '../../structures/Command';
 import { ActionRowBuilder, CommandInteraction, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { config } from '../../config';
 import { Logger } from '../../utils/logger';

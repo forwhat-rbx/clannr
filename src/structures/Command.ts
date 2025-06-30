@@ -322,4 +322,4 @@ abstract class Command {
     abstract run(ctx: CommandContext): Promise<any> | any;
 }
 
-export { Command };
+export default Command;

@@ -1,5 +1,5 @@
 import { CommandContext } from '../../structures/addons/CommandAddons';
-import { Command } from '../../structures/Command';
+import Command from '../../structures/Command';
 import { createUserLink, getLinkedRobloxUser } from '../../handlers/accountLinks';
 import { discordClient, robloxClient } from '../../main';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';

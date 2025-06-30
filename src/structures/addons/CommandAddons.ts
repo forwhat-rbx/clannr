@@ -11,7 +11,7 @@ import {
     MessagePayload,
     WebhookMessageEditOptions
 } from 'discord.js';
-import { Command } from '../Command';
+import Command from '../Command';
 import { Args } from 'lexure';
 import { getMissingArgumentsEmbed } from '../../handlers/locale';
 import { config } from '../../config';

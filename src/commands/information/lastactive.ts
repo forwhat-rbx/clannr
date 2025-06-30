@@ -1,6 +1,6 @@
 import { createBaseEmbed } from '../../utils/embedUtils';
 import { CommandContext } from '../../structures/addons/CommandAddons';
-import { Command } from '../../structures/Command';
+import Command from '../../structures/Command';
 import { config } from '../../config';
 import { provider } from '../../database';
 import { robloxClient, robloxGroup } from '../../main';

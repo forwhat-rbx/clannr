@@ -1,5 +1,5 @@
 import { CommandContext } from '../../structures/addons/CommandAddons';
-import { Command } from '../../structures/Command';
+import Command from '../../structures/Command';
 import { createBaseEmbed, embedColors } from '../../utils/embedUtils';
 import { getLinkedRobloxUser } from '../../handlers/accountLinks';
 import { updateUserRoles } from '../../handlers/roleBindHandler';

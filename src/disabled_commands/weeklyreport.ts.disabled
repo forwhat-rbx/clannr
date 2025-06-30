@@ -1,5 +1,5 @@
 import { CommandContext } from '../../structures/addons/CommandAddons';
-import { Command } from '../../structures/Command';
+import Command from '../../structures/Command';
 import { config } from '../../config';
 import { AttachmentBuilder } from 'discord.js';
 import { ActivityLogger } from '../../utils/activityLogger';

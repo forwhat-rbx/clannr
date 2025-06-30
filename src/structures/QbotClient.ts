@@ -2,7 +2,7 @@ import { Client, ClientOptions, GatewayIntentBits, Routes, ApplicationCommandDat
 import { readdirSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import path from 'path';
 import { config } from '../config';
-import { Command } from './Command';
+import Command from './Command';
 import { REST } from '@discordjs/rest';
 import { Logger } from '../utils/logger';
 

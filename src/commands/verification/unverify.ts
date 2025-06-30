@@ -1,5 +1,5 @@
 import { CommandContext } from '../../structures/addons/CommandAddons';
-import { Command } from '../../structures/Command';
+import Command from '../../structures/Command';
 import { getLinkedRobloxUser, removeUserLink } from '../../handlers/accountLinks';
 import { createBaseEmbed } from '../../utils/embedUtils';
 import { logVerificationEvent } from '../../handlers/handleLogging';

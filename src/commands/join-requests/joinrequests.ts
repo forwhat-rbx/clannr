@@ -1,6 +1,6 @@
 import { robloxGroup } from '../../main';
 import { CommandContext } from '../../structures/addons/CommandAddons';
-import { Command } from '../../structures/Command';
+import Command from '../../structures/Command';
 import { getJoinRequestsEmbed } from '../../handlers/locale';
 import { config } from '../../config';
 

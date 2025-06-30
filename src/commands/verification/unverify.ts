@@ -23,8 +23,8 @@ class UnverifyCommand extends Command {
                 return ctx.reply({
                     embeds: [
                         createBaseEmbed('danger')
-                            .setTitle('Não verificado')
-                            .setDescription('Você não tem uma conta Roblox vinculada à sua conta Discord.')
+                            .setTitle('Not Verified')
+                            .setDescription('You don\'t have a Roblox account linked to your Discord account.')
                     ],
                     ephemeral: true
                 });
@@ -49,8 +49,8 @@ class UnverifyCommand extends Command {
             return ctx.reply({
                 embeds: [
                     createBaseEmbed('accountUnlinked')
-                        .setTitle('Não verificado com sucesso')
-                        .setDescription(`Sua conta do Discord foi desvinculada de [${linkedUser.name}](https://www.roblox.com/users/${linkedUser.id}/profile).`)
+                        .setTitle('Successfully Unverified')
+                        .setDescription(`Your Discord account has been unlinked from [${linkedUser.name}](https://www.roblox.com/users/${linkedUser.id}/profile).`)
                 ],
                 ephemeral: true
             });
@@ -73,8 +73,8 @@ class UnverifyCommand extends Command {
             return ctx.reply({
                 embeds: [
                     createBaseEmbed('danger')
-                        .setTitle('Erro')
-                        .setDescription('Ocorreu um erro ao tentar cancelar a verificação de sua conta. Tente novamente mais tarde.')
+                        .setTitle('Error')
+                        .setDescription('An error occurred while trying to unverify your account. Please try again later.')
                 ],
                 ephemeral: true
             });

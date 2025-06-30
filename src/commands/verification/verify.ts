@@ -2,8 +2,7 @@ import { CommandContext } from '../../structures/addons/CommandAddons';
 import { Command } from '../../structures/Command';
 import { createUserLink, getLinkedRobloxUser } from '../../handlers/accountLinks';
 import { discordClient, robloxClient } from '../../main';
-import { config } from '../../config';
-import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { createBaseEmbed } from '../../utils/embedUtils';
 import { provider } from '../../database';
 import { logVerificationEvent } from '../../handlers/handleLogging';
@@ -68,8 +67,8 @@ class VerifyCommand extends Command {
             return ctx.reply({
                 embeds: [
                     createBaseEmbed('primary')
-                        .setTitle('Já verificado')
-                        .setDescription(`Você já foi verificado como [${existingLink.name}](https://www.roblox.com/users/${existingLink.id}/profile).\n\nTo change your account, use \`/unverify\` first.`)
+                        .setTitle('Already Verified')
+                        .setDescription(`You are already verified as [${existingLink.name}](https://www.roblox.com/users/${existingLink.id}/profile).\n\nTo change your account, use \`/unverify\` first.`)
                 ],
                 ephemeral: true
             });
@@ -84,8 +83,8 @@ class VerifyCommand extends Command {
                 return ctx.reply({
                     embeds: [
                         createBaseEmbed('danger')
-                            .setTitle('Usuário não encontrado')
-                            .setDescription(`Não foi possível encontrar um usuário Roblox com o nome de usuário "${username}".`)
+                            .setTitle('User Not Found')
+                            .setDescription(`Could not find a Roblox user with the username "${username}".`)
                             .setColor(0xff0000)
                     ],
                     ephemeral: true
@@ -107,16 +106,16 @@ class VerifyCommand extends Command {
 
             // Create verification embed
             const embed = createBaseEmbed()
-                .setTitle('Verificação iniciada')
+                .setTitle('Verification Started')
                 .setDescription(
-                    `Por favor, coloque este código na descrição de seu perfil no Roblox para verificar: \n\n` +
+                    `Please place this code in your Roblox profile description to verify: \n\n` +
                     `\`\`\`\n${verificationCode}\n\`\`\`\n\n` +
-                    `1. Vá para [seu perfil](https://www.roblox.com/users/${robloxUser.id}/profile)\n` +
-                    `2. Clique no ícone de lápis ao lado de sua descrição\n` +
-                    `3. Cole o código em qualquer lugar de sua descrição\n` +
-                    `4. Clique em Save\n` +
-                    `5. Volte e clique no botão “Verify” abaixo\n\n` +
-                    `Esta verificação expirará em 10 minutos.`
+                    `1. Go to [your profile](https://www.roblox.com/users/${robloxUser.id}/profile)\n` +
+                    `2. Click on the pencil icon next to your description\n` +
+                    `3. Paste the code anywhere in your description\n` +
+                    `4. Click Save\n` +
+                    `5. Come back and click the "Verify" button below\n\n` +
+                    `This verification will expire in 10 minutes.`
                 )
                 .setThumbnail(`https://www.roblox.com/headshot-thumbnail/image?userId=${robloxUser.id}&width=420&height=420&format=png`);
 
@@ -125,11 +124,11 @@ class VerifyCommand extends Command {
                 .addComponents(
                     new ButtonBuilder()
                         .setCustomId(`verify_${ctx.user.id}`)
-                        .setLabel('Verificar')
+                        .setLabel('Verify')
                         .setStyle(ButtonStyle.Success),
                     new ButtonBuilder()
                         .setCustomId(`cancel_verify_${ctx.user.id}`)
-                        .setLabel('Cancelar')
+                        .setLabel('Cancel')
                         .setStyle(ButtonStyle.Danger)
                 );
 
@@ -143,8 +142,8 @@ class VerifyCommand extends Command {
             return ctx.reply({
                 embeds: [
                     createBaseEmbed('danger')
-                        .setTitle('Erro de verificação')
-                        .setDescription('Ocorreu um erro ao tentar verificar sua conta. Tente novamente mais tarde.')
+                        .setTitle('Verification Error')
+                        .setDescription('An error occurred while trying to verify your account. Please try again later.')
                         .setColor(0xff0000)
                 ],
                 ephemeral: true
@@ -313,4 +312,3 @@ export async function checkVerification(userId: string) {
 }
 
 export default VerifyCommand;
-

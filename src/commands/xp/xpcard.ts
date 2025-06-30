@@ -4,13 +4,44 @@ import Command from '../../structures/Command';
 import { PartialUser, User, GroupMember } from 'bloxy/dist/structures';
 import { getLinkedRobloxUser } from '../../handlers/accountLinks';
 import { config } from '../../config';
-import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle } from 'discord.js'; // Added ActionRowBuilder, ButtonBuilder, ButtonStyle
+import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { provider } from '../../database';
 import { createCanvas, loadImage, registerFont, Canvas, CanvasRenderingContext2D as NodeCanvasRenderingContext2D } from 'canvas';
-import { findHighestEligibleRole } from '../ranking/xprankup'; // Import the eligibility checker
+import { findHighestEligibleRole } from '../ranking/xprankup';
 
+// =====================================================================
+// COLOR PALETTE - Consistent dark purple theme
+// =====================================================================
+const COLORS = {
+    // Base purples
+    darkPurple: '#2a1a47',      // Dark base purple
+    mediumPurple: '#4e2a84',    // Medium purple
+    lightPurple: '#7b4bbc',     // Light purple
+    brightPurple: '#9d5cf0',    // Bright highlight purple
+    veryLightPurple: '#c4a0f0', // Very light purple for text
 
-// Register custom fonts (ensure these files exist in your assets folder)
+    // UI colors
+    background: 'rgba(22, 16, 32, 0.8)', // Dark background with transparency
+    cardBg: 'rgba(32, 22, 48, 0.8)',     // Card background
+    textPrimary: '#ffffff',               // White text
+    textSecondary: '#c4a0f0',             // Light purple text
+    accent: '#a0d0ff',                    // Light blue-purple accent
+
+    // Data visualizations
+    statsItem: '#1a142a',                 // Stats box background
+    progressBar: '#191424',               // Progress bar background
+    progressFill: '#4e2a84',              // Progress fill
+
+    // Decorative
+    gridLines: '#5B329A',                 // Grid accent color
+    dataDots: 'rgba(110, 60, 200, 0.7)',  // Data point color
+    shadow: 'rgba(58, 20, 101, 0.5)',     // Purple-tinted shadow
+    glow: 'rgba(110, 60, 200, 0.6)'       // Purple glow
+};
+
+// =====================================================================
+// FONT REGISTRATION
+// =====================================================================
 try {
     registerFont('./assets/fonts/Exo2-Bold.ttf', { family: 'Exo2', weight: 'bold' });
     registerFont('./assets/fonts/Exo2-Regular.ttf', { family: 'Exo2' });
@@ -19,7 +50,9 @@ try {
     console.warn('Could not register custom fonts, falling back to system fonts', err);
 }
 
-// Helper function for drawing rounded rectangles
+// =====================================================================
+// HELPER DRAWING FUNCTIONS
+// =====================================================================
 function roundedRect(ctx: NodeCanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
     ctx.beginPath();
     ctx.moveTo(x + radius, y);
@@ -34,7 +67,6 @@ function roundedRect(ctx: NodeCanvasRenderingContext2D, x: number, y: number, wi
     ctx.closePath();
 }
 
-// Helper function to draw sharp-edged rectangles (more industrial)
 function sharpRect(ctx: NodeCanvasRenderingContext2D, x: number, y: number, width: number, height: number, cornerSize: number = 5) {
     ctx.beginPath();
     ctx.moveTo(x + cornerSize, y);
@@ -48,7 +80,6 @@ function sharpRect(ctx: NodeCanvasRenderingContext2D, x: number, y: number, widt
     ctx.closePath();
 }
 
-// Helper function to draw a star (used for high-rank decoration)
 function drawStar(ctx: NodeCanvasRenderingContext2D, cx: number, cy: number, outerRadius: number, innerRadius: number, color: string) {
     let rot = Math.PI / 2 * 3;
     let step = Math.PI / 5;
@@ -69,16 +100,15 @@ function drawStar(ctx: NodeCanvasRenderingContext2D, cx: number, cy: number, out
     ctx.fill();
 }
 
-// Helper function to create worn edge effect
 function createWornEdge(ctx: NodeCanvasRenderingContext2D, x: number, y: number, width: number, height: number) {
-    const wornAmount = 1.2; // Slightly reduced for a more subtle effect
-    const noise = 0.7;     // Reduced for cleaner edges
+    const wornAmount = 1.2;
+    const noise = 0.7;
 
     ctx.save();
-    ctx.strokeStyle = 'rgba(50, 50, 50, 0.5)';
-    ctx.lineWidth = 0.8;   // Thinner lines for a more refined look
+    ctx.strokeStyle = 'rgba(70, 50, 100, 0.4)'; // Purple-tinted worn edge
+    ctx.lineWidth = 0.8;
 
-    for (let i = 0; i < width; i += 12) {  // Increased spacing for cleaner look
+    for (let i = 0; i < width; i += 12) {
         const distort = (Math.random() * noise - noise / 2) * wornAmount;
         ctx.beginPath();
         ctx.moveTo(x + i, y + distort);
@@ -108,7 +138,9 @@ function createWornEdge(ctx: NodeCanvasRenderingContext2D, x: number, y: number,
     ctx.restore();
 }
 
-// Generate a stunning XP composite image with advanced styling
+// =====================================================================
+// MAIN IMAGE GENERATION FUNCTION
+// =====================================================================
 const generateCompositeImage = async (
     backgroundUrl: string,
     userName: string,
@@ -123,75 +155,76 @@ const generateCompositeImage = async (
         trainings: number;
     }
 ) => {
-    // FIXED: Updated URLs to more reliable sources
-    const newBackgroundUrl = 'https://i.ibb.co/Z68bgDS8/NEW-SOH-BACK.png'; // Dark tech background
-    const frontLogoUrl = 'https://i.ibb.co/xSrQvRCW/NEW-SOH-FRONT.png'; // Generic logo placeholder
+    // Image URLs
+    const newBackgroundUrl = 'https://i.ibb.co/MxmMh5xp/VALK-BACK.png';
+    const frontLogoUrl = 'https://i.ibb.co/9mFdrgg8/valkrallylogo.png';
 
+    // Canvas setup
     const width = 1000;
     const height = 400;
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
 
-    // Load and draw main background with better error handling
-    let background;
+    // ------------- BACKGROUND -------------
     try {
-        background = await loadImage(newBackgroundUrl);
+        const background = await loadImage(newBackgroundUrl);
         ctx.drawImage(background, 0, 0, width, height);
 
-        // Modern overlay gradient for better readability
+        // Purple overlay for better readability
         const overlay = ctx.createLinearGradient(0, 0, 0, height);
-        overlay.addColorStop(0, 'rgba(10, 12, 18, 0.4)');
-        overlay.addColorStop(0.5, 'rgba(10, 12, 18, 0.3)');
-        overlay.addColorStop(1, 'rgba(10, 12, 18, 0.5)');
+        overlay.addColorStop(0, 'rgba(30, 22, 45, 0.5)');
+        overlay.addColorStop(0.5, 'rgba(30, 22, 45, 0.4)');
+        overlay.addColorStop(1, 'rgba(30, 22, 45, 0.6)');
         ctx.fillStyle = overlay;
         ctx.fillRect(0, 0, width, height);
     } catch (error) {
         console.error(`Failed to load background image: ${newBackgroundUrl}`, error);
-        // Fallback: create a more modern gradient background
+        // Fallback: create a purple gradient background
         const gradient = ctx.createLinearGradient(0, 0, width, height);
-        gradient.addColorStop(0, '#161921');
-        gradient.addColorStop(0.5, '#21232d');
-        gradient.addColorStop(1, '#191b24');
+        gradient.addColorStop(0, '#201630'); // Dark purple
+        gradient.addColorStop(0.5, '#2a1a40'); // Medium dark purple
+        gradient.addColorStop(1, '#201630'); // Dark purple
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, width, height);
     }
 
-    // Create a modern card effect with sharper edges and better transparency
+    // ------------- MAIN CARD -------------
     const cardX = 40;
     const cardY = 40;
     const cardWidth = width - 80;
     const cardHeight = height - 80;
 
+    // Card background with shadow
     ctx.save();
     ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
     ctx.shadowBlur = 25;
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 8;
-    ctx.fillStyle = 'rgba(22, 22, 28, 0.8)'; // Darker, more solid background
-    sharpRect(ctx, cardX, cardY, cardWidth, cardHeight, 8); // Larger corner size for modern look
+    ctx.fillStyle = COLORS.cardBg;
+    sharpRect(ctx, cardX, cardY, cardWidth, cardHeight, 8);
     ctx.fill();
 
-    // Modern steel border with sharper contrast
+    // Card border
     const borderGradient = ctx.createLinearGradient(cardX, cardY, cardX, cardY + cardHeight);
     borderGradient.addColorStop(0, '#8a8a9a');
-    borderGradient.addColorStop(0.5, '#d0d0d0'); // Brighter midpoint
-    borderGradient.addColorStop(1, '#5a5a6a'); // Darker end
+    borderGradient.addColorStop(0.5, '#d0d0d0');
+    borderGradient.addColorStop(1, '#5a5a6a');
     ctx.strokeStyle = borderGradient;
-    ctx.lineWidth = 2.5; // Slightly thicker border
+    ctx.lineWidth = 2.5;
     sharpRect(ctx, cardX, cardY, cardWidth, cardHeight, 8);
     ctx.stroke();
     ctx.restore();
 
-    // Add modern tech pattern overlay instead of simple grid
+    // ------------- TECH GRID PATTERN -------------
     ctx.save();
-    ctx.globalAlpha = 0.07; // Slightly more visible
-    // Horizontal tech lines with varying opacity
+    ctx.globalAlpha = 0.07;
+    // Horizontal tech lines
     for (let i = 0; i < width; i += 60) {
         ctx.beginPath();
         ctx.moveTo(i, 0);
         ctx.lineTo(i, height);
-        ctx.strokeStyle = i % 180 === 0 ? '#5B329A' : '#aaaaaa'; // Purple accent on every third line
-        ctx.lineWidth = i % 180 === 0 ? 0.8 : 0.4; // Thicker for accent lines
+        ctx.strokeStyle = i % 180 === 0 ? COLORS.gridLines : '#aaaaaa';
+        ctx.lineWidth = i % 180 === 0 ? 0.8 : 0.4;
         ctx.stroke();
     }
     // Vertical tech lines with data points
@@ -199,31 +232,30 @@ const generateCompositeImage = async (
         ctx.beginPath();
         ctx.moveTo(0, i);
         ctx.lineTo(width, i);
-        ctx.strokeStyle = i % 180 === 0 ? '#5B329A' : '#aaaaaa';
+        ctx.strokeStyle = i % 180 === 0 ? COLORS.gridLines : '#aaaaaa';
         ctx.lineWidth = i % 180 === 0 ? 0.8 : 0.4;
         ctx.stroke();
 
-        // Add data points at intersections for tech feel
+        // Add data points at intersections
         if (i % 180 === 0) {
             for (let j = 0; j < width; j += 180) {
                 ctx.beginPath();
                 ctx.arc(j, i, 2, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(62, 1, 84, 0.7)';
+                ctx.fillStyle = COLORS.dataDots;
                 ctx.fill();
             }
         }
     }
     ctx.restore();
 
-    // Add worn edge effect to card - more refined and subtle
+    // Add worn edge effect to card
     createWornEdge(ctx, cardX, cardY, cardWidth, cardHeight);
 
-    // Avatar positioning - optimized for layout balance
+    // ------------- USER AVATAR -------------
     const avatarSize = 100;
     const avatarX = cardX + 60;
     const avatarY = cardY + 30;
 
-    // Load and draw avatar with modern industrial effects
     let avatar;
     try {
         avatar = await loadImage(avatarUrl);
@@ -239,26 +271,28 @@ const generateCompositeImage = async (
         fallbackCtx.fillText('?', 64, 80);
     }
 
+    // Avatar glow
     ctx.save();
-    // Enhanced avatar glow for more visual impact
-    const glowSize = 15; // Increased from 12
+    const glowSize = 15;
     const glowGradient = ctx.createRadialGradient(
         avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2,
         avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + glowSize
     );
-    ctx.shadowColor = 'rgba(110, 60, 200, 0.6)';  // More vibrant purple
-    glowGradient.addColorStop(1, 'rgba(30, 60, 100, 0)');
+    glowGradient.addColorStop(0, COLORS.glow);
+    glowGradient.addColorStop(1, 'rgba(30, 20, 50, 0)');
+
+    ctx.shadowColor = COLORS.glow;
+    ctx.shadowBlur = 15;
     ctx.beginPath();
     ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + glowSize, 0, Math.PI * 2);
     ctx.fillStyle = glowGradient;
     ctx.fill();
 
-    // Modern metallic frame
+    // Avatar frame
     ctx.beginPath();
     ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + 3, 0, Math.PI * 2);
     const metalRingGradient = ctx.createLinearGradient(
-        avatarX, avatarY,
-        avatarX + avatarSize, avatarY + avatarSize
+        avatarX, avatarY, avatarX + avatarSize, avatarY + avatarSize
     );
     metalRingGradient.addColorStop(0, '#b0b0b0');
     metalRingGradient.addColorStop(0.5, '#e8e8e8');
@@ -267,13 +301,12 @@ const generateCompositeImage = async (
     ctx.lineWidth = 2.5;
     ctx.stroke();
 
-    // Modern industrial bolts - more refined
+    // Decorative bolts
     for (let i = 0; i < 4; i++) {
         const angle = i * Math.PI / 2;
         const boltX = avatarX + avatarSize / 2 + Math.cos(angle) * (avatarSize / 2 + 6);
         const boltY = avatarY + avatarSize / 2 + Math.sin(angle) * (avatarSize / 2 + 6);
 
-        // Bolt base with modern metallic look
         ctx.beginPath();
         ctx.arc(boltX, boltY, 2.5, 0, Math.PI * 2);
         const boltGradient = ctx.createLinearGradient(
@@ -285,14 +318,14 @@ const generateCompositeImage = async (
         ctx.fillStyle = boltGradient;
         ctx.fill();
 
-        // Bolt highlight - more subtle
+        // Bolt highlight
         ctx.beginPath();
         ctx.arc(boltX - 0.8, boltY - 0.8, 0.8, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
         ctx.fill();
     }
 
-    // Draw avatar image clipped as a circle
+    // Draw avatar (clipped as circle)
     ctx.beginPath();
     ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
     ctx.closePath();
@@ -300,25 +333,22 @@ const generateCompositeImage = async (
     ctx.drawImage(avatar, avatarX, avatarY, avatarSize, avatarSize);
     ctx.restore();
 
+    // ------------- USERNAME & RANK -------------
     // Determine rank level for decorative emblems
     const rankLevel = userRank.toLowerCase().includes('commander') ? 5 :
         userRank.toLowerCase().includes('officer') ? 4 :
             userRank.toLowerCase().includes('captain') ? 3 :
                 userRank.toLowerCase().includes('sergeant') ? 2 : 1;
 
-    // Username and rank positioning
     const nameX = avatarX + avatarSize + 30;
     const nameY = avatarY + 35;
 
-    // Draw username with modern metallic effect
+    // Username
     ctx.save();
     ctx.font = `bold 38px Orbitron, Arial`;
-
-    // Modern shadow for depth
     ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
     ctx.fillText(userName, nameX + 1.5, nameY + 1.5);
 
-    // Modern metal gradient for text
     const nameGradient = ctx.createLinearGradient(nameX, nameY - 30, nameX, nameY + 10);
     nameGradient.addColorStop(0, '#ffffff');
     nameGradient.addColorStop(0.5, '#e0e0e0');
@@ -326,24 +356,20 @@ const generateCompositeImage = async (
     ctx.fillStyle = nameGradient;
     ctx.fillText(userName, nameX, nameY);
 
-    // Modern rank emblems for higher ranks
+    // Rank stars for higher ranks
     if (rankLevel > 2) {
         for (let i = 0; i < rankLevel - 2; i++) {
             const emblemX = nameX + ctx.measureText(userName).width + 20 + (i * 25);
-
-            // Modern star with glow
             ctx.save();
-            ctx.shadowColor = 'rgba(82, 0, 90, 0.6)';
+            ctx.shadowColor = COLORS.shadow;
             ctx.shadowBlur = 8;
-            ctx.shadowOffsetX = 0;
-            ctx.shadowOffsetY = 0;
             drawStar(ctx, emblemX, nameY - 15, 10, 5, '#d0d0e0');
             ctx.restore();
         }
     }
     ctx.restore();
 
-    // Draw rank badge with modern styling
+    // Rank badge
     ctx.save();
     ctx.font = `26px Exo2, Arial`;
     const rankText = `${userRank}`;
@@ -351,16 +377,16 @@ const generateCompositeImage = async (
     const rankX = nameX;
     const rankY = nameY + 20;
 
-    // Modern badge background with enhanced depth
+    // Badge background
     const badgeGradient = ctx.createLinearGradient(rankX, rankY, rankX, rankY + 36);
-    badgeGradient.addColorStop(0, 'rgba(30, 30, 38, 0.9)');
-    badgeGradient.addColorStop(0.5, 'rgba(35, 35, 45, 0.85)');
-    badgeGradient.addColorStop(1, 'rgba(28, 28, 36, 0.9)');
+    badgeGradient.addColorStop(0, 'rgba(30, 25, 45, 0.9)');
+    badgeGradient.addColorStop(0.5, 'rgba(35, 28, 50, 0.85)');
+    badgeGradient.addColorStop(1, 'rgba(28, 22, 42, 0.9)');
     ctx.fillStyle = badgeGradient;
     roundedRect(ctx, rankX, rankY, rankWidth, 36, 5);
     ctx.fill();
 
-    // Modern metal plate border with refined styling
+    // Badge border
     const rankBorderGradient = ctx.createLinearGradient(rankX, rankY, rankX + rankWidth, rankY);
     rankBorderGradient.addColorStop(0, '#8a8a9a');
     rankBorderGradient.addColorStop(0.5, '#c0c0d0');
@@ -370,42 +396,37 @@ const generateCompositeImage = async (
     roundedRect(ctx, rankX, rankY, rankWidth, 36, 5);
     ctx.stroke();
 
-    // Modern text with light purple color as requested
-    ctx.fillStyle = '#a0d0ff'; // Light purple text color
-    ctx.shadowColor = 'rgba(87, 1, 79, 0.4)';
+    // Rank text
+    ctx.fillStyle = COLORS.accent;
+    ctx.shadowColor = COLORS.shadow;
     ctx.shadowBlur = 4;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
     ctx.fillText(rankText, rankX + 10, rankY + 26);
-
-    // Removed the rivets/dots as requested
     ctx.restore();
 
-    // Modern tech-style progress bar
+    // ------------- XP PROGRESS BAR -------------
     ctx.save();
     const progressBarWidth = cardWidth - 120;
-    const progressBarHeight = 26; // Slightly taller
+    const progressBarHeight = 26;
     const progressX = cardX + 60;
     const progressY = avatarY + avatarSize + 25;
     const progress = nextXP ? Math.min(currentXP / nextXP, 1) : 1;
     const filledWidth = progress * progressBarWidth;
 
-    // Shadow for depth
-    ctx.shadowColor = 'rgba(110, 60, 200, 0.6)';
+    // Progress bar shadow
+    ctx.shadowColor = COLORS.shadow;
     ctx.shadowBlur = 10;
-    ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 2;
 
-    // Sharp-cornered progress bar background for modern tech look
-    ctx.fillStyle = 'rgba(22, 22, 28, 0.95)';
+    // Progress bar background
+    ctx.fillStyle = COLORS.progressBar;
     ctx.fillRect(progressX, progressY, progressBarWidth, progressBarHeight);
 
-    // Techy border with purple accent
-    ctx.strokeStyle = '#5C5060';
+    // Progress bar border
+    ctx.strokeStyle = COLORS.lightPurple;
     ctx.lineWidth = 1;
     ctx.strokeRect(progressX, progressY, progressBarWidth, progressBarHeight);
 
-    // Add tech pattern to empty bar
+    // Tech pattern in empty bar
     ctx.save();
     ctx.beginPath();
     ctx.rect(progressX, progressY, progressBarWidth, progressBarHeight);
@@ -421,19 +442,17 @@ const generateCompositeImage = async (
     }
     ctx.restore();
 
-    // Modern high-contrast fill
+    // Filled progress
     if (filledWidth > 0) {
-        // More vibrant purple gradient
+        // Purple gradient for filled portion
         const progressGradient = ctx.createLinearGradient(progressX, progressY, progressX + progressBarWidth, progressY);
-        progressGradient.addColorStop(0, '#3a1465'); // Deep rich purple
-        progressGradient.addColorStop(0.4, '#6c2dc7'); // Medium vibrant purple
-        progressGradient.addColorStop(1, '#9d5cf0'); // Bright accent purple
+        progressGradient.addColorStop(0, COLORS.darkPurple);
+        progressGradient.addColorStop(0.4, COLORS.mediumPurple);
+        progressGradient.addColorStop(1, COLORS.lightPurple);
         ctx.fillStyle = progressGradient;
-
-        // Draw with sharp corners for modern look
         ctx.fillRect(progressX, progressY, filledWidth, progressBarHeight);
 
-        // Add tech scanline effect to filled portion
+        // Scanline effect in filled portion
         ctx.save();
         ctx.globalAlpha = 0.15;
         ctx.beginPath();
@@ -451,11 +470,10 @@ const generateCompositeImage = async (
         ctx.restore();
     }
 
-    // Modern XP counter - tech-inspired
+    // XP counter text
     ctx.font = 'bold 16px Orbitron, Arial';
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#ffffff';
-    // Add drop shadow for better readability
+    ctx.fillStyle = COLORS.textPrimary;
     ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
     ctx.shadowBlur = 3;
     ctx.fillText(
@@ -464,33 +482,30 @@ const generateCompositeImage = async (
         progressY + progressBarHeight / 2 + 6
     );
 
-    // Centered indicator dots in the progress bar
+    // Progress indicator dots
     ctx.shadowBlur = 0;
     for (let i = 0.2; i <= 0.8; i += 0.2) {
         const dotX = progressX + (progressBarWidth * i);
-        const dotY = progressY + progressBarHeight / 2; // Centered vertically
+        const dotY = progressY + progressBarHeight / 2;
         const isActive = progress >= i;
 
-        // Modern indicator design
         ctx.beginPath();
         ctx.arc(dotX, dotY, 2, 0, Math.PI * 2);
-        ctx.fillStyle = isActive ? '#a0d0ff' : '#505050';
+        ctx.fillStyle = isActive ? COLORS.accent : '#505050';
         ctx.fill();
 
-        // Subtle glow for active indicators
         if (isActive) {
             ctx.beginPath();
             ctx.arc(dotX, dotY, 3.5, 0, Math.PI * 2);
-            ctx.strokeStyle = 'rgba(65, 0, 40, 0.4)';
+            ctx.strokeStyle = COLORS.shadow;
             ctx.lineWidth = 0.7;
             ctx.stroke();
         }
     }
     ctx.restore();
 
-    // Updated combat statistics section with modern styling and no triangles
+    // ------------- COMBAT STATISTICS -------------
     ctx.save();
-    // Set these properties specifically to prevent triangle artifacts
     ctx.lineJoin = 'miter';
     ctx.miterLimit = 1;
 
@@ -498,20 +513,20 @@ const generateCompositeImage = async (
     const statItemWidth = (cardWidth - 120) / 4;
     const statItemHeight = 45;
 
-    // Modern tech header
-    ctx.font = 'bold 16px Orbitron, Arial'; // Change to Orbitron for tech feel
-    ctx.fillStyle = '#6c2dc7'; // Dark purple for consistency
+    // Stats header
+    ctx.font = 'bold 16px Orbitron, Arial';
+    ctx.fillStyle = COLORS.lightPurple;
     ctx.textAlign = 'center';
     ctx.fillText('COMBAT STATISTICS', cardX + cardWidth / 2, statsStartY - 8);
 
-    // Modern divider with tech feel
+    // Divider
     const dividerGradient = ctx.createLinearGradient(
         cardX + 100, statsStartY,
         cardX + cardWidth - 100, statsStartY
     );
-    dividerGradient.addColorStop(0, 'rgba(80, 100, 180, 0.1)');
-    dividerGradient.addColorStop(0.5, 'rgba(110, 60, 200, 0.7)'); // Improved purple
-    dividerGradient.addColorStop(1, 'rgba(80, 100, 180, 0.1)');
+    dividerGradient.addColorStop(0, 'rgba(80, 70, 130, 0.1)');
+    dividerGradient.addColorStop(0.5, COLORS.glow);
+    dividerGradient.addColorStop(1, 'rgba(80, 70, 130, 0.1)');
 
     ctx.strokeStyle = dividerGradient;
     ctx.lineWidth = 1;
@@ -535,89 +550,81 @@ const generateCompositeImage = async (
         const statX = statsStartX + index * statItemWidth;
         const statY = statsStartY + 10;
 
-        // Clean rectangle with NO gradients to prevent triangle artifacts
-        ctx.fillStyle = '#1a1a24'; // Solid dark background
+        // Stats box
+        ctx.fillStyle = COLORS.statsItem;
         ctx.fillRect(statX, statY, statItemWidth - 10, statItemHeight);
 
-        // Simple clean border
-        ctx.strokeStyle = '#9d5cf0';
+        // Border
+        ctx.strokeStyle = COLORS.brightPurple;
         ctx.lineWidth = 1;
         ctx.strokeRect(statX, statY, statItemWidth - 10, statItemHeight);
 
-        // Modern accent line at top - flat for no triangles
+        // Top accent line
         ctx.beginPath();
         ctx.moveTo(statX, statY);
         ctx.lineTo(statX + statItemWidth - 10, statY);
-        ctx.strokeStyle = '#9d5cf0'; // More vibrant purple
+        ctx.strokeStyle = COLORS.brightPurple;
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // Clean text rendering
         const centerX = statX + (statItemWidth - 10) / 2;
 
-        // Label with tech font
-        ctx.fillStyle = '#c4a0f0';
+        // Label
+        ctx.fillStyle = COLORS.veryLightPurple;
         ctx.font = '13px Orbitron, Arial';
         ctx.textAlign = 'center';
         ctx.fillText(item.label, centerX, statY + 17);
 
-        // Value with more prominence
-        ctx.fillStyle = '#ffffff';
+        // Value
+        ctx.fillStyle = COLORS.textPrimary;
         ctx.font = 'bold 19px Orbitron, Arial';
         ctx.textAlign = 'center';
         ctx.fillText(`${item.value}`, centerX, statY + 38);
     });
-
     ctx.restore();
 
-    // Enhanced front logo with better error handling
+    // ------------- LOGO -------------
     try {
         const frontLogo = await loadImage(frontLogoUrl);
-        // Increase size to 220px wide for more prominence
         const logoWidth = 220;
         const logoHeight = 220 * (frontLogo.height / frontLogo.width);
         const logoX = cardX + cardWidth - logoWidth - 20;
         const logoY = cardY + 10;
 
-        // Modern tech glow behind the logo
         ctx.save();
-        ctx.shadowColor = 'rgba(110, 60, 200, 0.6)';
+        ctx.shadowColor = COLORS.glow;
         ctx.shadowBlur = 25;
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 0;
         ctx.drawImage(frontLogo, logoX, logoY, logoWidth, logoHeight);
         ctx.restore();
     } catch (error) {
         console.error(`Failed to load front logo image: ${frontLogoUrl}`, error);
 
-        // Modern fallback logo created directly on canvas
+        // Fallback logo
         const logoWidth = 220;
         const logoHeight = 220;
         const logoX = cardX + cardWidth - logoWidth - 20;
         const logoY = cardY + 10;
 
         ctx.save();
-        // Draw tech-style logo shape
         ctx.beginPath();
         ctx.arc(logoX + logoWidth / 2, logoY + logoHeight / 2, logoWidth / 3, 0, Math.PI * 2);
         const logoGradient = ctx.createRadialGradient(
             logoX + logoWidth / 2, logoY + logoHeight / 2, logoWidth / 6,
             logoX + logoWidth / 2, logoY + logoHeight / 2, logoWidth / 3
         );
-        logoGradient.addColorStop(0, 'rgba(60, 100, 180, 0.1)');
-        logoGradient.addColorStop(0.7, 'rgba(40, 80, 140, 0.05)');
-        logoGradient.addColorStop(1, 'rgba(30, 60, 120, 0)');
+        logoGradient.addColorStop(0, 'rgba(80, 50, 120, 0.2)');
+        logoGradient.addColorStop(0.7, 'rgba(60, 40, 100, 0.1)');
+        logoGradient.addColorStop(1, 'rgba(40, 30, 80, 0)');
         ctx.fillStyle = logoGradient;
         ctx.fill();
 
-        // Add tech details to fallback logo
-        ctx.strokeStyle = 'rgba(100, 150, 230, 0.2)';
+        ctx.strokeStyle = 'rgba(110, 80, 160, 0.2)';
         ctx.lineWidth = 1;
         ctx.stroke();
 
         ctx.beginPath();
         ctx.arc(logoX + logoWidth / 2, logoY + logoHeight / 2, logoWidth / 4, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(230, 100, 221, 0.3)';
+        ctx.strokeStyle = 'rgba(130, 90, 180, 0.3)';
         ctx.stroke();
         ctx.restore();
     }
@@ -625,7 +632,9 @@ const generateCompositeImage = async (
     return canvas.toBuffer();
 };
 
-// The rest of the code remains unchanged
+// =====================================================================
+// XP REQUIREMENT CALCULATION
+// =====================================================================
 function getNextXpRequirement(member: GroupMember, userXp: number) {
     const xpRoles = config.xpSystem.roles
         .slice()
@@ -637,23 +646,21 @@ function getNextXpRequirement(member: GroupMember, userXp: number) {
     }
 
     const currentIndex = xpRoles.findIndex(r => r.rank === member.role.rank);
-    console.log('Current index:', currentIndex);
 
     if (currentIndex === -1) {
-        console.log('Rank not found');
-        return null;
+        return null; // Rank not found
     }
 
     if (currentIndex === xpRoles.length - 1) {
-        console.log('At max rank');
-        return null;
+        return null; // At max rank
     }
 
-    const nextXp = xpRoles[currentIndex + 1].xp;
-    console.log('Next XP requirement:', nextXp);
-    return nextXp;
+    return xpRoles[currentIndex + 1].xp;
 }
 
+// =====================================================================
+// COMMAND CLASS
+// =====================================================================
 class XPCommand extends Command {
     constructor() {
         super({
@@ -675,6 +682,7 @@ class XPCommand extends Command {
     async run(ctx: CommandContext) {
         let robloxUser: User | PartialUser;
 
+        // Get Roblox user (from argument, or linked account)
         try {
             if (ctx.args['roblox-user']) {
                 // Try to parse as number first for Roblox ID
@@ -694,7 +702,7 @@ class XPCommand extends Command {
             }
             if (!robloxUser) throw new Error('No Roblox user could be determined.');
         } catch (userError) {
-            // If initial attempts fail, try to resolve as Discord mention if it's a string
+            // Try to resolve from Discord mention
             if (typeof ctx.args['roblox-user'] === 'string') {
                 try {
                     const idQuery = (ctx.args['roblox-user'] as string).replace(/[^0-9]/gm, '');
@@ -706,7 +714,7 @@ class XPCommand extends Command {
                         }
                     }
                 } catch (discordError) {
-                    // Silently fail if Discord user resolution fails, rely on previous error
+                    // Silent fail, rely on previous error
                 }
             }
             if (!robloxUser) {
@@ -717,6 +725,7 @@ class XPCommand extends Command {
             }
         }
 
+        // Get user XP data
         const userData = await provider.findUser(robloxUser.id.toString());
         if (!userData) {
             return ctx.reply({
@@ -725,6 +734,7 @@ class XPCommand extends Command {
             });
         }
 
+        // Get group membership
         let robloxMember: GroupMember;
         try {
             robloxMember = await robloxGroup.getMember(robloxUser.id);
@@ -736,8 +746,10 @@ class XPCommand extends Command {
             });
         }
 
+        // Calculate next XP requirement
         const nextXp = getNextXpRequirement(robloxMember, userData.xp);
 
+        // Get avatar URL
         const avatarUrl = await robloxClient.apis.thumbnailsAPI
             .getUsersAvatarHeadShotImages({
                 userIds: [robloxUser.id],
@@ -747,6 +759,7 @@ class XPCommand extends Command {
             .then((res) => res.data[0]?.imageUrl || 'https://www.roblox.com/images/default-headshot.png')
             .catch(() => 'https://www.roblox.com/images/default-headshot.png');
 
+        // Generate the XP card image
         let compositeImage: Buffer | null = null;
         try {
             compositeImage = await generateCompositeImage(
@@ -774,6 +787,7 @@ class XPCommand extends Command {
             });
         }
 
+        // Create image attachment and buttons
         const imageAttachment = new AttachmentBuilder(compositeImage, { name: 'xp-progress.png' });
         const components: ActionRowBuilder<ButtonBuilder>[] = [];
 
@@ -789,8 +803,9 @@ class XPCommand extends Command {
             console.error(`Error checking promotion eligibility for ${robloxUser.name}:`, eligibilityError);
         }
 
+        // Add promotion request button
         const requestPromotionButton = new ButtonBuilder()
-            .setCustomId(`request_promotion:${robloxUser.id}:${ctx.user.id}`) // Include Discord user ID for verification
+            .setCustomId(`request_promotion:${robloxUser.id}:${ctx.user.id}`)
             .setLabel('Request Promotion Check')
             .setStyle(ButtonStyle.Primary)
             .setDisabled(!isEligibleForPromotion);
@@ -798,6 +813,7 @@ class XPCommand extends Command {
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(requestPromotionButton);
         components.push(row);
 
+        // Send the reply with image and components
         return ctx.reply({
             files: [imageAttachment],
             components: components

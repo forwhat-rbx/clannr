@@ -124,7 +124,7 @@ const generateCompositeImage = async (
     }
 ) => {
     // FIXED: Updated URLs to more reliable sources
-    const newBackgroundUrl = 'https://i.ibb.co/fYpTNw9p/NEW-SOH-BACK.png'; // Dark tech background
+    const newBackgroundUrl = 'https://i.ibb.co/Z68bgDS8/NEW-SOH-BACK.png'; // Dark tech background
     const frontLogoUrl = 'https://i.ibb.co/xSrQvRCW/NEW-SOH-FRONT.png'; // Generic logo placeholder
 
     const width = 1000;
@@ -246,7 +246,7 @@ const generateCompositeImage = async (
         avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2,
         avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + glowSize
     );
-    glowGradient.addColorStop(0, 'rgba(100, 150, 230, 0.7)'); // More vibrant blue
+    glowGradient.addColorStop(0, 'rgba(111, 3, 130, 0.7)'); // More vibrant blue
     glowGradient.addColorStop(1, 'rgba(30, 60, 100, 0)');
     ctx.beginPath();
     ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + glowSize, 0, Math.PI * 2);
@@ -333,7 +333,7 @@ const generateCompositeImage = async (
 
             // Modern star with glow
             ctx.save();
-            ctx.shadowColor = 'rgba(100, 150, 255, 0.6)';
+            ctx.shadowColor = 'rgba(82, 0, 90, 0.6)';
             ctx.shadowBlur = 8;
             ctx.shadowOffsetX = 0;
             ctx.shadowOffsetY = 0;
@@ -372,7 +372,7 @@ const generateCompositeImage = async (
 
     // Modern text with light blue color as requested
     ctx.fillStyle = '#a0d0ff'; // Light blue text color
-    ctx.shadowColor = 'rgba(100, 180, 255, 0.4)';
+    ctx.shadowColor = 'rgba(87, 1, 79, 0.4)';
     ctx.shadowBlur = 4;
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 0;
@@ -391,7 +391,7 @@ const generateCompositeImage = async (
     const filledWidth = progress * progressBarWidth;
 
     // Shadow for depth
-    ctx.shadowColor = 'rgba(0, 80, 180, 0.4)';
+    ctx.shadowColor = 'rgba(72, 1, 48, 0.4)';
     ctx.shadowBlur = 10;
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 2;
@@ -481,7 +481,7 @@ const generateCompositeImage = async (
         if (isActive) {
             ctx.beginPath();
             ctx.arc(dotX, dotY, 3.5, 0, Math.PI * 2);
-            ctx.strokeStyle = 'rgba(160, 208, 255, 0.4)';
+            ctx.strokeStyle = 'rgba(65, 0, 40, 0.4)';
             ctx.lineWidth = 0.7;
             ctx.stroke();
         }
@@ -510,7 +510,7 @@ const generateCompositeImage = async (
         cardX + cardWidth - 100, statsStartY
     );
     dividerGradient.addColorStop(0, 'rgba(80, 100, 180, 0.1)');
-    dividerGradient.addColorStop(0.5, 'rgba(100, 150, 230, 0.7)');
+    dividerGradient.addColorStop(0.5, 'rgba(81, 0, 135, 0.7)');
     dividerGradient.addColorStop(1, 'rgba(80, 100, 180, 0.1)');
     ctx.strokeStyle = dividerGradient;
     ctx.lineWidth = 1;
@@ -580,7 +580,7 @@ const generateCompositeImage = async (
 
         // Modern tech glow behind the logo
         ctx.save();
-        ctx.shadowColor = 'rgba(80, 120, 200, 0.3)';
+        ctx.shadowColor = 'rgba(180, 80, 200, 0.3)';
         ctx.shadowBlur = 25;
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 0;
@@ -616,7 +616,7 @@ const generateCompositeImage = async (
 
         ctx.beginPath();
         ctx.arc(logoX + logoWidth / 2, logoY + logoHeight / 2, logoWidth / 4, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(100, 150, 230, 0.3)';
+        ctx.strokeStyle = 'rgba(230, 100, 221, 0.3)';
         ctx.stroke();
         ctx.restore();
     }

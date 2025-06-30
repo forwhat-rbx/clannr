@@ -70,9 +70,9 @@ class SetupVerifyCommand extends Command {
 
             // Create the verification embed
             const verifyEmbed = createBaseEmbed()
-                .setTitle('Silver Crew Verification System')
+                .setTitle('Valkyris Guard Verification System')
                 .setDescription(
-                    '**Welcome to Silver Crew!**\n\n' +
+                    '**Welcome to Valkyris Guard!**\n\n' +
                     'To gain access to the server, you need to verify your Roblox account.\n\n' +
                     '**How to Verify:**\n' +
                     '1. Click on the "Verify" button below\n' +

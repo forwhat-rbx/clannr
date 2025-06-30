@@ -1,5 +1,5 @@
-import { Client, ClientOptions, GatewayIntentBits, Routes } from 'discord.js';
-import { readdirSync, writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs';
+import { Client, ClientOptions, GatewayIntentBits, Routes, ApplicationCommandDataResolvable } from 'discord.js';
+import { readdirSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import path from 'path';
 import { config } from '../config';
 import { Command } from './Command';
@@ -76,9 +76,7 @@ class QbotClient extends Client {
             this.commands = loadedCommands;
             Logger.info(`Loaded ${loadedCommands.length} commands total`, 'CommandLoader');
 
-            // Register with Discord API
-            await this.registerSlashCommands();
-
+            // Registration happens separately after login
             return loadedCommands;
         } catch (error) {
             Logger.error("Error loading commands:", 'CommandLoader', error);
@@ -86,18 +84,27 @@ class QbotClient extends Client {
         }
     }
 
-    async registerSlashCommands() {
+    async registerSlashCommands(guildId?: string) {
         if (!this.application?.id) {
             Logger.error("Cannot register commands - application ID not available", 'CommandLoader');
-            return;
+            return false;
         }
 
         try {
-            const slashCommands = this.commands.map(cmd => {
-                const apiCommand = cmd.generateAPICommand();
-                Logger.debug(`Generated API command for ${cmd.trigger}: ${JSON.stringify(apiCommand)}`, 'CommandLoader');
-                return apiCommand;
-            });
+            // Filter out disabled commands
+            const enabledCommands = this.commands.filter(cmd => cmd.enabled !== false);
+            Logger.info(`Preparing to register ${enabledCommands.length} enabled commands`, 'CommandLoader');
+
+            const slashCommands = enabledCommands.map(cmd => {
+                try {
+                    const apiCommand = cmd.generateAPICommand();
+                    Logger.debug(`Generated API command for ${cmd.trigger}`, 'CommandLoader');
+                    return apiCommand;
+                } catch (err) {
+                    Logger.error(`Failed to generate API command for ${cmd.trigger}:`, 'CommandLoader', err);
+                    return null;
+                }
+            }).filter(cmd => cmd !== null) as ApplicationCommandDataResolvable[];
 
             // Create resources directory if it doesn't exist
             const resourcesDir = path.join(process.cwd(), 'src/resources');
@@ -114,15 +121,27 @@ class QbotClient extends Client {
             // Register commands with Discord API
             const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
-            // Register globally
-            await rest.put(
-                Routes.applicationCommands(this.application.id),
-                { body: slashCommands }
-            );
+            if (guildId) {
+                // Register to a specific guild for testing (instant update)
+                await rest.put(
+                    Routes.applicationGuildCommands(this.application.id, guildId),
+                    { body: slashCommands }
+                );
+                Logger.info(`Successfully registered ${slashCommands.length} slash commands to guild ${guildId}`, 'CommandLoader');
+            } else {
+                // Register globally (can take up to an hour to propagate)
+                await rest.put(
+                    Routes.applicationCommands(this.application.id),
+                    { body: slashCommands }
+                );
+                Logger.info(`Successfully registered ${slashCommands.length} slash commands globally`, 'CommandLoader');
+            }
 
-            Logger.info(`Successfully registered ${slashCommands.length} slash commands globally`, 'CommandLoader');
+            return true;
         } catch (error) {
             Logger.error("Error registering slash commands:", 'CommandLoader', error);
+            console.error(error); // Log the full error for debugging
+            return false;
         }
     }
 }

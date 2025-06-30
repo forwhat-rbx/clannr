@@ -190,7 +190,7 @@ const generateCompositeImage = async (
         ctx.beginPath();
         ctx.moveTo(i, 0);
         ctx.lineTo(i, height);
-        ctx.strokeStyle = i % 180 === 0 ? '#5B329A' : '#aaaaaa'; // Blue accent on every third line
+        ctx.strokeStyle = i % 180 === 0 ? '#5B329A' : '#aaaaaa'; // Purple accent on every third line
         ctx.lineWidth = i % 180 === 0 ? 0.8 : 0.4; // Thicker for accent lines
         ctx.stroke();
     }
@@ -246,7 +246,7 @@ const generateCompositeImage = async (
         avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2,
         avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + glowSize
     );
-    glowGradient.addColorStop(0, 'rgba(111, 3, 130, 0.7)'); // More vibrant blue
+    glowGradient.addColorStop(0, 'rgba(111, 3, 130, 0.7)'); // More vibrant purple
     glowGradient.addColorStop(1, 'rgba(30, 60, 100, 0)');
     ctx.beginPath();
     ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + glowSize, 0, Math.PI * 2);
@@ -370,8 +370,8 @@ const generateCompositeImage = async (
     roundedRect(ctx, rankX, rankY, rankWidth, 36, 5);
     ctx.stroke();
 
-    // Modern text with light blue color as requested
-    ctx.fillStyle = '#a0d0ff'; // Light blue text color
+    // Modern text with light purple color as requested
+    ctx.fillStyle = '#a0d0ff'; // Light purple text color
     ctx.shadowColor = 'rgba(87, 1, 79, 0.4)';
     ctx.shadowBlur = 4;
     ctx.shadowOffsetX = 0;
@@ -400,8 +400,8 @@ const generateCompositeImage = async (
     ctx.fillStyle = 'rgba(22, 22, 28, 0.95)';
     ctx.fillRect(progressX, progressY, progressBarWidth, progressBarHeight);
 
-    // Techy border with blue accent
-    ctx.strokeStyle = '#505060';
+    // Techy border with purple accent
+    ctx.strokeStyle = '#5C5060';
     ctx.lineWidth = 1;
     ctx.strokeRect(progressX, progressY, progressBarWidth, progressBarHeight);
 
@@ -423,11 +423,11 @@ const generateCompositeImage = async (
 
     // Modern high-contrast fill
     if (filledWidth > 0) {
-        // More vibrant blue gradient
+        // More vibrant purple gradient
         const progressGradient = ctx.createLinearGradient(progressX, progressY, progressX + progressBarWidth, progressY);
-        progressGradient.addColorStop(0, '#1060c0');
-        progressGradient.addColorStop(0.4, '#3080e0');
-        progressGradient.addColorStop(1, '#50a0ff');
+        progressGradient.addColorStop(0, '#5110C0');
+        progressGradient.addColorStop(0.4, '#8330E0');
+        progressGradient.addColorStop(1, '#7850FF');
         ctx.fillStyle = progressGradient;
 
         // Draw with sharp corners for modern look
@@ -500,7 +500,7 @@ const generateCompositeImage = async (
 
     // Modern tech header
     ctx.font = 'bold 16px Orbitron, Arial'; // Change to Orbitron for tech feel
-    ctx.fillStyle = '#a0d0ff'; // Light blue for consistency
+    ctx.fillStyle = '#5D277F'; // Dark purple for consistency
     ctx.textAlign = 'center';
     ctx.fillText('COMBAT STATISTICS', cardX + cardWidth / 2, statsStartY - 8);
 
@@ -547,7 +547,7 @@ const generateCompositeImage = async (
         ctx.beginPath();
         ctx.moveTo(statX, statY);
         ctx.lineTo(statX + statItemWidth - 10, statY);
-        ctx.strokeStyle = '#4080c0'; // More vibrant blue
+        ctx.strokeStyle = '#6F40C0'; // More vibrant purple
         ctx.lineWidth = 2;
         ctx.stroke();
 

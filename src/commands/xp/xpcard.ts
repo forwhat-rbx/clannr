@@ -246,7 +246,7 @@ const generateCompositeImage = async (
         avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2,
         avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + glowSize
     );
-    glowGradient.addColorStop(0, 'rgba(111, 3, 130, 0.7)'); // More vibrant purple
+    ctx.shadowColor = 'rgba(110, 60, 200, 0.6)';  // More vibrant purple
     glowGradient.addColorStop(1, 'rgba(30, 60, 100, 0)');
     ctx.beginPath();
     ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + glowSize, 0, Math.PI * 2);
@@ -391,7 +391,7 @@ const generateCompositeImage = async (
     const filledWidth = progress * progressBarWidth;
 
     // Shadow for depth
-    ctx.shadowColor = 'rgba(72, 1, 48, 0.4)';
+    ctx.shadowColor = 'rgba(110, 60, 200, 0.6)';
     ctx.shadowBlur = 10;
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 2;
@@ -425,9 +425,9 @@ const generateCompositeImage = async (
     if (filledWidth > 0) {
         // More vibrant purple gradient
         const progressGradient = ctx.createLinearGradient(progressX, progressY, progressX + progressBarWidth, progressY);
-        progressGradient.addColorStop(0, '#5110C0');
-        progressGradient.addColorStop(0.4, '#8330E0');
-        progressGradient.addColorStop(1, '#7850FF');
+        progressGradient.addColorStop(0, '#3a1465'); // Deep rich purple
+        progressGradient.addColorStop(0.4, '#6c2dc7'); // Medium vibrant purple
+        progressGradient.addColorStop(1, '#9d5cf0'); // Bright accent purple
         ctx.fillStyle = progressGradient;
 
         // Draw with sharp corners for modern look
@@ -500,7 +500,7 @@ const generateCompositeImage = async (
 
     // Modern tech header
     ctx.font = 'bold 16px Orbitron, Arial'; // Change to Orbitron for tech feel
-    ctx.fillStyle = '#5D277F'; // Dark purple for consistency
+    ctx.fillStyle = '#6c2dc7'; // Dark purple for consistency
     ctx.textAlign = 'center';
     ctx.fillText('COMBAT STATISTICS', cardX + cardWidth / 2, statsStartY - 8);
 
@@ -510,8 +510,9 @@ const generateCompositeImage = async (
         cardX + cardWidth - 100, statsStartY
     );
     dividerGradient.addColorStop(0, 'rgba(80, 100, 180, 0.1)');
-    dividerGradient.addColorStop(0.5, 'rgba(81, 0, 135, 0.7)');
+    dividerGradient.addColorStop(0.5, 'rgba(110, 60, 200, 0.7)'); // Improved purple
     dividerGradient.addColorStop(1, 'rgba(80, 100, 180, 0.1)');
+
     ctx.strokeStyle = dividerGradient;
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -539,7 +540,7 @@ const generateCompositeImage = async (
         ctx.fillRect(statX, statY, statItemWidth - 10, statItemHeight);
 
         // Simple clean border
-        ctx.strokeStyle = '#606070';
+        ctx.strokeStyle = '#9d5cf0';
         ctx.lineWidth = 1;
         ctx.strokeRect(statX, statY, statItemWidth - 10, statItemHeight);
 
@@ -547,7 +548,7 @@ const generateCompositeImage = async (
         ctx.beginPath();
         ctx.moveTo(statX, statY);
         ctx.lineTo(statX + statItemWidth - 10, statY);
-        ctx.strokeStyle = '#6F40C0'; // More vibrant purple
+        ctx.strokeStyle = '#9d5cf0'; // More vibrant purple
         ctx.lineWidth = 2;
         ctx.stroke();
 
@@ -555,7 +556,7 @@ const generateCompositeImage = async (
         const centerX = statX + (statItemWidth - 10) / 2;
 
         // Label with tech font
-        ctx.fillStyle = '#B390C0';
+        ctx.fillStyle = '#c4a0f0';
         ctx.font = '13px Orbitron, Arial';
         ctx.textAlign = 'center';
         ctx.fillText(item.label, centerX, statY + 17);
@@ -580,7 +581,7 @@ const generateCompositeImage = async (
 
         // Modern tech glow behind the logo
         ctx.save();
-        ctx.shadowColor = 'rgba(180, 80, 200, 0.3)';
+        ctx.shadowColor = 'rgba(110, 60, 200, 0.6)';
         ctx.shadowBlur = 25;
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 0;

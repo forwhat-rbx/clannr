@@ -8,6 +8,7 @@ import { Logger } from '../utils/logger';
 // Load environment variables
 dotenv.config();
 
+// This is now just for reference - we'll use Command.generateAPICommand() instead
 const TYPE_MAPPINGS = {
     'String': 3,
     'Number': 4,
@@ -16,8 +17,11 @@ const TYPE_MAPPINGS = {
     'DiscordChannel': 7,
     'DiscordRole': 8,
     'DiscordMentionable': 9,
+    'Attachment': 11,
     'RobloxUser': 3, // Map custom types to String
-    'RobloxRole': 3  // Map custom types to String
+    'RobloxRole': 3,  // Map custom types to String
+    'Subcommand': 1,
+    'SubcommandGroup': 2
 };
 
 async function main() {
@@ -56,23 +60,24 @@ async function main() {
                     const filePath = path.join(folderPath, file);
                     delete require.cache[require.resolve(filePath)];
 
-                    const command = require(filePath).default;
-                    if (command && command.enabled !== false) {
-                        // Create the API data from command properties
-                        const commandData = {
-                            name: command.trigger,
-                            description: command.description || 'No description',
-                            options: command.args ? command.args.map(arg => ({
-                                name: arg.trigger,
-                                description: arg.description || 'No description',
-                                type: TYPE_MAPPINGS[arg.type] || 3, // Default to String (3)
-                                required: arg.required === true,
-                                choices: arg.choices || undefined
-                            })) : [],
-                        };
+                    const CommandClass = require(filePath).default;
+                    if (!CommandClass) {
+                        console.error(`Command file ${file} does not export a default class`);
+                        continue;
+                    }
 
-                        commands.push(commandData);
-                        console.log(`Added command: ${command.trigger}`);
+                    // Create an instance of the command
+                    const command = new CommandClass();
+
+                    if (command && command.enabled !== false) {
+                        // Use the command's built-in method to generate API data
+                        try {
+                            const commandData = command.generateAPICommand();
+                            commands.push(commandData);
+                            console.log(`Added command: ${command.trigger}`);
+                        } catch (genError) {
+                            console.error(`Error generating API data for ${file}:`, genError);
+                        }
                     }
                 } catch (error) {
                     console.error(`Error processing command file ${file}:`, error);

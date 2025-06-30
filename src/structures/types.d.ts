@@ -5,6 +5,7 @@ import {
 } from 'discord.js';
 
 export interface BotConfig {
+    testGuildId: string;
     /**
      * The ID of the Roblox group this bot will be tied to.
      */

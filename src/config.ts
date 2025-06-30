@@ -79,4 +79,5 @@ export const config: BotConfig = {
     },
     status: 'dnd',
     deleteWallURLs: false,
+    testGuildId: '1115179981866278933'
 };

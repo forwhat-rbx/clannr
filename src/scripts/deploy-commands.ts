@@ -8,6 +8,18 @@ import { Logger } from '../utils/logger';
 // Load environment variables
 dotenv.config();
 
+const TYPE_MAPPINGS = {
+    'String': 3,
+    'Number': 4,
+    'Boolean': 5,
+    'DiscordUser': 6,
+    'DiscordChannel': 7,
+    'DiscordRole': 8,
+    'DiscordMentionable': 9,
+    'RobloxUser': 3, // Map custom types to String
+    'RobloxRole': 3  // Map custom types to String
+};
+
 async function main() {
     const TOKEN = process.env.DISCORD_TOKEN;
     const CLIENT_ID = process.env.CLIENT_ID || process.argv[2];
@@ -50,8 +62,13 @@ async function main() {
                         const commandData = {
                             name: command.trigger,
                             description: command.description || 'No description',
-                            options: command.args || [],
-                            // Add other required properties
+                            options: command.args ? command.args.map(arg => ({
+                                name: arg.trigger,
+                                description: arg.description || 'No description',
+                                type: TYPE_MAPPINGS[arg.type] || 3, // Default to String (3)
+                                required: arg.required === true,
+                                choices: arg.choices || undefined
+                            })) : [],
                         };
 
                         commands.push(commandData);

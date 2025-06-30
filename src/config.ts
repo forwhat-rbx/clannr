@@ -41,28 +41,28 @@ export const config: BotConfig = {
         autoRankup: true,
         roles: [
             {
-                rank: 3,
-                xp: 10,
-            },
-            {
-                rank: 4,
-                xp: 25,
-            },
-            {
                 rank: 5,
-                xp: 50,
+                xp: 40,
             },
             {
-                rank: 6,
-                xp: 70,
-            },
-            {
-                rank: 7,
+                rank: 10,
                 xp: 100,
             },
             {
-                rank: 8,
+                rank: 1,
                 xp: 150,
+            },
+            {
+                rank: 20,
+                xp: 300,
+            },
+            {
+                rank: 25,
+                xp: 500,
+            },
+            {
+                rank: 40,
+                xp: 1000,
             },
         ],
     },

@@ -86,76 +86,60 @@ async function registerSlashCommands() {
     try {
         Logger.info('Registering slash commands with Discord API...', 'Discord');
 
-        // Check if the application ID is available
         if (!discordClient.application?.id) {
             Logger.error('Cannot register commands - application ID not available', 'Discord');
             return;
         }
 
-        // Get test guild ID from environment or config
-        const testGuildId = process.env.TEST_GUILD_ID || config.testGuildId || '1297746235889025156';
+        // Map commands to Discord API format using the new method
+        const commands = discordClient.commands
+            .filter(cmd => cmd.enabled !== false)
+            .map(cmd => {
+                try {
+                    return cmd.generateAPICommand();
+                } catch (err) {
+                    Logger.error(`Failed to generate API command for ${cmd.trigger}:`, 'Discord', err);
+                    return null;
+                }
+            })
+            .filter(cmd => cmd !== null);
 
-        // Map commands to Discord API format
-        const commands = discordClient.commands.map(cmd => ({
-            name: cmd.trigger,
-            description: cmd.description || 'No description provided',
-            options: cmd.args || [],
-        }));
+        // Log the commands for debugging
+        Logger.debug(`Prepared ${commands.length} commands for registration`, 'Discord');
 
-        // Create REST instance
         const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
-        try {
-            // First try guild-specific registration (faster for testing)
-            if (testGuildId) {
-                try {
-                    // Check if bot is in the guild first
-                    const guild = await discordClient.guilds.fetch(testGuildId).catch(() => null);
-                    if (guild) {
-                        Logger.info(`Registering commands to test guild ${testGuildId}...`, 'Discord');
-                        await rest.put(
-                            Routes.applicationGuildCommands(discordClient.application.id, testGuildId),
-                            { body: commands }
-                        );
-                        Logger.info(`Registered ${commands.length} commands to test guild ${testGuildId}`, 'Discord');
-                    } else {
-                        Logger.warn(`Bot is not a member of test guild ${testGuildId}, skipping guild registration`, 'Discord');
-                    }
-                } catch (guildError) {
-                    Logger.error(`Failed to register commands to test guild: ${guildError.message}`, 'Discord');
-                    // Continue to global registration
-                }
-            }
-
-            // Then try global registration
+        // First try guild-specific registration
+        const testGuildId = process.env.TEST_GUILD_ID || config.testGuildId || '1297746235889025156';
+        if (testGuildId) {
             try {
-                Logger.info('Registering commands globally...', 'Discord');
-                await rest.put(
-                    Routes.applicationCommands(discordClient.application.id),
-                    { body: commands }
-                );
-                Logger.info(`Registered ${commands.length} commands globally`, 'Discord');
-            } catch (globalError) {
-                Logger.error(`Failed to register global commands: ${globalError.message}`, 'Discord');
-                throw globalError; // Re-throw for the outer catch block
+                const guild = await discordClient.guilds.fetch(testGuildId).catch(() => null);
+                if (guild) {
+                    Logger.info(`Registering commands to test guild ${testGuildId}...`, 'Discord');
+                    await rest.put(
+                        Routes.applicationGuildCommands(discordClient.application.id, testGuildId),
+                        { body: commands }
+                    );
+                    Logger.info(`Registered ${commands.length} commands to test guild ${testGuildId}`, 'Discord');
+                }
+            } catch (guildError) {
+                Logger.error(`Failed to register commands to test guild: ${guildError.message}`, 'Discord');
             }
-        } catch (error) {
-            Logger.error(`Command registration failed: ${error.message}`, 'Discord', error);
-
-            // Generate and log a proper invite URL
-            const { generateBotInviteUrl } = require('./utils/generateInvite');
-            const inviteUrl = generateBotInviteUrl();
-
-            Logger.warn(`Try reinviting the bot with this URL: ${inviteUrl}`, 'Discord');
-            console.error('\n===== BOT PERMISSIONS ISSUE =====');
-            console.error('Your bot lacks the necessary permissions to register slash commands.');
-            console.error('Please reinvite your bot using this URL:');
-            console.error(inviteUrl);
-            console.error('This will add the applications.commands scope which is required for slash commands.');
-            console.error('================================\n');
         }
-    } catch (outerError) {
-        Logger.error(`Failed to register slash commands: ${outerError.message}`, 'Discord', outerError);
+
+        // Then try global registration
+        try {
+            Logger.info('Registering commands globally...', 'Discord');
+            await rest.put(
+                Routes.applicationCommands(discordClient.application.id),
+                { body: commands }
+            );
+            Logger.info(`Registered ${commands.length} commands globally`, 'Discord');
+        } catch (globalError) {
+            Logger.error(`Failed to register global commands: ${globalError.message}`, 'Discord');
+        }
+    } catch (error) {
+        Logger.error(`Failed to register slash commands: ${error.message}`, 'Discord', error);
     }
 }
 

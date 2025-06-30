@@ -5,7 +5,7 @@ export const config: BotConfig = {
     groupId: 35102492,
     slashCommands: true,
     legacyCommands: {
-        enabled: false,
+        enabled: true,
         prefixes: ['-'],
     },
     permissions: {

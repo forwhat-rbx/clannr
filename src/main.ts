@@ -18,6 +18,7 @@ import { handleModalSubmit } from './handlers/modalSubmitHandler';
 import { getLogChannels as initializeLogChannels } from './handlers/handleLogging';
 import { ActivityLogger } from './utils/activityLogger';
 import { Logger } from './utils/logger';
+import { directAuthenticate, directGetGroup, directGetGroupRoles } from './utils/directAuth';
 
 require('dotenv').config();
 
@@ -30,11 +31,19 @@ if (!process.env.ROBLOX_COOKIE) {
 require('./database');
 require('./api');
 
+// [Initialize Globals]
+declare global {
+    var directAuthUser: { id: number; name: string } | null;
+    var robloxCookie: string | null;
+    var directGroupInfo: any | null;
+}
+
 // [Clients]
 const discordClient = new QbotClient();
 // Declare these at module level so they can be exported
 let robloxClient: RobloxClient;
 let robloxGroup: Group;
+let robloxAuthenticated = false;
 
 // [Initialization]
 (async () => {
@@ -52,28 +61,82 @@ let robloxGroup: Group;
         await discordClient.login(process.env.DISCORD_TOKEN);
         console.log('✅ Successfully logged in to Discord');
 
-        // Initialize Roblox client
-        console.log('Attempting to login to Roblox...');
-        robloxClient = new RobloxClient({ credentials: { cookie: process.env.ROBLOX_COOKIE } });
-        await robloxClient.login();
-
-        // Verify authentication by getting user info
-        try {
-            const userInfo = await robloxClient.apis.usersAPI.getAuthenticatedUserInformation();
-            console.log(`✅ Successfully logged in as: ${userInfo.name} (${userInfo.id})`);
-        } catch (userErr) {
-            console.log('⚠️ Authenticated, but couldn\'t fetch user details');
-        }
-
+        // Initialize log channels early
         await initializeLogChannels();
 
-        // Get the group (this will fail if not authenticated)
-        robloxGroup = await robloxClient.getGroup(config.groupId);
-        console.log(`✅ Found group: ${robloxGroup.name} (${robloxGroup.id})`);
+        // ROBLOX AUTHENTICATION - TWO METHODS
+        // --------------------------------------
 
-        // Validate group access by fetching roles (crucial for ranking permissions)
-        const roles = await robloxGroup.getRoles();
-        console.log(`✅ Authentication confirmed - found ${roles.length} group roles`);
+        // Clean up the cookie first
+        const cookie = process.env.ROBLOX_COOKIE.trim();
+
+        // Method 1: Try Bloxy authentication first
+        console.log('Attempting to login to Roblox via Bloxy...');
+        try {
+            robloxClient = new RobloxClient();
+
+            // First attempt with normal login
+            try {
+                await robloxClient.login(cookie);
+
+                // Verify authentication by getting user info
+                const userInfo = await robloxClient.apis.usersAPI.getAuthenticatedUserInformation();
+                console.log(`✅ Successfully logged in via Bloxy as: ${userInfo.name} (${userInfo.id})`);
+
+                // Get the group and verify we can access it
+                robloxGroup = await robloxClient.getGroup(config.groupId);
+                const roles = await robloxGroup.getRoles();
+
+                console.log(`✅ Found group: ${robloxGroup.name} (${robloxGroup.id}) with ${roles.length} roles`);
+                robloxAuthenticated = true;
+            } catch (loginErr) {
+                Logger.warn('Bloxy login failed, trying alternative methods...', 'Roblox', loginErr);
+            }
+        } catch (bloxyErr) {
+            Logger.error('Bloxy client initialization failed:', 'Roblox', bloxyErr);
+        }
+
+        // Method 2: If Bloxy failed, try direct authentication
+        if (!robloxAuthenticated) {
+            console.log('Attempting direct Roblox authentication...');
+            try {
+                // Authenticate directly using the custom util
+                const directAuthUser = await directAuthenticate(cookie);
+
+                if (directAuthUser && directAuthUser.id) {
+                    console.log(`✅ Successfully authenticated directly as ${directAuthUser.name} (${directAuthUser.id})`);
+
+                    // Store authenticated user info for global use
+                    global.directAuthUser = directAuthUser;
+                    global.robloxCookie = cookie;
+
+                    // Get group info directly
+                    const groupInfo = await directGetGroup(cookie, config.groupId);
+                    console.log(`✅ Connected to group: ${groupInfo.name} (${groupInfo.id})`);
+
+                    // Store group info globally
+                    global.directGroupInfo = groupInfo;
+
+                    // Verify role access
+                    const roles = await directGetGroupRoles(cookie, config.groupId);
+                    console.log(`✅ Authentication confirmed - found ${roles.length} group roles`);
+
+                    robloxAuthenticated = true;
+
+                    // Since we're using direct auth, create a minimal group object for compatibility
+                    robloxGroup = {
+                        id: groupInfo.id,
+                        name: groupInfo.name,
+                        // Add other required properties or methods as needed
+                    } as any;
+                } else {
+                    throw new Error('Direct authentication returned invalid user data');
+                }
+            } catch (directErr) {
+                Logger.error('Direct authentication failed:', 'Roblox', directErr);
+                throw new Error(`All authentication methods failed: ${directErr.message}`);
+            }
+        }
 
         // Grab a CSRF token to use for future requests
         try {
@@ -81,23 +144,16 @@ let robloxGroup: Group;
             const response = await fetchWithRetry('https://auth.roblox.com/v2/logout', {
                 method: 'POST',
                 headers: {
-                    'Cookie': `.ROBLOSECURITY=${process.env.ROBLOX_COOKIE}`
+                    'Cookie': `.ROBLOSECURITY=${cookie}`
                 }
             }, 3, 5000);
             console.log('✅ Initial XSRF token fetched successfully');
-
-            // Initialize promotion service AFTER we've confirmed authentication
-            schedulePromotionChecks();
-        } catch (err) {
-            console.error('❌ Failed to fetch initial XSRF token:', err);
-            console.log('⚠️ Continuing startup despite token fetch failure');
-
-            // Try to initialize promotion service anyway after a delay
-            setTimeout(() => {
-                console.log('Attempting to initialize promotion service after XSRF token failure');
-                schedulePromotionChecks();
-            }, 20000);
+        } catch (tokenErr) {
+            Logger.warn('Failed to fetch initial XSRF token, some operations may fail', 'Roblox', tokenErr);
         }
+
+        // Initialize promotion service AFTER we've confirmed authentication
+        schedulePromotionChecks();
 
         // [Events]
         checkSuspensions();
@@ -110,6 +166,17 @@ let robloxGroup: Group;
 
     } catch (error) {
         console.error('❌ INITIALIZATION FAILED:', error);
+
+        // Provide more helpful error information
+        if (error.message && error.message.includes('401')) {
+            console.error('\n🔑 AUTHENTICATION ERROR: Your Roblox cookie appears to be invalid or expired.');
+            console.error('Please get a new cookie by:');
+            console.error('1. Logging into Roblox in your browser');
+            console.error('2. Opening DevTools (F12) → Application tab → Cookies → roblox.com');
+            console.error('3. Copy the value of .ROBLOSECURITY cookie (without quotes)');
+            console.error('4. Update your .env file with the new cookie\n');
+        }
+
         // Hard fail on critical errors
         process.exit(1);
     }

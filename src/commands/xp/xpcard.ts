@@ -190,7 +190,7 @@ const generateCompositeImage = async (
         ctx.beginPath();
         ctx.moveTo(i, 0);
         ctx.lineTo(i, height);
-        ctx.strokeStyle = i % 180 === 0 ? '#90a0ff' : '#aaaaaa'; // Blue accent on every third line
+        ctx.strokeStyle = i % 180 === 0 ? '#5B329A' : '#aaaaaa'; // Blue accent on every third line
         ctx.lineWidth = i % 180 === 0 ? 0.8 : 0.4; // Thicker for accent lines
         ctx.stroke();
     }
@@ -199,7 +199,7 @@ const generateCompositeImage = async (
         ctx.beginPath();
         ctx.moveTo(0, i);
         ctx.lineTo(width, i);
-        ctx.strokeStyle = i % 180 === 0 ? '#90a0ff' : '#aaaaaa';
+        ctx.strokeStyle = i % 180 === 0 ? '#5B329A' : '#aaaaaa';
         ctx.lineWidth = i % 180 === 0 ? 0.8 : 0.4;
         ctx.stroke();
 
@@ -208,7 +208,7 @@ const generateCompositeImage = async (
             for (let j = 0; j < width; j += 180) {
                 ctx.beginPath();
                 ctx.arc(j, i, 2, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(120, 180, 255, 0.7)';
+                ctx.fillStyle = 'rgba(62, 1, 84, 0.7)';
                 ctx.fill();
             }
         }
@@ -555,7 +555,7 @@ const generateCompositeImage = async (
         const centerX = statX + (statItemWidth - 10) / 2;
 
         // Label with tech font
-        ctx.fillStyle = '#90a0c0';
+        ctx.fillStyle = '#B390C0';
         ctx.font = '13px Orbitron, Arial';
         ctx.textAlign = 'center';
         ctx.fillText(item.label, centerX, statY + 17);

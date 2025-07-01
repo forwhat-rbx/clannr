@@ -1,7 +1,7 @@
 import { EmbedBuilder, ColorResolvable } from 'discord.js';
 
 // Change the footer text as desired.
-const GLOBAL_FOOTER_TEXT = "SOH Bot v2";
+const GLOBAL_FOOTER_TEXT = "Powered by Valkyris Systems";
 
 // Enhanced color system
 export const embedColors = {

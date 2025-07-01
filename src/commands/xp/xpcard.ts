@@ -335,10 +335,10 @@ const generateCompositeImage = async (
 
     // ------------- USERNAME & RANK -------------
     // Determine rank level for decorative emblems
-    const rankLevel = userRank.toLowerCase().includes('commander') ? 5 :
-        userRank.toLowerCase().includes('officer') ? 4 :
-            userRank.toLowerCase().includes('captain') ? 3 :
-                userRank.toLowerCase().includes('sergeant') ? 2 : 1;
+    const rankLevel = userRank.toLowerCase().includes('Admiral') ? 5 :
+        userRank.toLowerCase().includes('Systems Engineer') ? 4 :
+            userRank.toLowerCase().includes('Sergeant') ? 3 :
+                userRank.toLowerCase().includes('Operative') ? 2 : 1;
 
     const nameX = avatarX + avatarSize + 30;
     const nameY = avatarY + 35;

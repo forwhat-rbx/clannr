@@ -283,8 +283,8 @@ async function handleVerifyButton(interaction: ButtonInteraction): Promise<void>
 
     if (result.success) {
         const embed = createBaseEmbed('primary')
-            .setTitle('Verificação bem-sucedida')
-            .setDescription(`Sua conta do Discord foi vinculada com sucesso à sua conta do Roblox.\n\n**Username:** ${result.robloxUsername}\n**User ID:** ${result.robloxId}`);
+            .setTitle('Verification Successful')
+            .setDescription(`Your Discord account has been successfully linked to your Roblox account.\n\n**Username:** ${result.robloxUsername}\n**User ID:** ${result.robloxId}`);
 
         // Update roles and nickname
         const robloxUser = await robloxClient.getUser(Number(result.robloxId));

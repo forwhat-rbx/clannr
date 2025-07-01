@@ -113,7 +113,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction): Pr
                     .setTitle('Verification Started')
                     .setDescription(
                         `Please enter this code in your Roblox profile description to verify: \n\n` +
-                        `\`\`\`\n${verificationCode}\n\`\`\n\n` +
+                        `\`\`\`\n${verificationCode}\n\`\`\`\n\n` +
                         `1. Go to [your profile](https://www.roblox.com/users/${robloxUser.id}/profile)\n` +
                         `2. Click on the pencil icon next to your description\n` +
                         `3. Paste the code anywhere in your description\n` +

@@ -143,7 +143,7 @@ export class promotionService {
 
     public async updatePromotionEmbed(): Promise<void> {
         const actor = "Promotion Service";
-        const channelId = config.logChannels.actions || '1304989133026099251';
+        const channelId = '1389399967478710272'; //promotion check
 
         console.log(`[PROMOTION DEBUG] Using channel ID: ${channelId} for promotions`);
         Logger.info(`Using channel ID: ${channelId} for promotions`, 'PromotionService');

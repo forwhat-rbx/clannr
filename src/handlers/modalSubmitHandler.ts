@@ -58,8 +58,8 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction): Pr
                 await interaction.editReply({
                     embeds: [
                         createBaseEmbed('primary')
-                            .setTitle('Já verificado')
-                            .setDescription(`Você já foi verificado como [${existingLink.name}](https://www.roblox.com/users/${existingLink.id}/profile).\n\nPara alterar sua conta, use \`/unverify\` primeiro.`)
+                            .setTitle('Already Verified')
+                            .setDescription(`You are already verified as [${existingLink.name}](https://www.roblox.com/users/${existingLink.id}/profile).\n\nTo change your account, please use \`/unverify\` first.`)
                     ]
                 });
                 return;
@@ -110,16 +110,16 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction): Pr
 
                 // Create verification embed
                 const embed = createBaseEmbed('primary')
-                    .setTitle('Verificação iniciada')
+                    .setTitle('Verification Started')
                     .setDescription(
-                        `Por favor, coloque este código na descrição de seu perfil no Roblox para verificar: \n\n` +
-                        `\`\`\`\n${verificationCode}\n\`\`\`\n\n` +
-                        `1. Vá para [seu perfil](https://www.roblox.com/users/${robloxUser.id}/profile)\n` +
-                        `2. Clique no ícone de lápis ao lado de sua descrição\n` +
-                        `3. Cole o código em qualquer lugar de sua descrição\n` +
-                        `4. Clique em Save\n` +
-                        `5. Volte e clique no botão “Verify” abaixo\n\n` +
-                        `Esta verificação expirará em 10 minutos.`
+                        `Please enter this code in your Roblox profile description to verify: \n\n` +
+                        `\`\`\`\n${verificationCode}\n\`\`\n\n` +
+                        `1. Go to [your profile](https://www.roblox.com/users/${robloxUser.id}/profile)\n` +
+                        `2. Click on the pencil icon next to your description\n` +
+                        `3. Paste the code anywhere in your description\n` +
+                        `4. Click Save\n` +
+                        `5. Go back and click on the “Verify” button below\n\n` +
+                        `This verification will expire in 10 minutes.`
                     )
                     .setThumbnail(`https://www.roblox.com/headshot-thumbnail/image?userId=${robloxUser.id}&width=420&height=420&format=png`);
 

@@ -1,12 +1,13 @@
 import { CommandContext } from '../../structures/addons/CommandAddons';
 import Command from '../../structures/Command';
-import { createBaseEmbed, embedColors } from '../../utils/embedUtils';
+import { createBaseEmbed } from '../../utils/embedUtils';
 import { getLinkedRobloxUser } from '../../handlers/accountLinks';
 import { updateUserRoles } from '../../handlers/roleBindHandler';
 import { updateNickname } from '../../handlers/nicknameHandler';
 import { robloxClient, robloxGroup } from '../../main';
 import { config } from '../../config';
-import { Role } from 'discord.js';
+import { GuildMember, User } from 'discord.js';
+import { Logger } from '../../utils/logger';
 
 class UpdateCommand extends Command {
     constructor() {
@@ -30,100 +31,190 @@ class UpdateCommand extends Command {
     async run(ctx: CommandContext) {
         try {
             // Defer the reply to give us time to process
-            await ctx.defer();
+            await ctx.defer({ ephemeral: false });
 
-            // Check if we're updating someone else (admin only)
-            let targetMember = ctx.member;
-            const targetUser = ctx.args['user'] ? ctx.args['user'] : ctx.user;
-
-            if (ctx.args['user'] && ctx.args['user'] !== ctx.user.id) {
-                // Admin permission check for updating others
-                if (!ctx.member.roles.cache.some(role => config.permissions.admin.includes(role.id))) {
-                    return ctx.reply({
-                        content: 'You need admin permissions to update other users.',
-                        ephemeral: true
-                    });
-                }
-
-                try {
-                    targetMember = await ctx.guild.members.fetch(targetUser.id);
-                } catch (err) {
-                    return ctx.reply({
-                        content: 'Could not find that user in this server.',
-                        ephemeral: true
-                    });
-                }
-            }
-
-            // Get linked Roblox user
-            const robloxUser = await getLinkedRobloxUser(targetUser.id);
-            if (!robloxUser) {
+            // Step 1: Determine target user (self or other user)
+            const targetData = await this.resolveTargetUser(ctx);
+            if (!targetData.success) {
                 return ctx.reply({
-                    content: targetUser.id === ctx.user.id
-                        ? "You're not verified. Please use `/verify` first."
-                        : "That user isn't verified.",
+                    content: targetData.message,
                     ephemeral: true
                 });
             }
 
-            // Log what we're doing
-            console.log(`Running update command for ${targetUser.tag}: Roblox user ${robloxUser.name} (${robloxUser.id})`);
+            const { targetMember, targetUser } = targetData;
+            const isSelf = targetUser.id === ctx.user.id;
 
-            // Store initial nickname for comparison later
+            // Step 2: Check if target is verified
+            const robloxUser = await getLinkedRobloxUser(targetUser.id);
+            if (!robloxUser) {
+                return ctx.reply({
+                    content: isSelf
+                        ? "You're not verified. Please use `/verify` first."
+                        : `${targetUser.tag} is not verified.`,
+                    ephemeral: true
+                });
+            }
+
+            Logger.info(
+                `Updating ${isSelf ? 'self' : targetUser.tag} (Discord ID: ${targetUser.id}) - ` +
+                `Linked to Roblox user ${robloxUser.name} (ID: ${robloxUser.id})`,
+                'UpdateCommand'
+            );
+
+            // Step 3: Update nickname
             const oldNickname = targetMember.nickname || targetMember.user.username;
-
-            // Update nickname, with verbose logging
-            console.log(`Updating nickname for ${targetMember.user.tag}`);
             const nicknameResult = await updateNickname(targetMember, robloxUser);
             const newNickname = targetMember.nickname || targetMember.user.username;
-            console.log(`Nickname update result: ${nicknameResult ? "Success" : "No change/Failed"}, Old: "${oldNickname}", New: "${newNickname}"`);
 
-            // Update roles, with verbose logging
-            console.log(`Updating roles for ${targetMember.user.tag}`);
-
-            // Custom updateUserRoles that captures role IDs for better feedback
+            // Step 4: Update roles
             const roleResult = await updateUserRoles(ctx.guild, targetMember, robloxUser.id);
 
-            console.log(`Role update result: ${roleResult.success ? "Success" : "Failed"}, Added: ${roleResult.addedRoleIds?.length || 0}, Removed: ${roleResult.removedRoleIds?.length || 0}`);
-
-            // Build a detailed response
-            const embed = createBaseEmbed();
-            embed.setTitle('Update Results');
-            const changes = [];
-
-            // Add nickname change details if applicable
-            if (nicknameResult && oldNickname !== newNickname) {
-                changes.push(`**Nickname:** \`${oldNickname}\` → \`${newNickname}\``);
-            }
-
-            // Add role changes details with mentions
-            if (roleResult.addedRoleIds && roleResult.addedRoleIds.length > 0) {
-                changes.push(`**Added Roles:** ${roleResult.addedRoleIds.map(id => `<@&${id}>`).join(' ')}`);
-            }
-
-            if (roleResult.removedRoleIds && roleResult.removedRoleIds.length > 0) {
-                changes.push(`**Removed Roles:** ${roleResult.removedRoleIds.map(id => `<@&${id}>`).join(' ')}`);
-            }
-
-            // Set description based on whether changes were made
-            if (changes.length > 0) {
-                embed.setDescription(`${targetUser.id === ctx.user.id ? 'Your' : `${targetUser.tag}'s`} data has been successfully updated:\n\n${changes.join('\n')}`);
-            } else {
-                embed.setDescription(`No changes were needed for ${targetUser.id === ctx.user.id ? 'your' : `${targetUser.tag}'s`} nickname or roles.`);
-            }
+            // Step 5: Build response with detailed changes
+            const embed = this.buildResponseEmbed({
+                targetUser,
+                isSelf,
+                nicknameResult: {
+                    success: nicknameResult,
+                    oldNickname,
+                    newNickname
+                },
+                roleResult
+            });
 
             return ctx.reply({ embeds: [embed] });
+
         } catch (err) {
-            console.error('Error in update command:', err);
+            Logger.error(`Error in update command: ${err.message}`, 'UpdateCommand', err);
             return ctx.reply({
                 embeds: [
                     createBaseEmbed('danger')
                         .setTitle('Update Error')
-                        .setDescription('An error occurred while updating: ' + (err.message || 'Unknown error'))
+                        .setDescription(`An error occurred: ${err.message || 'Unknown error'}`)
                 ],
                 ephemeral: true
             });
         }
+    }
+
+    /**
+     * Resolves the target user for the update command
+     */
+    private async resolveTargetUser(ctx: CommandContext): Promise<{
+        success: boolean;
+        message?: string;
+        targetUser?: User;
+        targetMember?: GuildMember;
+    }> {
+        // Default to self
+        let targetUser = ctx.user;
+        let targetMember = ctx.member;
+
+        // Check if updating another user
+        if (ctx.args['user']) {
+            // This will be a User object from Discord.js
+            const specifiedUser = ctx.args['user'] as User;
+
+            // Admin permission check for updating others
+            const isAdmin = ctx.member.roles.cache.some(
+                role => config.permissions.admin.includes(role.id)
+            );
+
+            if (!isAdmin) {
+                return {
+                    success: false,
+                    message: 'You need admin permissions to update other users.'
+                };
+            }
+
+            // Set the target user
+            targetUser = specifiedUser;
+
+            // Fetch the member object
+            try {
+                targetMember = await ctx.guild.members.fetch(targetUser.id);
+
+                if (!targetMember) {
+                    return {
+                        success: false,
+                        message: 'Could not find that user in this server.'
+                    };
+                }
+            } catch (err) {
+                Logger.error(`Failed to fetch member ${targetUser.tag} (${targetUser.id}): ${err.message}`, 'UpdateCommand');
+                return {
+                    success: false,
+                    message: 'Could not find that user in this server.'
+                };
+            }
+        }
+
+        return {
+            success: true,
+            targetUser,
+            targetMember
+        };
+    }
+
+    /**
+     * Builds the response embed with detailed changes
+     */
+    private buildResponseEmbed(params: {
+        targetUser: User;
+        isSelf: boolean;
+        nicknameResult: {
+            success: boolean;
+            oldNickname: string;
+            newNickname: string;
+        };
+        roleResult: {
+            success: boolean;
+            addedRoleIds?: string[];
+            removedRoleIds?: string[];
+        };
+    }): ReturnType<typeof createBaseEmbed> {
+        const { targetUser, isSelf, nicknameResult, roleResult } = params;
+        const embed = createBaseEmbed('primary').setTitle('Update Results');
+        const changes = [];
+
+        // Track nickname changes
+        const nicknameChanged = nicknameResult.success &&
+            nicknameResult.oldNickname !== nicknameResult.newNickname;
+
+        if (nicknameChanged) {
+            changes.push(
+                `**Nickname:** \`${nicknameResult.oldNickname}\` → ` +
+                `\`${nicknameResult.newNickname}\``
+            );
+        }
+
+        // Track role changes
+        if (roleResult.addedRoleIds?.length > 0) {
+            changes.push(
+                `**Added Roles:** ${roleResult.addedRoleIds.map(id => `<@&${id}>`).join(' ')}`
+            );
+        }
+
+        if (roleResult.removedRoleIds?.length > 0) {
+            changes.push(
+                `**Removed Roles:** ${roleResult.removedRoleIds.map(id => `<@&${id}>`).join(' ')}`
+            );
+        }
+
+        // Set embed description based on changes
+        if (changes.length > 0) {
+            embed.setDescription(
+                `${isSelf ? 'Your' : `${targetUser.tag}'s`} data has been updated:\n\n` +
+                `${changes.join('\n')}`
+            );
+        } else {
+            embed.setDescription(
+                `No changes were needed for ${isSelf ? 'your' : `${targetUser.tag}'s`} ` +
+                `nickname or roles.`
+            );
+        }
+
+        return embed;
     }
 }
 

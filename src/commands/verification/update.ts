@@ -4,7 +4,7 @@ import { createBaseEmbed } from '../../utils/embedUtils';
 import { getLinkedRobloxUser } from '../../handlers/accountLinks';
 import { updateUserRoles } from '../../handlers/roleBindHandler';
 import { updateNickname } from '../../handlers/nicknameHandler';
-import { robloxClient, robloxGroup } from '../../main';
+import { discordClient, robloxClient, robloxGroup } from '../../main';
 import { config } from '../../config';
 import { GuildMember, User } from 'discord.js';
 import { Logger } from '../../utils/logger';
@@ -45,19 +45,26 @@ class UpdateCommand extends Command {
             const { targetMember, targetUser } = targetData;
             const isSelf = targetUser.id === ctx.user.id;
 
+            // Add debug logging
+            Logger.debug(
+                `Update target info - ID: ${targetUser.id}, Tag: ${targetUser.tag || 'Unknown'}, Username: ${targetUser.username || 'Unknown'}`,
+                'UpdateCommand'
+            );
+
             // Step 2: Check if target is verified
             const robloxUser = await getLinkedRobloxUser(targetUser.id);
             if (!robloxUser) {
+                const username = targetUser.username || targetUser.tag || 'User';
                 return ctx.reply({
                     content: isSelf
                         ? "You're not verified. Please use `/verify` first."
-                        : `${targetUser.tag} is not verified.`,
+                        : `${username} is not verified.`,
                     ephemeral: true
                 });
             }
 
             Logger.info(
-                `Updating ${isSelf ? 'self' : targetUser.tag} (Discord ID: ${targetUser.id}) - ` +
+                `Updating ${isSelf ? 'self' : (targetUser.tag || targetUser.username || 'user')} (Discord ID: ${targetUser.id}) - ` +
                 `Linked to Roblox user ${robloxUser.name} (ID: ${robloxUser.id})`,
                 'UpdateCommand'
             );
@@ -112,9 +119,6 @@ class UpdateCommand extends Command {
 
         // Check if updating another user
         if (ctx.args['user']) {
-            // This will be a User object from Discord.js
-            const specifiedUser = ctx.args['user'] as User;
-
             // Admin permission check for updating others
             const isAdmin = ctx.member.roles.cache.some(
                 role => config.permissions.admin.includes(role.id)
@@ -127,12 +131,43 @@ class UpdateCommand extends Command {
                 };
             }
 
-            // Set the target user
-            targetUser = specifiedUser;
-
-            // Fetch the member object
             try {
-                targetMember = await ctx.guild.members.fetch(targetUser.id);
+                // Handle different possible formats of the user argument
+                let userId: string;
+
+                // If it's already a User object
+                if (typeof ctx.args['user'] === 'object' && ctx.args['user'] !== null) {
+                    if ('id' in ctx.args['user']) {
+                        userId = ctx.args['user'].id;
+
+                        // If it's already a complete User object, use it
+                        if ('tag' in ctx.args['user'] && 'username' in ctx.args['user']) {
+                            targetUser = ctx.args['user'] as User;
+                        } else {
+                            // Otherwise fetch the complete user
+                            targetUser = await discordClient.users.fetch(userId);
+                        }
+                    } else {
+                        return {
+                            success: false,
+                            message: 'Invalid user provided. Please mention a user or provide their ID.'
+                        };
+                    }
+                } else if (typeof ctx.args['user'] === 'string') {
+                    // If it's a string (ID or mention)
+                    userId = ctx.args['user'].replace(/[<@!>]/g, '');
+                    targetUser = await discordClient.users.fetch(userId);
+                } else {
+                    return {
+                        success: false,
+                        message: 'Invalid user provided. Please mention a user or provide their ID.'
+                    };
+                }
+
+                Logger.debug(`Resolved user target: ${userId}`, 'UpdateCommand');
+
+                // Fetch the member object
+                targetMember = await ctx.guild.members.fetch(userId);
 
                 if (!targetMember) {
                     return {
@@ -141,7 +176,7 @@ class UpdateCommand extends Command {
                     };
                 }
             } catch (err) {
-                Logger.error(`Failed to fetch member ${targetUser.tag} (${targetUser.id}): ${err.message}`, 'UpdateCommand');
+                Logger.error(`Failed to resolve target user: ${err.message}`, 'UpdateCommand', err);
                 return {
                     success: false,
                     message: 'Could not find that user in this server.'
@@ -177,6 +212,10 @@ class UpdateCommand extends Command {
         const embed = createBaseEmbed('primary').setTitle('Update Results');
         const changes = [];
 
+        // Get a safe display name for the user
+        const userDisplay = isSelf ? 'Your' :
+            `${targetUser.tag || targetUser.username || 'User'}'s`;
+
         // Track nickname changes
         const nicknameChanged = nicknameResult.success &&
             nicknameResult.oldNickname !== nicknameResult.newNickname;
@@ -204,12 +243,12 @@ class UpdateCommand extends Command {
         // Set embed description based on changes
         if (changes.length > 0) {
             embed.setDescription(
-                `${isSelf ? 'Your' : `${targetUser.tag}'s`} data has been updated:\n\n` +
+                `${userDisplay} data has been updated:\n\n` +
                 `${changes.join('\n')}`
             );
         } else {
             embed.setDescription(
-                `No changes were needed for ${isSelf ? 'your' : `${targetUser.tag}'s`} ` +
+                `No changes were needed for ${userDisplay.toLowerCase()} ` +
                 `nickname or roles.`
             );
         }

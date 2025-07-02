@@ -5,8 +5,8 @@ const GLOBAL_FOOTER_TEXT = "Powered by Valkyris Systems";
 
 // Enhanced color system
 export const embedColors = {
-    normal: '#6699ff',   // Default blue
-    primary: '#6699ff',  // Same as normal for backward compatibility
+    normal: '#9157D6',   // Default blue
+    primary: '#9157D6',  // Same as normal for backward compatibility
     success: '#4CAF50',  // Green
     danger: '#992D22',   // Crimson red (not too bright)
     warning: '#FFA726',  // Orange
@@ -14,7 +14,7 @@ export const embedColors = {
     // Verification-specific colors
     verificationSuccess: '#4CAF50',  // Same as success
     verificationFailed: '#992D22',   // Same as danger
-    verificationPending: '#6699ff',  // Same as primary
+    verificationPending: '#9157D6',  // Same as primary
     accountUnlinked: '#FFA726'       // Same as warning
 };
 

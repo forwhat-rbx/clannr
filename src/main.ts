@@ -175,11 +175,22 @@ async function tryBloxyAuthentication(cookie: string) {
     try {
         robloxClient = new RobloxClient();
 
-        // Try to login
-        await robloxClient.login(cookie);
+        // Try to login - but don't throw when it fails
+        try {
+            await robloxClient.login(cookie);
+        } catch (loginError) {
+            // Silently catch login errors - we'll verify auth below
+            Logger.debug('Bloxy login attempt completed', 'Roblox');
+        }
 
-        // Verify authentication by getting user info
-        const userInfo = await robloxClient.apis.usersAPI.getAuthenticatedUserInformation();
+        // Verify authentication by getting user info - this will fail if login failed
+        const userInfo = await robloxClient.apis.usersAPI.getAuthenticatedUserInformation()
+            .catch(() => null);
+
+        if (!userInfo) {
+            throw new Error('Failed to get authenticated user info');
+        }
+
         Logger.info(`Successfully logged in via Bloxy as: ${userInfo.name} (${userInfo.id})`, 'Roblox');
 
         // Get the group and verify we can access it
@@ -189,7 +200,9 @@ async function tryBloxyAuthentication(cookie: string) {
         Logger.info(`Found group: ${robloxGroup.name} (${robloxGroup.id}) with ${roles.length} roles`, 'Roblox');
         robloxAuthenticated = true;
     } catch (error) {
-        Logger.warn('Bloxy authentication failed, will try alternative methods', 'Roblox', error);
+        // Log a single clean message instead of the full error
+        Logger.warn('Bloxy authentication unsuccessful, will try alternative methods', 'Roblox');
+        Logger.debug(`Bloxy auth details: ${error.message}`, 'Roblox');
     }
 }
 

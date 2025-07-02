@@ -6,7 +6,7 @@ import { createBaseEmbed } from '../utils/embedUtils';
 import { findHighestEligibleRole, getRankName } from '../commands/ranking/xprankup';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 import { safeUpdateMember } from '../utils/robloxUtils';
-import { logSystemAction, logAction as legacyLogAction } from '../handlers/handleLogging'; // Import new and keep old if needed elsewhere
+import { logSystemAction, logAction as legacyLogAction } from '../handlers/handleLogging';
 import { PartialUser, User as RobloxUser } from 'bloxy/dist/structures';
 import { Logger } from '../utils/logger';
 

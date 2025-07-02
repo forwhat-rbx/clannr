@@ -49,7 +49,7 @@ export const config: BotConfig = {
                 xp: 100,
             },
             {
-                rank: 1,
+                rank: 15,
                 xp: 150,
             },
             {

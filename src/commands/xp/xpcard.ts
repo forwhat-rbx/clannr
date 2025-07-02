@@ -157,7 +157,7 @@ const generateCompositeImage = async (
 ) => {
     // Image URLs
     const newBackgroundUrl = 'https://i.ibb.co/MxmMh5xp/VALK-BACK.png';
-    const frontLogoUrl = 'https://i.ibb.co/9mFdrgg8/valkrallylogo.png';
+    const frontLogoUrl = '';
 
     // Canvas setup
     const width = 1000;

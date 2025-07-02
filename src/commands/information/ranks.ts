@@ -42,8 +42,8 @@ class RolesCommand extends Command {
                 .setFooter({ text: 'Use /getxp to check your current XP' });
 
             // Separate ranks into categories
-            const staffRanks = sortedGroupRoles.filter(role => role.rank >= 100);
-            const memberRanks = sortedGroupRoles.filter(role => role.rank < 100 && role.rank > 1)
+            const staffRanks = sortedGroupRoles.filter(role => role.rank >= 50);
+            const memberRanks = sortedGroupRoles.filter(role => role.rank < 50 && role.rank > 1)
                 .sort((a, b) => b.rank - a.rank); // Display highest first
             const guestRank = sortedGroupRoles.find(role => role.rank === 1);
 

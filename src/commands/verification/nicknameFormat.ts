@@ -14,7 +14,7 @@ class NicknameFormatCommand extends Command {
             args: [
                 {
                     trigger: 'format',
-                    description: 'The format to use for nicknames (use {robloxUsername}, {robloxDisplayName}, {rankName})',
+                    description: 'The format to use for nicknames (use {robloxUsername}, {robloxDisplayName}, {rankName}, {rankPrefix})',
                     type: 'String',
                     required: false
                 }
@@ -45,7 +45,8 @@ class NicknameFormatCommand extends Command {
                                 'Available placeholders:\n' +
                                 '• `{robloxUsername}` - Roblox username\n' +
                                 '• `{robloxDisplayName}` - Roblox display name\n' +
-                                '• `{rankName}` - Group rank name')
+                                '• `{rankName}` - Group rank name\n' +
+                                '• `{rankPrefix}` - Rank prefix in brackets')
                     ]
                 });
             }

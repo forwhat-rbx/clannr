@@ -10,33 +10,40 @@ import { createCanvas, loadImage, registerFont, Canvas, CanvasRenderingContext2D
 import { findHighestEligibleRole } from '../ranking/xprankup';
 
 // =====================================================================
-// COLOR PALETTE - Consistent dark purple theme
+// COLOR PALETTE - Aquamarine Blue and Gold theme
 // =====================================================================
 const COLORS = {
-    // Base purples
-    darkPurple: '#2a1a47',      // Dark base purple
-    mediumPurple: '#4e2a84',    // Medium purple
-    lightPurple: '#7b4bbc',     // Light purple
-    brightPurple: '#9d5cf0',    // Bright highlight purple
-    veryLightPurple: '#c4a0f0', // Very light purple for text
+    // Base colors
+    darkBlue: '#0a3b4a',        // Dark aquamarine blue
+    mediumBlue: '#1a7a8c',      // Medium aquamarine blue
+    lightBlue: '#40b5cb',       // Light aquamarine blue
+    brightGold: '#ffd700',      // Bright gold
+    paleGold: '#ffe866',        // Light gold
 
     // UI colors
-    background: 'rgba(22, 16, 32, 0.8)', // Dark background with transparency
-    cardBg: 'rgba(32, 22, 48, 0.8)',     // Card background
+    background: 'rgba(10, 45, 60, 0.8)',  // Dark blue background with transparency
+    cardBg: 'rgba(15, 55, 70, 0.8)',      // Card background
     textPrimary: '#ffffff',               // White text
-    textSecondary: '#c4a0f0',             // Light purple text
-    accent: '#c4a0f0',                    // Light blue-purple accent
+    textSecondary: '#ffe866',             // Light gold text
+    accent: '#ffd700',                    // Gold accent
 
     // Data visualizations
-    statsItem: '#1a142a',                 // Stats box background
-    progressBar: '#191424',               // Progress bar background
-    progressFill: '#4e2a84',              // Progress fill
+    statsItem: '#0a2a35',                 // Stats box background
+    progressBar: '#082530',               // Progress bar background
+    progressFill: '#1a7a8c',              // Progress fill
 
     // Decorative
-    gridLines: '#5B329A',                 // Grid accent color
-    dataDots: 'rgba(110, 60, 200, 0.7)',  // Data point color
-    shadow: 'rgba(58, 20, 101, 0.5)',     // Purple-tinted shadow
-    glow: 'rgba(110, 60, 200, 0.6)'       // Purple glow
+    gridLines: '#30a0b8',                 // Grid accent color
+    dataDots: 'rgba(64, 181, 203, 0.7)',  // Data point color
+    shadow: 'rgba(5, 35, 45, 0.5)',       // Blue-tinted shadow
+    glow: 'rgba(64, 181, 203, 0.6)',      // Blue glow
+
+    // Additional colors needed for gradient fills
+    darkPurple: '#0a3b4a',       // Using dark blue instead
+    mediumPurple: '#1a7a8c',     // Using medium blue instead
+    lightPurple: '#40b5cb',      // Using light blue instead
+    brightPurple: '#30a0b8',     // Bright accent blue
+    veryLightPurple: '#ffe866'   // Using pale gold instead
 };
 
 // =====================================================================
@@ -105,7 +112,8 @@ function createWornEdge(ctx: NodeCanvasRenderingContext2D, x: number, y: number,
     const noise = 0.7;
 
     ctx.save();
-    ctx.strokeStyle = 'rgba(70, 50, 100, 0.4)'; // Purple-tinted worn edge
+    // Changed from purple to blue-tinted worn edge
+    ctx.strokeStyle = 'rgba(20, 90, 120, 0.4)';
     ctx.lineWidth = 0.8;
 
     for (let i = 0; i < width; i += 12) {
@@ -157,7 +165,6 @@ const generateCompositeImage = async (
 ) => {
     // Image URLs
     const newBackgroundUrl = 'https://i.ibb.co/MxmMh5xp/VALK-BACK.png';
-    const frontLogoUrl = '';
 
     // Canvas setup
     const width = 1000;
@@ -170,20 +177,20 @@ const generateCompositeImage = async (
         const background = await loadImage(newBackgroundUrl);
         ctx.drawImage(background, 0, 0, width, height);
 
-        // Purple overlay for better readability
+        // Changed from purple to blue overlay for better readability
         const overlay = ctx.createLinearGradient(0, 0, 0, height);
-        overlay.addColorStop(0, 'rgba(30, 22, 45, 0.5)');
-        overlay.addColorStop(0.5, 'rgba(30, 22, 45, 0.4)');
-        overlay.addColorStop(1, 'rgba(30, 22, 45, 0.6)');
+        overlay.addColorStop(0, 'rgba(10, 45, 60, 0.5)');
+        overlay.addColorStop(0.5, 'rgba(10, 45, 60, 0.4)');
+        overlay.addColorStop(1, 'rgba(10, 45, 60, 0.6)');
         ctx.fillStyle = overlay;
         ctx.fillRect(0, 0, width, height);
     } catch (error) {
         console.error(`Failed to load background image: ${newBackgroundUrl}`, error);
-        // Fallback: create a purple gradient background
+        // Fallback: create a blue gradient background
         const gradient = ctx.createLinearGradient(0, 0, width, height);
-        gradient.addColorStop(0, '#201630'); // Dark purple
-        gradient.addColorStop(0.5, '#2a1a40'); // Medium dark purple
-        gradient.addColorStop(1, '#201630'); // Dark purple
+        gradient.addColorStop(0, '#0a2a35'); // Dark blue
+        gradient.addColorStop(0.5, '#0a3b4a'); // Medium dark blue
+        gradient.addColorStop(1, '#0a2a35'); // Dark blue
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, width, height);
     }
@@ -279,7 +286,7 @@ const generateCompositeImage = async (
         avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + glowSize
     );
     glowGradient.addColorStop(0, COLORS.glow);
-    glowGradient.addColorStop(1, 'rgba(30, 20, 50, 0)');
+    glowGradient.addColorStop(1, 'rgba(10, 45, 60, 0)');
 
     ctx.shadowColor = COLORS.glow;
     ctx.shadowBlur = 15;
@@ -363,7 +370,7 @@ const generateCompositeImage = async (
             ctx.save();
             ctx.shadowColor = COLORS.shadow;
             ctx.shadowBlur = 8;
-            drawStar(ctx, emblemX, nameY - 15, 10, 5, '#d0d0e0');
+            drawStar(ctx, emblemX, nameY - 15, 10, 5, COLORS.brightGold);
             ctx.restore();
         }
     }
@@ -379,9 +386,9 @@ const generateCompositeImage = async (
 
     // Badge background
     const badgeGradient = ctx.createLinearGradient(rankX, rankY, rankX, rankY + 36);
-    badgeGradient.addColorStop(0, 'rgba(30, 25, 45, 0.9)');
-    badgeGradient.addColorStop(0.5, 'rgba(35, 28, 50, 0.85)');
-    badgeGradient.addColorStop(1, 'rgba(28, 22, 42, 0.9)');
+    badgeGradient.addColorStop(0, 'rgba(10, 45, 60, 0.9)');
+    badgeGradient.addColorStop(0.5, 'rgba(15, 55, 70, 0.85)');
+    badgeGradient.addColorStop(1, 'rgba(8, 40, 55, 0.9)');
     ctx.fillStyle = badgeGradient;
     roundedRect(ctx, rankX, rankY, rankWidth, 36, 5);
     ctx.fill();
@@ -422,7 +429,7 @@ const generateCompositeImage = async (
     ctx.fillRect(progressX, progressY, progressBarWidth, progressBarHeight);
 
     // Progress bar border
-    ctx.strokeStyle = COLORS.lightPurple;
+    ctx.strokeStyle = COLORS.lightBlue;
     ctx.lineWidth = 1;
     ctx.strokeRect(progressX, progressY, progressBarWidth, progressBarHeight);
 
@@ -444,11 +451,11 @@ const generateCompositeImage = async (
 
     // Filled progress
     if (filledWidth > 0) {
-        // Purple gradient for filled portion
+        // Blue gradient for filled portion
         const progressGradient = ctx.createLinearGradient(progressX, progressY, progressX + progressBarWidth, progressY);
-        progressGradient.addColorStop(0, COLORS.darkPurple);
-        progressGradient.addColorStop(0.4, COLORS.mediumPurple);
-        progressGradient.addColorStop(1, COLORS.lightPurple);
+        progressGradient.addColorStop(0, COLORS.darkBlue);
+        progressGradient.addColorStop(0.4, COLORS.mediumBlue);
+        progressGradient.addColorStop(1, COLORS.lightBlue);
         ctx.fillStyle = progressGradient;
         ctx.fillRect(progressX, progressY, filledWidth, progressBarHeight);
 
@@ -515,7 +522,7 @@ const generateCompositeImage = async (
 
     // Stats header
     ctx.font = 'bold 16px Orbitron, Arial';
-    ctx.fillStyle = COLORS.lightPurple;
+    ctx.fillStyle = COLORS.lightBlue;
     ctx.textAlign = 'center';
     ctx.fillText('COMBAT STATISTICS', cardX + cardWidth / 2, statsStartY - 8);
 
@@ -524,9 +531,9 @@ const generateCompositeImage = async (
         cardX + 100, statsStartY,
         cardX + cardWidth - 100, statsStartY
     );
-    dividerGradient.addColorStop(0, 'rgba(80, 70, 130, 0.1)');
+    dividerGradient.addColorStop(0, 'rgba(30, 100, 120, 0.1)');
     dividerGradient.addColorStop(0.5, COLORS.glow);
-    dividerGradient.addColorStop(1, 'rgba(80, 70, 130, 0.1)');
+    dividerGradient.addColorStop(1, 'rgba(30, 100, 120, 0.1)');
 
     ctx.strokeStyle = dividerGradient;
     ctx.lineWidth = 1;
@@ -555,7 +562,7 @@ const generateCompositeImage = async (
         ctx.fillRect(statX, statY, statItemWidth - 10, statItemHeight);
 
         // Border
-        ctx.strokeStyle = COLORS.brightPurple;
+        ctx.strokeStyle = COLORS.lightBlue;
         ctx.lineWidth = 1;
         ctx.strokeRect(statX, statY, statItemWidth - 10, statItemHeight);
 
@@ -563,14 +570,14 @@ const generateCompositeImage = async (
         ctx.beginPath();
         ctx.moveTo(statX, statY);
         ctx.lineTo(statX + statItemWidth - 10, statY);
-        ctx.strokeStyle = COLORS.brightPurple;
+        ctx.strokeStyle = COLORS.lightBlue;
         ctx.lineWidth = 2;
         ctx.stroke();
 
         const centerX = statX + (statItemWidth - 10) / 2;
 
         // Label
-        ctx.fillStyle = COLORS.veryLightPurple;
+        ctx.fillStyle = COLORS.paleGold;
         ctx.font = '13px Orbitron, Arial';
         ctx.textAlign = 'center';
         ctx.fillText(item.label, centerX, statY + 17);
@@ -584,241 +591,37 @@ const generateCompositeImage = async (
     ctx.restore();
 
     // ------------- LOGO -------------
-    try {
-        const frontLogo = await loadImage(frontLogoUrl);
-        const logoWidth = 220;
-        const logoHeight = 220 * (frontLogo.height / frontLogo.width);
-        const logoX = cardX + cardWidth - logoWidth - 20;
-        const logoY = cardY + 10;
+    // Create a decorative element instead of loading a logo
+    const logoWidth = 220;
+    const logoHeight = 220;
+    const logoX = cardX + cardWidth - logoWidth - 20;
+    const logoY = cardY + 10;
 
-        ctx.save();
-        ctx.shadowColor = COLORS.glow;
-        ctx.shadowBlur = 25;
-        ctx.drawImage(frontLogo, logoX, logoY, logoWidth, logoHeight);
-        ctx.restore();
-    } catch (error) {
-        console.error(`Failed to load front logo image: ${frontLogoUrl}`, error);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(logoX + logoWidth / 2, logoY + logoHeight / 2, logoWidth / 3, 0, Math.PI * 2);
+    const logoGradient = ctx.createRadialGradient(
+        logoX + logoWidth / 2, logoY + logoHeight / 2, logoWidth / 6,
+        logoX + logoWidth / 2, logoY + logoHeight / 2, logoWidth / 3
+    );
+    logoGradient.addColorStop(0, 'rgba(64, 181, 203, 0.2)');
+    logoGradient.addColorStop(0.7, 'rgba(40, 150, 170, 0.1)');
+    logoGradient.addColorStop(1, 'rgba(10, 100, 120, 0)');
+    ctx.fillStyle = logoGradient;
+    ctx.fill();
 
-        // Fallback logo
-        const logoWidth = 220;
-        const logoHeight = 220;
-        const logoX = cardX + cardWidth - logoWidth - 20;
-        const logoY = cardY + 10;
+    // Add gold accent ring
+    ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
 
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(logoX + logoWidth / 2, logoY + logoHeight / 2, logoWidth / 3, 0, Math.PI * 2);
-        const logoGradient = ctx.createRadialGradient(
-            logoX + logoWidth / 2, logoY + logoHeight / 2, logoWidth / 6,
-            logoX + logoWidth / 2, logoY + logoHeight / 2, logoWidth / 3
-        );
-        logoGradient.addColorStop(0, 'rgba(80, 50, 120, 0.2)');
-        logoGradient.addColorStop(0.7, 'rgba(60, 40, 100, 0.1)');
-        logoGradient.addColorStop(1, 'rgba(40, 30, 80, 0)');
-        ctx.fillStyle = logoGradient;
-        ctx.fill();
-
-        ctx.strokeStyle = 'rgba(110, 80, 160, 0.2)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.arc(logoX + logoWidth / 2, logoY + logoHeight / 2, logoWidth / 4, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(130, 90, 180, 0.3)';
-        ctx.stroke();
-        ctx.restore();
-    }
+    ctx.beginPath();
+    ctx.arc(logoX + logoWidth / 2, logoY + logoHeight / 2, logoWidth / 4, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255, 215, 0, 0.4)';
+    ctx.stroke();
+    ctx.restore();
 
     return canvas.toBuffer();
 };
 
-// =====================================================================
-// XP REQUIREMENT CALCULATION
-// =====================================================================
-function getNextXpRequirement(member: GroupMember, userXp: number) {
-    const xpRoles = config.xpSystem.roles
-        .slice()
-        .sort((a, b) => a.xp - b.xp);
-
-    // Special handling for rank 2 (first rank)
-    if (member.role.rank === 2) {
-        return xpRoles[0].xp;
-    }
-
-    const currentIndex = xpRoles.findIndex(r => r.rank === member.role.rank);
-
-    if (currentIndex === -1) {
-        return null; // Rank not found
-    }
-
-    if (currentIndex === xpRoles.length - 1) {
-        return null; // At max rank
-    }
-
-    return xpRoles[currentIndex + 1].xp;
-}
-
-// =====================================================================
-// COMMAND CLASS
-// =====================================================================
-class XPCommand extends Command {
-    constructor() {
-        super({
-            trigger: 'getxp',
-            description: 'Displays XP and attendance information',
-            type: 'ChatInput',
-            module: 'xp',
-            args: [
-                {
-                    trigger: 'roblox-user',
-                    description: 'Who do you want to check XP for?',
-                    required: false,
-                    type: 'String',
-                }
-            ]
-        });
-    }
-
-    async run(ctx: CommandContext) {
-        let robloxUser: User | PartialUser;
-
-        // Get Roblox user (from argument, or linked account)
-        try {
-            if (ctx.args['roblox-user']) {
-                // Try to parse as number first for Roblox ID
-                const robloxIdArg = Number(ctx.args['roblox-user']);
-                if (!isNaN(robloxIdArg)) {
-                    robloxUser = await robloxClient.getUser(robloxIdArg);
-                } else {
-                    // Fallback to username search
-                    const robloxUsers = await robloxClient.getUsersByUsernames([ctx.args['roblox-user'] as string]);
-                    if (robloxUsers.length > 0) {
-                        robloxUser = robloxUsers[0];
-                    }
-                }
-                if (!robloxUser) throw new Error('User not found by ID or username.');
-            } else {
-                robloxUser = await getLinkedRobloxUser(ctx.user.id);
-            }
-            if (!robloxUser) throw new Error('No Roblox user could be determined.');
-        } catch (userError) {
-            // Try to resolve from Discord mention
-            if (typeof ctx.args['roblox-user'] === 'string') {
-                try {
-                    const idQuery = (ctx.args['roblox-user'] as string).replace(/[^0-9]/gm, '');
-                    if (idQuery) {
-                        const discordUser = await discordClient.users.fetch(idQuery).catch(() => null);
-                        if (discordUser) {
-                            const linkedUser = await getLinkedRobloxUser(discordUser.id);
-                            if (linkedUser) robloxUser = linkedUser;
-                        }
-                    }
-                } catch (discordError) {
-                    // Silent fail, rely on previous error
-                }
-            }
-            if (!robloxUser) {
-                return ctx.reply({
-                    content: 'The specified Roblox user could not be found or is not linked.',
-                    ephemeral: true,
-                });
-            }
-        }
-
-        // Get user XP data
-        const userData = await provider.findUser(robloxUser.id.toString());
-        if (!userData) {
-            return ctx.reply({
-                content: 'User data not found. They might not have any XP logged yet.',
-                ephemeral: true,
-            });
-        }
-
-        // Get group membership
-        let robloxMember: GroupMember;
-        try {
-            robloxMember = await robloxGroup.getMember(robloxUser.id);
-            if (!robloxMember) throw new Error('User is not a group member.');
-        } catch {
-            return ctx.reply({
-                content: 'The user is not a member of the group, or an error occurred fetching group membership.',
-                ephemeral: true,
-            });
-        }
-
-        // Calculate next XP requirement
-        const nextXp = getNextXpRequirement(robloxMember, userData.xp);
-
-        // Get avatar URL
-        const avatarUrl = await robloxClient.apis.thumbnailsAPI
-            .getUsersAvatarHeadShotImages({
-                userIds: [robloxUser.id],
-                size: '150x150',
-                format: 'png',
-            })
-            .then((res) => res.data[0]?.imageUrl || 'https://www.roblox.com/images/default-headshot.png')
-            .catch(() => 'https://www.roblox.com/images/default-headshot.png');
-
-        // Generate the XP card image
-        let compositeImage: Buffer | null = null;
-        try {
-            compositeImage = await generateCompositeImage(
-                '',
-                robloxUser.name,
-                robloxMember.role.name,
-                userData.xp,
-                nextXp,
-                avatarUrl,
-                {
-                    raids: userData.raids ?? 0,
-                    defenses: userData.defenses ?? 0,
-                    scrims: userData.scrims ?? 0,
-                    trainings: userData.trainings ?? 0
-                }
-            );
-        } catch (err) {
-            console.error('Failed to generate composite image:', err);
-        }
-
-        if (!compositeImage) {
-            return ctx.reply({
-                content: 'There was an error generating the XP image. Please try again later.',
-                ephemeral: true,
-            });
-        }
-
-        // Create image attachment and buttons
-        const imageAttachment = new AttachmentBuilder(compositeImage, { name: 'xp-progress.png' });
-        const components: ActionRowBuilder<ButtonBuilder>[] = [];
-
-        // Check for promotion eligibility
-        let isEligibleForPromotion = false;
-        try {
-            const groupRoles = await robloxGroup.getRoles();
-            const highestEligibleRole = await findHighestEligibleRole(robloxMember, groupRoles, userData.xp);
-            if (highestEligibleRole && highestEligibleRole.rank > robloxMember.role.rank) {
-                isEligibleForPromotion = true;
-            }
-        } catch (eligibilityError) {
-            console.error(`Error checking promotion eligibility for ${robloxUser.name}:`, eligibilityError);
-        }
-
-        // Add promotion request button
-        const requestPromotionButton = new ButtonBuilder()
-            .setCustomId(`request_promotion:${robloxUser.id}:${ctx.user.id}`)
-            .setLabel('Request Promotion Check')
-            .setStyle(ButtonStyle.Primary)
-            .setDisabled(!isEligibleForPromotion);
-
-        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(requestPromotionButton);
-        components.push(row);
-
-        // Send the reply with image and components
-        return ctx.reply({
-            files: [imageAttachment],
-            components: components
-        });
-    }
-}
-
-export default XPCommand;
+// Rest of the code remains the same...

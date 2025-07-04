@@ -624,4 +624,193 @@ const generateCompositeImage = async (
     return canvas.toBuffer();
 };
 
-// Rest of the code remains the same...
+// =====================================================================
+// XP REQUIREMENT CALCULATION
+// =====================================================================
+function getNextXpRequirement(member: GroupMember, userXp: number) {
+    const xpRoles = config.xpSystem.roles
+        .slice()
+        .sort((a, b) => a.xp - b.xp);
+
+    // Special handling for rank 2 (first rank)
+    if (member.role.rank === 2) {
+        return xpRoles[0].xp;
+    }
+
+    const currentIndex = xpRoles.findIndex(r => r.rank === member.role.rank);
+
+    if (currentIndex === -1) {
+        return null; // Rank not found
+    }
+
+    if (currentIndex === xpRoles.length - 1) {
+        return null; // At max rank
+    }
+
+    return xpRoles[currentIndex + 1].xp;
+}
+
+// =====================================================================
+// COMMAND CLASS
+// =====================================================================
+class XPCommand extends Command {
+    constructor() {
+        super({
+            trigger: 'getxp',
+            description: 'Displays XP and attendance information',
+            type: 'ChatInput',
+            module: 'xp',
+            args: [
+                {
+                    trigger: 'roblox-user',
+                    description: 'Who do you want to check XP for?',
+                    required: false,
+                    type: 'String',
+                }
+            ]
+        });
+    }
+
+    async run(ctx: CommandContext) {
+        let robloxUser: User | PartialUser;
+
+        // Get Roblox user (from argument, or linked account)
+        try {
+            if (ctx.args['roblox-user']) {
+                // Try to parse as number first for Roblox ID
+                const robloxIdArg = Number(ctx.args['roblox-user']);
+                if (!isNaN(robloxIdArg)) {
+                    robloxUser = await robloxClient.getUser(robloxIdArg);
+                } else {
+                    // Fallback to username search
+                    const robloxUsers = await robloxClient.getUsersByUsernames([ctx.args['roblox-user'] as string]);
+                    if (robloxUsers.length > 0) {
+                        robloxUser = robloxUsers[0];
+                    }
+                }
+                if (!robloxUser) throw new Error('User not found by ID or username.');
+            } else {
+                robloxUser = await getLinkedRobloxUser(ctx.user.id);
+            }
+            if (!robloxUser) throw new Error('No Roblox user could be determined.');
+        } catch (userError) {
+            // Try to resolve from Discord mention
+            if (typeof ctx.args['roblox-user'] === 'string') {
+                try {
+                    const idQuery = (ctx.args['roblox-user'] as string).replace(/[^0-9]/gm, '');
+                    if (idQuery) {
+                        const discordUser = await discordClient.users.fetch(idQuery).catch(() => null);
+                        if (discordUser) {
+                            const linkedUser = await getLinkedRobloxUser(discordUser.id);
+                            if (linkedUser) robloxUser = linkedUser;
+                        }
+                    }
+                } catch (discordError) {
+                    // Silent fail, rely on previous error
+                }
+            }
+            if (!robloxUser) {
+                return ctx.reply({
+                    content: 'The specified Roblox user could not be found or is not linked.',
+                    ephemeral: true,
+                });
+            }
+        }
+
+        // Get user XP data
+        const userData = await provider.findUser(robloxUser.id.toString());
+        if (!userData) {
+            return ctx.reply({
+                content: 'User data not found. They might not have any XP logged yet.',
+                ephemeral: true,
+            });
+        }
+
+        // Get group membership
+        let robloxMember: GroupMember;
+        try {
+            robloxMember = await robloxGroup.getMember(robloxUser.id);
+            if (!robloxMember) throw new Error('User is not a group member.');
+        } catch {
+            return ctx.reply({
+                content: 'The user is not a member of the group, or an error occurred fetching group membership.',
+                ephemeral: true,
+            });
+        }
+
+        // Calculate next XP requirement
+        const nextXp = getNextXpRequirement(robloxMember, userData.xp);
+
+        // Get avatar URL
+        const avatarUrl = await robloxClient.apis.thumbnailsAPI
+            .getUsersAvatarHeadShotImages({
+                userIds: [robloxUser.id],
+                size: '150x150',
+                format: 'png',
+            })
+            .then((res) => res.data[0]?.imageUrl || 'https://www.roblox.com/images/default-headshot.png')
+            .catch(() => 'https://www.roblox.com/images/default-headshot.png');
+
+        // Generate the XP card image
+        let compositeImage: Buffer | null = null;
+        try {
+            compositeImage = await generateCompositeImage(
+                '',
+                robloxUser.name,
+                robloxMember.role.name,
+                userData.xp,
+                nextXp,
+                avatarUrl,
+                {
+                    raids: userData.raids ?? 0,
+                    defenses: userData.defenses ?? 0,
+                    scrims: userData.scrims ?? 0,
+                    trainings: userData.trainings ?? 0
+                }
+            );
+        } catch (err) {
+            console.error('Failed to generate composite image:', err);
+        }
+
+        if (!compositeImage) {
+            return ctx.reply({
+                content: 'There was an error generating the XP image. Please try again later.',
+                ephemeral: true,
+            });
+        }
+
+        // Create image attachment and buttons
+        const imageAttachment = new AttachmentBuilder(compositeImage, { name: 'xp-progress.png' });
+        const components: ActionRowBuilder<ButtonBuilder>[] = [];
+
+        // Check for promotion eligibility
+        let isEligibleForPromotion = false;
+        try {
+            const groupRoles = await robloxGroup.getRoles();
+            const highestEligibleRole = await findHighestEligibleRole(robloxMember, groupRoles, userData.xp);
+            if (highestEligibleRole && highestEligibleRole.rank > robloxMember.role.rank) {
+                isEligibleForPromotion = true;
+            }
+        } catch (eligibilityError) {
+            console.error(`Error checking promotion eligibility for ${robloxUser.name}:`, eligibilityError);
+        }
+
+        // Add promotion request button
+        const requestPromotionButton = new ButtonBuilder()
+            .setCustomId(`request_promotion:${robloxUser.id}:${ctx.user.id}`)
+            .setLabel('Request Promotion Check')
+            .setStyle(ButtonStyle.Primary)
+            .setDisabled(!isEligibleForPromotion);
+
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(requestPromotionButton);
+        components.push(row);
+
+        // Send the reply with image and components
+        return ctx.reply({
+            files: [imageAttachment],
+            components: components
+        });
+    }
+}
+
+export default XPCommand;

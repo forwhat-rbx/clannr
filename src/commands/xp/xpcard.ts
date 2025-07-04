@@ -10,40 +10,47 @@ import { createCanvas, loadImage, registerFont, Canvas, CanvasRenderingContext2D
 import { findHighestEligibleRole } from '../ranking/xprankup';
 
 // =====================================================================
-// COLOR PALETTE - Aquamarine Blue and Gold theme
+// COLOR PALETTE - Aquamarine Blue and Rich Gold theme
 // =====================================================================
 const COLORS = {
     // Base colors
-    darkBlue: '#0a3b4a',        // Dark aquamarine blue
-    mediumBlue: '#1a7a8c',      // Medium aquamarine blue
-    lightBlue: '#40b5cb',       // Light aquamarine blue
-    brightGold: '#ffd700',      // Bright gold
-    paleGold: '#ffe866',        // Light gold
+    ocean: {
+        dark: '#0a3b4a',         // Deep ocean blue
+        medium: '#1a7a8c',       // Medium aquamarine blue
+        light: '#40b5cb',        // Bright aquamarine blue
+        accent: '#30a0b8',       // Accent blue for highlights
+    },
 
-    // UI colors
-    background: 'rgba(10, 45, 60, 0.8)',  // Dark blue background with transparency
-    cardBg: 'rgba(15, 55, 70, 0.8)',      // Card background
-    textPrimary: '#ffffff',               // White text
-    textSecondary: '#ffe866',             // Light gold text
-    accent: '#ffd700',                    // Gold accent
+    gold: {
+        rich: '#d4af37',         // Rich gold
+        bright: '#ffc700',       // Bright gold (more saturated)
+        pale: '#e6c100',         // Pale gold (less yellow)
+        highlight: '#ffe169',    // Gold highlight
+    },
 
-    // Data visualizations
-    statsItem: '#0a2a35',                 // Stats box background
-    progressBar: '#082530',               // Progress bar background
-    progressFill: '#1a7a8c',              // Progress fill
+    // UI elements
+    ui: {
+        background: 'rgba(10, 45, 60, 0.8)',  // Dark blue background with transparency
+        cardBg: 'rgba(15, 55, 70, 0.8)',      // Card background
+        textWhite: '#ffffff',                 // White text
+        textGold: '#d4af37',                  // Gold text
+        accent: '#ffc700',                    // Gold accent for important elements
+    },
 
-    // Decorative
-    gridLines: '#30a0b8',                 // Grid accent color
-    dataDots: 'rgba(64, 181, 203, 0.7)',  // Data point color
-    shadow: 'rgba(5, 35, 45, 0.5)',       // Blue-tinted shadow
-    glow: 'rgba(64, 181, 203, 0.6)',      // Blue glow
+    // Functional elements
+    functional: {
+        statsBox: '#0a2a35',                  // Stats box background
+        progressBg: '#082530',                // Progress bar background
+        progressFill: '#1a7a8c',              // Progress fill
+    },
 
-    // Additional colors needed for gradient fills
-    darkPurple: '#0a3b4a',       // Using dark blue instead
-    mediumPurple: '#1a7a8c',     // Using medium blue instead
-    lightPurple: '#40b5cb',      // Using light blue instead
-    brightPurple: '#30a0b8',     // Bright accent blue
-    veryLightPurple: '#ffe866'   // Using pale gold instead
+    // Decorative elements
+    decorative: {
+        gridLines: '#30a0b8',                 // Grid accent color
+        dataDots: 'rgba(64, 181, 203, 0.7)',  // Data point color
+        shadow: 'rgba(5, 35, 45, 0.5)',       // Blue-tinted shadow
+        glow: 'rgba(64, 181, 203, 0.6)',      // Blue glow
+    }
 };
 
 // =====================================================================
@@ -112,7 +119,6 @@ function createWornEdge(ctx: NodeCanvasRenderingContext2D, x: number, y: number,
     const noise = 0.7;
 
     ctx.save();
-    // Changed from purple to blue-tinted worn edge
     ctx.strokeStyle = 'rgba(20, 90, 120, 0.4)';
     ctx.lineWidth = 0.8;
 
@@ -177,7 +183,6 @@ const generateCompositeImage = async (
         const background = await loadImage(newBackgroundUrl);
         ctx.drawImage(background, 0, 0, width, height);
 
-        // Changed from purple to blue overlay for better readability
         const overlay = ctx.createLinearGradient(0, 0, 0, height);
         overlay.addColorStop(0, 'rgba(10, 45, 60, 0.5)');
         overlay.addColorStop(0.5, 'rgba(10, 45, 60, 0.4)');
@@ -207,7 +212,7 @@ const generateCompositeImage = async (
     ctx.shadowBlur = 25;
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 8;
-    ctx.fillStyle = COLORS.cardBg;
+    ctx.fillStyle = COLORS.ui.cardBg;
     sharpRect(ctx, cardX, cardY, cardWidth, cardHeight, 8);
     ctx.fill();
 
@@ -230,7 +235,7 @@ const generateCompositeImage = async (
         ctx.beginPath();
         ctx.moveTo(i, 0);
         ctx.lineTo(i, height);
-        ctx.strokeStyle = i % 180 === 0 ? COLORS.gridLines : '#aaaaaa';
+        ctx.strokeStyle = i % 180 === 0 ? COLORS.decorative.gridLines : '#aaaaaa';
         ctx.lineWidth = i % 180 === 0 ? 0.8 : 0.4;
         ctx.stroke();
     }
@@ -239,7 +244,7 @@ const generateCompositeImage = async (
         ctx.beginPath();
         ctx.moveTo(0, i);
         ctx.lineTo(width, i);
-        ctx.strokeStyle = i % 180 === 0 ? COLORS.gridLines : '#aaaaaa';
+        ctx.strokeStyle = i % 180 === 0 ? COLORS.decorative.gridLines : '#aaaaaa';
         ctx.lineWidth = i % 180 === 0 ? 0.8 : 0.4;
         ctx.stroke();
 
@@ -248,7 +253,7 @@ const generateCompositeImage = async (
             for (let j = 0; j < width; j += 180) {
                 ctx.beginPath();
                 ctx.arc(j, i, 2, 0, Math.PI * 2);
-                ctx.fillStyle = COLORS.dataDots;
+                ctx.fillStyle = COLORS.decorative.dataDots;
                 ctx.fill();
             }
         }
@@ -285,10 +290,10 @@ const generateCompositeImage = async (
         avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2,
         avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + glowSize
     );
-    glowGradient.addColorStop(0, COLORS.glow);
+    glowGradient.addColorStop(0, COLORS.decorative.glow);
     glowGradient.addColorStop(1, 'rgba(10, 45, 60, 0)');
 
-    ctx.shadowColor = COLORS.glow;
+    ctx.shadowColor = COLORS.decorative.glow;
     ctx.shadowBlur = 15;
     ctx.beginPath();
     ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + glowSize, 0, Math.PI * 2);
@@ -368,9 +373,9 @@ const generateCompositeImage = async (
         for (let i = 0; i < rankLevel - 2; i++) {
             const emblemX = nameX + ctx.measureText(userName).width + 20 + (i * 25);
             ctx.save();
-            ctx.shadowColor = COLORS.shadow;
+            ctx.shadowColor = COLORS.decorative.shadow;
             ctx.shadowBlur = 8;
-            drawStar(ctx, emblemX, nameY - 15, 10, 5, COLORS.brightGold);
+            drawStar(ctx, emblemX, nameY - 15, 10, 5, COLORS.gold.bright);
             ctx.restore();
         }
     }
@@ -404,8 +409,8 @@ const generateCompositeImage = async (
     ctx.stroke();
 
     // Rank text
-    ctx.fillStyle = COLORS.accent;
-    ctx.shadowColor = COLORS.shadow;
+    ctx.fillStyle = COLORS.ui.accent;
+    ctx.shadowColor = COLORS.decorative.shadow;
     ctx.shadowBlur = 4;
     ctx.fillText(rankText, rankX + 10, rankY + 26);
     ctx.restore();
@@ -420,16 +425,16 @@ const generateCompositeImage = async (
     const filledWidth = progress * progressBarWidth;
 
     // Progress bar shadow
-    ctx.shadowColor = COLORS.shadow;
+    ctx.shadowColor = COLORS.decorative.shadow;
     ctx.shadowBlur = 10;
     ctx.shadowOffsetY = 2;
 
     // Progress bar background
-    ctx.fillStyle = COLORS.progressBar;
+    ctx.fillStyle = COLORS.functional.progressBg;
     ctx.fillRect(progressX, progressY, progressBarWidth, progressBarHeight);
 
     // Progress bar border
-    ctx.strokeStyle = COLORS.lightBlue;
+    ctx.strokeStyle = COLORS.ocean.light;
     ctx.lineWidth = 1;
     ctx.strokeRect(progressX, progressY, progressBarWidth, progressBarHeight);
 
@@ -453,9 +458,9 @@ const generateCompositeImage = async (
     if (filledWidth > 0) {
         // Blue gradient for filled portion
         const progressGradient = ctx.createLinearGradient(progressX, progressY, progressX + progressBarWidth, progressY);
-        progressGradient.addColorStop(0, COLORS.darkBlue);
-        progressGradient.addColorStop(0.4, COLORS.mediumBlue);
-        progressGradient.addColorStop(1, COLORS.lightBlue);
+        progressGradient.addColorStop(0, COLORS.ocean.dark);
+        progressGradient.addColorStop(0.4, COLORS.ocean.medium);
+        progressGradient.addColorStop(1, COLORS.ocean.light);
         ctx.fillStyle = progressGradient;
         ctx.fillRect(progressX, progressY, filledWidth, progressBarHeight);
 
@@ -480,7 +485,7 @@ const generateCompositeImage = async (
     // XP counter text
     ctx.font = 'bold 16px Orbitron, Arial';
     ctx.textAlign = 'center';
-    ctx.fillStyle = COLORS.textPrimary;
+    ctx.fillStyle = COLORS.ui.textWhite;
     ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
     ctx.shadowBlur = 3;
     ctx.fillText(
@@ -498,13 +503,13 @@ const generateCompositeImage = async (
 
         ctx.beginPath();
         ctx.arc(dotX, dotY, 2, 0, Math.PI * 2);
-        ctx.fillStyle = isActive ? COLORS.accent : '#505050';
+        ctx.fillStyle = isActive ? COLORS.ui.accent : '#505050';
         ctx.fill();
 
         if (isActive) {
             ctx.beginPath();
             ctx.arc(dotX, dotY, 3.5, 0, Math.PI * 2);
-            ctx.strokeStyle = COLORS.shadow;
+            ctx.strokeStyle = COLORS.decorative.shadow;
             ctx.lineWidth = 0.7;
             ctx.stroke();
         }
@@ -522,7 +527,7 @@ const generateCompositeImage = async (
 
     // Stats header
     ctx.font = 'bold 16px Orbitron, Arial';
-    ctx.fillStyle = COLORS.lightBlue;
+    ctx.fillStyle = COLORS.ocean.light;
     ctx.textAlign = 'center';
     ctx.fillText('COMBAT STATISTICS', cardX + cardWidth / 2, statsStartY - 8);
 
@@ -532,7 +537,7 @@ const generateCompositeImage = async (
         cardX + cardWidth - 100, statsStartY
     );
     dividerGradient.addColorStop(0, 'rgba(30, 100, 120, 0.1)');
-    dividerGradient.addColorStop(0.5, COLORS.glow);
+    dividerGradient.addColorStop(0.5, COLORS.decorative.glow);
     dividerGradient.addColorStop(1, 'rgba(30, 100, 120, 0.1)');
 
     ctx.strokeStyle = dividerGradient;
@@ -558,11 +563,11 @@ const generateCompositeImage = async (
         const statY = statsStartY + 10;
 
         // Stats box
-        ctx.fillStyle = COLORS.statsItem;
+        ctx.fillStyle = COLORS.functional.statsBox;
         ctx.fillRect(statX, statY, statItemWidth - 10, statItemHeight);
 
         // Border
-        ctx.strokeStyle = COLORS.lightBlue;
+        ctx.strokeStyle = COLORS.ocean.light;
         ctx.lineWidth = 1;
         ctx.strokeRect(statX, statY, statItemWidth - 10, statItemHeight);
 
@@ -570,56 +575,27 @@ const generateCompositeImage = async (
         ctx.beginPath();
         ctx.moveTo(statX, statY);
         ctx.lineTo(statX + statItemWidth - 10, statY);
-        ctx.strokeStyle = COLORS.lightBlue;
+        ctx.strokeStyle = COLORS.ocean.light;
         ctx.lineWidth = 2;
         ctx.stroke();
 
         const centerX = statX + (statItemWidth - 10) / 2;
 
-        // Label
-        ctx.fillStyle = COLORS.paleGold;
+        // Label - SWAPPED: Now white (was gold)
+        ctx.fillStyle = COLORS.ui.textWhite;
         ctx.font = '13px Orbitron, Arial';
         ctx.textAlign = 'center';
         ctx.fillText(item.label, centerX, statY + 17);
 
-        // Value
-        ctx.fillStyle = COLORS.textPrimary;
+        // Value - SWAPPED: Now gold (was white)
+        ctx.fillStyle = COLORS.gold.rich;
         ctx.font = 'bold 19px Orbitron, Arial';
         ctx.textAlign = 'center';
         ctx.fillText(`${item.value}`, centerX, statY + 38);
     });
     ctx.restore();
 
-    // ------------- LOGO -------------
-    // Create a decorative element instead of loading a logo
-    const logoWidth = 220;
-    const logoHeight = 220;
-    const logoX = cardX + cardWidth - logoWidth - 20;
-    const logoY = cardY + 10;
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(logoX + logoWidth / 2, logoY + logoHeight / 2, logoWidth / 3, 0, Math.PI * 2);
-    const logoGradient = ctx.createRadialGradient(
-        logoX + logoWidth / 2, logoY + logoHeight / 2, logoWidth / 6,
-        logoX + logoWidth / 2, logoY + logoHeight / 2, logoWidth / 3
-    );
-    logoGradient.addColorStop(0, 'rgba(64, 181, 203, 0.2)');
-    logoGradient.addColorStop(0.7, 'rgba(40, 150, 170, 0.1)');
-    logoGradient.addColorStop(1, 'rgba(10, 100, 120, 0)');
-    ctx.fillStyle = logoGradient;
-    ctx.fill();
-
-    // Add gold accent ring
-    ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.arc(logoX + logoWidth / 2, logoY + logoHeight / 2, logoWidth / 4, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(255, 215, 0, 0.4)';
-    ctx.stroke();
-    ctx.restore();
+    // No LOGO section - completely removed to eliminate the circular element
 
     return canvas.toBuffer();
 };

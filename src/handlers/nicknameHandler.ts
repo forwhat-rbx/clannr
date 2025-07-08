@@ -26,20 +26,20 @@ export const getNicknameFormat = async (guildId: string): Promise<string> => {
                     data: {
                         id: guildId,
                         guildId,
-                        nicknameFormat: '{robloxUsername}'
+                        nicknameFormat: '{rankPrefix} {robloxUsername}'
                     }
                 });
                 return newConfig.nicknameFormat;
             } catch (createErr) {
                 console.error(`Failed to create guild config: ${createErr.message}`);
-                return '{robloxUsername}'; // Fallback default
+                return '{rankPrefix} {robloxUsername}'; // Updated default format
             }
         }
 
         return guildConfig.nicknameFormat;
     } catch (err) {
         console.error(`Error in getNicknameFormat: ${err.message || err}`);
-        return '{robloxUsername}'; // Return default if error
+        return '{rankPrefix} {robloxUsername}'; // Updated default format
     }
 };
 
@@ -72,6 +72,52 @@ export const setNicknameFormat = async (guildId: string, format: string): Promis
         console.error(`Error setting nickname format for guild ${guildId}:`, err);
         throw err;
     }
+};
+
+/**
+ * Generate a rank prefix from rank name
+ */
+const generateRankPrefix = (rankName: string, rankNumber?: number): string => {
+    // If no valid rank info, return guest prefix
+    if (!rankName || rankName === "Guest") {
+        return "[-]";
+    }
+
+    // Exact rank prefix mappings
+    const rankPrefixes: Record<string, string> = {
+        "Overseer": "[-]",
+        "Royal Council": "[X]",
+        "General": "[X]",
+        "Systems Engineer": "[X]",
+        "Colonel": "[HC]",
+        "Lieutenant": "[O3]",
+        "Major": "[O2]",
+        "Captain": "[O1]",
+        "Warrant Officer": "[WO]",
+        "Prodigy": "[X]",
+        "Strategist": "[V]",
+        "Sergeant": "[IV]",
+        "Corporal": "[III]",
+        "Operative": "[II]",
+        "Private": "[I]",
+        "Cadet": "[-]"
+    };
+
+    // Check for exact match first
+    if (rankPrefixes[rankName]) {
+        return rankPrefixes[rankName];
+    }
+
+    // Fallback for partial matches (in case rank name has additional text)
+    for (const [rankKey, prefix] of Object.entries(rankPrefixes)) {
+        if (rankName.includes(rankKey)) {
+            return prefix;
+        }
+    }
+
+    // Last resort fallback (should rarely happen with your rank structure)
+    console.log(`No prefix mapping found for rank: "${rankName}"`);
+    return "[-]";
 };
 
 /**
@@ -112,11 +158,16 @@ export const updateNickname = async (member: GuildMember, robloxUser: User): Pro
 
         // Get the user's group role
         let rankName = "Guest";
+        let rankNumber = 0;
+        let rankPrefix = "[G]"; // Default guest prefix
+
         try {
             const groupMember = await robloxGroup.getMember(robloxUser.id);
             if (groupMember) {
                 rankName = groupMember.role.name;
-                console.log(`Found group member: ${robloxUser.name} with rank: ${rankName}`);
+                rankNumber = groupMember.role.rank;
+                rankPrefix = generateRankPrefix(rankName, rankNumber);
+                console.log(`Found group member: ${robloxUser.name} with rank: ${rankName} (${rankPrefix})`);
             } else {
                 console.log(`User ${robloxUser.name} is not a group member, using "Guest" as rank`);
             }
@@ -125,11 +176,12 @@ export const updateNickname = async (member: GuildMember, robloxUser: User): Pro
             // Continue with "Guest" rank
         }
 
-        // Format the nickname
+        // Format the nickname with all placeholders
         let nickname = format
-            .replace('{robloxUsername}', robloxUser.name)
-            .replace('{robloxDisplayName}', robloxUser.displayName || robloxUser.name)
-            .replace('{rankName}', rankName);
+            .replace(/{robloxUsername}/g, robloxUser.name)
+            .replace(/{robloxDisplayName}/g, robloxUser.displayName || robloxUser.name)
+            .replace(/{rankName}/g, rankName)
+            .replace(/{rankPrefix}/g, rankPrefix); // Add the rank prefix replacement
 
         console.log(`Formatted nickname: "${nickname}" for ${member.user.tag}`);
 

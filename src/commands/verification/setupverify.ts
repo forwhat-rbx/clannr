@@ -68,7 +68,7 @@ class SetupVerifyCommand extends Command {
                 });
             }
 
-            // Create the verification embed
+            // Create the verification embed CHANGE THIS TO YOUR OWN EMBED
             const verifyEmbed = createBaseEmbed()
                 .setTitle('Valkyris Guard Verification System')
                 .setDescription(
@@ -86,7 +86,6 @@ class SetupVerifyCommand extends Command {
             const row = new ActionRowBuilder<ButtonBuilder>()
                 .addComponents(
                     new ButtonBuilder()
-                        // IMPORTANT: Use 'verify' instead of 'verify_start'
                         .setCustomId('verify')
                         .setLabel('Verify')
                         .setStyle(ButtonStyle.Success)

@@ -38,7 +38,7 @@ export const config: BotConfig = {
     verificationChecks: false, // Enable additional verification requirements
     bloxlinkGuildId: '', // Your Discord server ID (for Bloxlink integration)
 
-    // PUNISHMENT RANKS
+    // PUNISHMENT RANKS, I don't personally use these, but they are here for you to use
     firedRank: 1, // Roblox rank number for fired members
     suspendedRank: 1, // Roblox rank number for suspended members
     recordManualActions: true, // Log manual promotions/demotions done outside the bot

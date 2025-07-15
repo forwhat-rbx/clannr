@@ -8,16 +8,19 @@ import { robloxClient } from '../main';
 import { textSync } from 'figlet';
 import { createBaseEmbed, embedColors } from '../utils/embedUtils';
 
-export const checkIconUrl = 'https://i.ibb.co/S67VBpT/Checkmark-BOT.png';
-export const xmarkIconUrl = 'https://i.ibb.co/pRTX74N/XMARK-BOT.png';
-export const infoIconUrl = 'https://i.ibb.co/N7rdjxd/INFO-BOT.png';
-export const quoteIconUrl = 'https://i.ibb.co/Swmmv2q/QUOTE-BOT.png';
+export const checkIconUrl = 'https://i.ibb.co/S67VBpT/Checkmark-BOT.png'; // Change this
+export const xmarkIconUrl = 'https://i.ibb.co/pRTX74N/XMARK-BOT.png'; // Change this
+export const infoIconUrl = 'https://i.ibb.co/N7rdjxd/INFO-BOT.png'; // Change this
+export const quoteIconUrl = 'https://i.ibb.co/Swmmv2q/QUOTE-BOT.png'; // Change this
 
 export const consoleMagenta = '\x1b[35m';
 export const consoleGreen = '\x1b[32m';
 export const consoleYellow = '\x1b[33m';
 export const consoleRed = '\x1b[31m';
 export const consoleClear = '\x1b[0m';
+
+// You can change the console text colors above to whatever you would like, or remove them if you do not want colored console text.
+// You can also change the text below to whatever you would like, or remove it if you do not want console text at all.
 
 export const qbotLaunchTextDisplay = `${consoleMagenta}${textSync('LIGHTBRINGER')}`;
 export const welcomeText = `${consoleYellow}Let's get some bread`;

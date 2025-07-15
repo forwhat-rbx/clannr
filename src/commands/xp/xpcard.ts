@@ -10,7 +10,7 @@ import { createCanvas, loadImage, registerFont, Canvas, CanvasRenderingContext2D
 import { findHighestEligibleRole } from '../ranking/xprankup';
 
 // =====================================================================
-// COLOR PALETTE - Aquamarine Blue and Rich Gold theme
+// COLOR PALETTE - Change these to adjust the card colors
 // =====================================================================
 const COLORS = {
     // Base colors
@@ -54,7 +54,7 @@ const COLORS = {
 };
 
 // =====================================================================
-// FONT REGISTRATION
+// FONT REGISTRATION (You can change these to whatever you would like)
 // =====================================================================
 try {
     registerFont('./assets/fonts/Exo2-Bold.ttf', { family: 'Exo2', weight: 'bold' });
@@ -169,7 +169,7 @@ const generateCompositeImage = async (
         trainings: number;
     }
 ) => {
-    // Image URLs
+    // Background behind the XP Card (1000x400) (change this)
     const newBackgroundUrl = 'https://i.ibb.co/B25pZzG2/NEW-VALK-BACK.png';
 
     // Canvas setup

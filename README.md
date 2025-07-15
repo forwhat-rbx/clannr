@@ -2,7 +2,6 @@
 
 <p align="center">
   <a href="https://github.com/forwhat-rbx/clannr/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/forwhat-roblox/clannr?color=E76F51"></a>
-  <a href="https://github.com/forwhat-rbx/clannr/commits"><img alt="Checks" src="https://img.shields.io/github/checks-status/forwhat-roblox/clannr/master?color=F4A261"></a>
   <a href="https://discord.com/invite/zxVBjbBcXF"><img alt="Discord" src="https://img.shields.io/badge/chat-on%20discord-E9C46A"></a>
   <a href="https://github.com/forwhat-rbx/clannr/graphs/contributors"><img alt="Contributors" src="https://img.shields.io/github/contributors/forwhat-roblox/clannr?color=2A9D8F"></a>
   <a href="https://github.com/forwhat-rbx/clannr/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/forwhat-roblox/clannr?color=264653"></a>

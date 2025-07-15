@@ -1,10 +1,11 @@
 import { CommandContext } from '../../structures/addons/CommandAddons';
-import { Command } from '../../structures/Command';
+import Command from '../../structures/Command';
 import { config } from '../../config';
 import { AttachmentBuilder } from 'discord.js';
 import { ActivityLogger } from '../../utils/activityLogger';
 import * as fs from 'fs';
 import * as path from 'path';
+import { Logger } from '../../utils/logger';
 
 class ViewLogsCommand extends Command {
     constructor() {
@@ -43,7 +44,7 @@ class ViewLogsCommand extends Command {
         try {
             // Run a direct test to verify logging system
             const testResult = ActivityLogger.testLogging();
-            console.log(`Logging system test: ${testResult ? "PASSED" : "FAILED"}`);
+            Logger.info(`Logging system test: ${testResult ? "PASSED" : "FAILED"}`, 'Reports');
 
             const moderator = ctx.args['moderator'] as string;
             const weeks = ctx.args['weeks'] ? Number(ctx.args['weeks']) : 1;
@@ -59,10 +60,10 @@ class ViewLogsCommand extends Command {
                 // Get combined logs for all moderators for current week
                 logContent = await ActivityLogger.getAllLogs(new Date());
                 fileName = 'all_moderators_current_week.txt';
-                console.log("Fetching logs for ALL moderators");
+                Logger.info("Fetching logs for ALL moderators", 'Reports');
             } else {
                 // Get logs for specific moderator
-                console.log(`Fetching logs for moderator: ${moderator}`);
+                Logger.info(`Fetching logs for moderator: ${moderator}`);
                 logContent = await ActivityLogger.getModeratorLogs(moderator, weeks);
 
                 // Get a clean file name version of the moderator identifier
@@ -70,7 +71,7 @@ class ViewLogsCommand extends Command {
                 fileName = `${cleanName}_${weeks}_weeks.txt`;
             }
 
-            console.log(`Log content length: ${logContent.length} characters`);
+            Logger.info(`Log content length: ${logContent.length} characters`, 'Reports');
 
             // Create temporary file
             const tempDir = path.join(process.cwd(), 'temp');
@@ -80,7 +81,7 @@ class ViewLogsCommand extends Command {
 
             const filePath = path.join(tempDir, fileName);
             fs.writeFileSync(filePath, logContent);
-            console.log(`Wrote logs to file: ${filePath}`);
+            Logger.info(`Wrote logs to file: ${filePath}`, 'Reports');
 
             // Send file as attachment
             const attachment = new AttachmentBuilder(filePath, { name: fileName });
@@ -90,7 +91,7 @@ class ViewLogsCommand extends Command {
                 files: [attachment]
             });
         } catch (err) {
-            console.error('Error retrieving logs:', err);
+            Logger.error('Error retrieving logs:', 'Reports', err);
             return ctx.reply({ content: `An error occurred while retrieving the logs: ${err.message}` });
         }
     }

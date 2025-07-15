@@ -5,6 +5,7 @@ import {
 } from 'discord.js';
 
 export interface BotConfig {
+    testGuildId: string;
     /**
      * The ID of the Roblox group this bot will be tied to.
      */
@@ -81,6 +82,7 @@ export interface BotConfig {
      * Should actions be logged, and if so, where?
      */
     logChannels: {
+        verification: any;
         /**
          * The ID of the channel where you would like all actions done through commands on this bot to be logged.
          */

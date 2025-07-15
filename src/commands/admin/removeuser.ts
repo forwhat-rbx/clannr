@@ -1,5 +1,5 @@
 import { CommandContext } from '../../structures/addons/CommandAddons';
-import { Command } from '../../structures/Command';
+import Command from '../../structures/Command';
 import { config } from '../../config';
 import { provider } from '../../database';
 import {
@@ -9,12 +9,13 @@ import {
 import { discordClient, robloxClient } from '../../main';
 import { getLinkedRobloxUser } from '../../handlers/accountLinks';
 import { User, PartialUser } from 'bloxy/dist/structures';
+import { Logger } from '../../utils/logger';
 
 class RemoveUserCommand extends Command {
     constructor() {
         super({
             trigger: 'removeuser',
-            description: 'Removes one or more users from the database. Separate multiple IDs/usernames/links with commas.',
+            description: 'Removes one or more users from the database.',
             type: 'ChatInput',
             module: 'admin',
             args: [
@@ -80,7 +81,7 @@ class RemoveUserCommand extends Command {
                 await provider.safeDeleteUser(robloxUser.id.toString());
                 results.push(`Removed user ID ${robloxUser.id}`);
             } catch (err) {
-                console.error(`Error removing user ${robloxUser.id}:`, err);
+                Logger.error(`Error removing user ${robloxUser.id}:`, 'RemoveUser', err);
                 results.push(`Error removing user ID ${robloxUser.id}: Foreign key constraint`);
             }
         }

@@ -13,7 +13,7 @@ export interface ProcessingOptions {
 export type InteractionOrContext = CommandContext | ButtonInteraction | ModalSubmitInteraction | CommandInteraction;
 
 async function sendUpdate(
-    interaction: CommandInteraction | ModalSubmitInteraction | ButtonInteraction | CommandContext,
+    interaction: InteractionOrContext,
     message: string
 ): Promise<void> {
     try {
@@ -32,20 +32,23 @@ async function sendUpdate(
             return;
         }
 
-        // For regular interactions
+        // For regular interactions - add type assertions to help TypeScript understand
         if ('deferred' in interaction && interaction.deferred) {
             if ('editReply' in interaction) {
-                await interaction.editReply({ content: message });
-            } else {
-                await interaction.followUp({ content: message });
+                // The error is here - TypeScript doesn't recognize the method
+                await (interaction as CommandInteraction | ButtonInteraction | ModalSubmitInteraction).editReply({ content: message });
+            } else if ('followUp' in interaction) {
+                // This is where the error occurs - fix with type assertion
+                await (interaction as CommandInteraction | ButtonInteraction | ModalSubmitInteraction).followUp({ content: message });
             }
         } else if ('replied' in interaction && interaction.replied) {
             if ('followUp' in interaction) {
-                await interaction.followUp({ content: message });
+                await (interaction as CommandInteraction | ButtonInteraction | ModalSubmitInteraction).followUp({ content: message });
             }
         } else if ('reply' in interaction) {
-            await interaction.reply({
-                content: message, ephemeral: true,
+            await (interaction as CommandInteraction | ButtonInteraction | ModalSubmitInteraction).reply({
+                content: message,
+                ephemeral: true,
                 fetchReply: true
             });
         }

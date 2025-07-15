@@ -1,12 +1,12 @@
 import { CommandContext } from '../../structures/addons/CommandAddons';
-import { Command } from '../../structures/Command';
+import Command from '../../structures/Command';
 import { createBaseEmbed } from '../../utils/embedUtils';
 
 class GetVCCommand extends Command {
     constructor() {
         super({
             trigger: 'getvc',
-            description: 'Lists all users in your current voice channel.',
+            description: 'Lists all users in your current voice channel for easy copying.',
             type: 'ChatInput',
             module: 'information'
         });
@@ -54,13 +54,12 @@ class GetVCCommand extends Command {
 
             console.log('Processed voice members:', voiceMembers);
 
-            // Build comma-separated list
-            const memberList = voiceMembers.join(',');
+            // Build comma-separated list with spaces after commas
+            const memberList = voiceMembers.join(', ');
 
-            // Prepare embed
-            const embed = createBaseEmbed()
-                .setTitle(`Users in ${voiceChannel.name}`)
-                .setDescription(`\`${memberList}\``);
+            // Prepare embed with proper code block
+            const embed = createBaseEmbed('primary')
+                .setDescription(`\`\`\`\n${memberList}\n\`\`\``)
 
             await ctx.reply({ embeds: [embed] });
         } catch (error) {

@@ -1,5 +1,5 @@
 import { CommandContext } from '../../structures/addons/CommandAddons';
-import { Command } from '../../structures/Command';
+import Command from '../../structures/Command';
 import {
     getNoPermissionEmbed,
     getNoRankupAvailableEmbed,
@@ -175,7 +175,7 @@ class XPRankupCommand extends Command {
 
             // The rest of the function stays the same
             if (rankedUpUsers > 0) {
-                const embed = createBaseEmbed()
+                const embed = createBaseEmbed('primary')
                     .setTitle(`Batch rank-up completed by ${ctx.user.tag}`)
                     .setDescription(rankUpDetails.join('\n'));
 

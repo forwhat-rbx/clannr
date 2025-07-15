@@ -1,15 +1,19 @@
-import { ActionRowBuilder, ButtonInteraction, ModalBuilder, TextInputBuilder, TextInputStyle, TextChannel } from 'discord.js'; // Added TextChannel
+import { EmbedBuilder, GuildMember } from 'discord.js';
+import { ActionRowBuilder, ButtonInteraction, ModalBuilder, TextInputBuilder, TextInputStyle, TextChannel } from 'discord.js';
 import { promotionService } from '../services/promotionService';
 import { config } from '../config';
 import { createBaseEmbed } from '../utils/embedUtils';
-import { robloxClient, robloxGroup, discordClient } from '../main'; // Added discordClient
+import { robloxClient, robloxGroup, discordClient } from '../main';
 import { provider } from '../database';
-import { logAction, logSystemAction } from './handleLogging'; // Added logSystemAction
+import { logAction, logSystemAction } from './handleLogging';
 import { processInChunks, ProcessingOptions } from '../utils/processingUtils';
 import { CommandContext } from '../structures/addons/CommandAddons';
-import { findHighestEligibleRole } from '../commands/ranking/xprankup'; // Import eligibility checker
-import { getLinkedRobloxUser } from './accountLinks'; // To verify the clicker
-
+import { findHighestEligibleRole } from '../commands/ranking/xprankup';
+import { getLinkedRobloxUser } from './accountLinks';
+import { checkVerification } from '../commands/verification/verify';
+import { addRoleBinding, updateUserRoles } from './roleBindHandler';
+import { updateNickname } from './nicknameHandler';
+import { Logger } from '../utils/logger';
 
 // Define the global type for TypeScript
 declare global {
@@ -19,112 +23,514 @@ declare global {
     var matchedDiscordCache: {
         [key: string]: string[]
     };
+    // Add this to support verification cache
+    var pendingVerifications: Map<string, {
+        robloxId: string;
+        robloxUsername: string;
+        code: string;
+        expires: number;
+    }>;
+}
+
+// Initialize pendingVerifications if it doesn't exist
+if (!global.pendingVerifications) {
+    global.pendingVerifications = new Map();
 }
 
 export async function handleButtonInteraction(interaction: ButtonInteraction): Promise<void> {
     const customId = interaction.customId;
 
-    // Handle different button types
-    if (customId === 'promote_all') {
-        await handlePromoteAllButton(interaction);
-    } else if (customId === 'check_promotions') {
-        await handleCheckPromotionsButton(interaction);
-    } else if (customId.startsWith('purge_members:')) {
-        await handlePurgeMembersButton(interaction);
-    } else if (customId.startsWith('dm_members:')) {
-        await handleDmMembersButton(interaction);
-    } else if (customId.startsWith('dm_matched_members:')) {
-        await handleDmMatchedMembersButton(interaction);
-    } else if (customId.startsWith('request_promotion:')) {
-        await handleRequestPromotionButton(interaction);
+    // Add debug logging to track all button interactions
+    Logger.info(`Button interaction received: ${customId} from user ${interaction.user.tag}`, 'ButtonHandler');
+
+    // Skip handling pagination buttons - let the collectors handle these
+    if (customId === 'previous' || customId === 'next') {
+        Logger.debug(`Skipping global handling for pagination button: ${customId}`, 'ButtonHandler');
+        return; // Don't handle these buttons globally - let the collectors handle them
     }
-}
 
-async function handleRequestPromotionButton(interaction: ButtonInteraction): Promise<void> {
-    await interaction.deferReply({ ephemeral: true });
-
-    const [_, robloxIdFromButton, originalDiscordUserId] = interaction.customId.split(':');
-
-    // Security Check: Ensure the person clicking is the one who the XP card was for,
-    // or an admin. For self-service, we primarily care about the original user.
-    // Or, more simply, ensure the clicker is linked to the robloxIdFromButton.
-    let clickerRobloxId: string | null = null;
     try {
-        const linkedUser = await getLinkedRobloxUser(interaction.user.id);
-        if (linkedUser) {
-            clickerRobloxId = linkedUser.id.toString();
+        // Skip role binding selection - handled by componentInteractionHandler
+        if (customId === 'binds_add_roles_selection' ||
+            customId.startsWith('binds_select_roles:') ||
+            customId.startsWith('binds_select_remove_roles_multi')) {
+            Logger.debug(`Skipping button handler for role binding interaction: ${customId}`, 'ButtonHandler');
+            return;
         }
-    } catch (e) {
-        // Not linked or error fetching
-    }
 
-    if (clickerRobloxId !== robloxIdFromButton && interaction.user.id !== originalDiscordUserId) {
-        // Allow if the clicker is an admin, even if not the original user or linked to that specific Roblox ID
-        const clickerMember = interaction.guild?.members.cache.get(interaction.user.id);
-        if (!clickerMember || !clickerMember.roles.cache.some(role => config.permissions.admin?.includes(role.id))) {
-            await interaction.editReply({
-                content: 'You can only request a promotion check for your own linked Roblox account or if you are an admin and initiated the original command.',
+        // Handle different button types 
+        if (customId === 'verify' || customId === 'verify_start') {
+            Logger.info(`Routing to verify button handler`, 'ButtonHandler');
+            await handleVerifyStartButton(interaction);
+        } else if (customId === 'check_promotions') {
+            Logger.info(`Routing to check_promotions handler`, 'ButtonHandler');
+            await handleCheckPromotionsButton(interaction);
+        } else if (customId.startsWith('purge_members:')) {
+            await handlePurgeMembersButton(interaction);
+        } else if (customId.startsWith('promote_all')) {
+            await handlePromoteAllButton(interaction);
+        } else if (customId.startsWith('dm_members:')) {
+            await handleDmMembersButton(interaction);
+        } else if (customId.startsWith('dm_matched_members:')) {
+            await handleDmMatchedMembersButton(interaction);
+        } else if (customId.startsWith('request_promotion:')) {
+            Logger.info(`Routing to request_promotion handler: ${customId}`, 'ButtonHandler');
+            await handleRequestPromotionButton(interaction);
+        } else if (customId.startsWith('verify_')) {
+            await handleVerifyButton(interaction);
+        } else if (customId.startsWith('cancel_verify_')) {
+            await handleCancelVerifyButton(interaction);
+        } else if (customId === 'role_binding_confirm') {
+            // Make sure we handle the role binding confirm button
+            Logger.info(`Routing to role binding confirmation handler`, 'ButtonHandler');
+            const { handleRoleBindingConfirmation } = require('./componentInteractionHandler');
+            await handleRoleBindingConfirmation(interaction);
+        } else if (customId === 'role_binding_cancel') {
+            // Handle cancellation
+            Logger.info(`Routing to role binding cancel handler`, 'ButtonHandler');
+            // Clean up workflow data
+            if (global.bindingWorkflows && global.bindingWorkflows[interaction.user.id]) {
+                delete global.bindingWorkflows[interaction.user.id];
+            }
+            await interaction.update({
+                content: 'Role binding cancelled.',
+                components: [],
+                embeds: []
             });
-            return;
-        }
-    }
-
-
-    try {
-        const robloxUser = await robloxClient.getUser(Number(robloxIdFromButton));
-        if (!robloxUser) {
-            await interaction.editReply({ content: 'Could not find the Roblox user associated with this request.' });
-            return;
-        }
-
-        const robloxMember = await robloxGroup.getMember(robloxUser.id);
-        const userData = await provider.findUser(robloxUser.id.toString());
-
-        if (!robloxMember || !userData) {
-            await interaction.editReply({ content: 'Could not retrieve necessary Roblox or user data.' });
-            return;
-        }
-
-        const groupRoles = await robloxGroup.getRoles();
-        const highestEligibleRole = await findHighestEligibleRole(robloxMember, groupRoles, userData.xp);
-
-        if (highestEligibleRole && highestEligibleRole.rank > robloxMember.role.rank) {
-            const service = promotionService.getInstance();
-            await service.checkForPromotions(); // This will update the main promotion channel
-            logSystemAction('User Promotion Request', interaction.user.tag, `User ${robloxUser.name} (${robloxUser.id}) requested a promotion check and was eligible. Promotion channel updated.`, robloxUser, `Eligible for: ${highestEligibleRole.name}`);
-            await interaction.editReply({ content: 'Your promotion eligibility has been re-checked. The promotion channel will be updated shortly if there are changes.' });
         } else {
-            logSystemAction('User Promotion Request', interaction.user.tag, `User ${robloxUser.name} (${robloxUser.id}) requested a promotion check but was not eligible for a new rank.`, robloxUser, 'Not eligible or already up-to-date.');
-            await interaction.editReply({ content: 'You are not currently eligible for a new promotion, or the promotion list is already up-to-date.' });
+            Logger.warn(`Unknown button ID: ${customId}`, 'ButtonHandler');
+            await interaction.reply({
+                content: 'This button is not recognized or has expired.',
+                ephemeral: true
+            });
         }
-
     } catch (error) {
-        console.error('Error handling request_promotion button:', error);
-        logSystemAction('User Promotion Request Error', interaction.user.tag, `Error processing promotion request for Roblox ID ${robloxIdFromButton}.`, undefined, error.message);
-        await interaction.editReply({ content: 'An error occurred while processing your promotion request. Please try again later.' });
+        Logger.error(`Unhandled error in button handler for ${customId}`, 'ButtonHandler', error);
+
+        // Try to respond to the user
+        try {
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction.reply({
+                    content: 'An error occurred while processing this button.',
+                    ephemeral: true
+                });
+            } else if (interaction.deferred) {
+                await interaction.editReply({
+                    content: 'An error occurred while processing this button.'
+                });
+            }
+        } catch (replyError) {
+            Logger.error('Failed to send error response:', 'ButtonHandler', replyError);
+        }
     }
 }
 
-async function handleCheckPromotionsButton(interaction: ButtonInteraction): Promise<void> {
-    // Check permissions
-    const member = interaction.guild?.members.cache.get(interaction.user.id);
-    if (!member || !member.roles.cache.some(role => config.permissions.admin?.includes(role.id))) {
-        await interaction.reply({
-            content: 'You do not have permission to use this button.',
+export async function handleModalSubmit(interaction) {
+    const customId = interaction.customId;
+
+    // Handle the binds modal submission
+    if (customId.startsWith('binds_add_')) {
+        const discordRoleId = customId.replace('binds_add_', '');
+        const rankRange = interaction.fields.getTextInputValue('rank_range');
+
+        try {
+            // Parse the rank range (e.g. "5" or "1-255")
+            let minRankId, maxRankId;
+
+            if (rankRange.includes('-')) {
+                const [min, max] = rankRange.split('-').map(num => parseInt(num.trim(), 10));
+                minRankId = min;
+                maxRankId = max;
+            } else {
+                minRankId = parseInt(rankRange.trim(), 10);
+                maxRankId = minRankId;
+            }
+
+            // Validate the range
+            if (isNaN(minRankId) || isNaN(maxRankId)) {
+                return interaction.reply({
+                    embeds: [
+                        createBaseEmbed('primary')
+                            .setTitle('Invalid Input')
+                            .setDescription('Please enter a valid rank number or range (e.g. "5" or "1-255").')
+                            .setColor(0xff0000)
+                    ],
+                    ephemeral: true
+                });
+            }
+
+            if (minRankId > maxRankId) {
+                return interaction.reply({
+                    embeds: [
+                        createBaseEmbed('primary')
+                            .setTitle('Invalid Range')
+                            .setDescription('Minimum rank cannot be higher than maximum rank.')
+                            .setColor(0xff0000)
+                    ],
+                    ephemeral: true
+                });
+            }
+
+            // Get the Roblox rank names
+            const groupRoles = await robloxGroup.getRoles();
+            const minRole = groupRoles.find(r => r.rank === minRankId);
+            const maxRole = groupRoles.find(r => r.rank === maxRankId);
+
+            if (!minRole) {
+                return interaction.reply({
+                    embeds: [
+                        createBaseEmbed('primary')
+                            .setTitle('Invalid Rank')
+                            .setDescription(`Could not find minimum rank with ID ${minRankId} in the group.`)
+                            .setColor(0xff0000)
+                    ],
+                    ephemeral: true
+                });
+            }
+
+            if (!maxRole) {
+                return interaction.reply({
+                    embeds: [
+                        createBaseEmbed('primary')
+                            .setTitle('Invalid Rank')
+                            .setDescription(`Could not find maximum rank with ID ${maxRankId} in the group.`)
+                            .setColor(0xff0000)
+                    ],
+                    ephemeral: true
+                });
+            }
+
+            // Get the Discord role
+            const discordRole = interaction.guild.roles.cache.get(discordRoleId);
+
+            // For the name, we'll use a range or single name based on whether min and max are the same
+            const rankName = minRankId === maxRankId
+                ? minRole.name
+                : `${minRole.name} to ${maxRole.name}`;
+
+            await addRoleBinding(interaction.guild.id, discordRoleId, minRankId, maxRankId, rankName);
+
+            const rangeText = minRankId === maxRankId
+                ? `rank "${minRole.name}" (${minRankId})`
+                : `rank range "${minRole.name}" (${minRankId}) to "${maxRole.name}" (${maxRankId})`;
+
+            return interaction.reply({
+                embeds: [
+                    createBaseEmbed('primary')
+                        .setTitle('Role Binding Added')
+                        .setDescription(`Bound Discord role <@&${discordRoleId}> (${discordRole.name}) to Roblox ${rangeText}`)
+                ],
+                ephemeral: false
+            });
+
+        } catch (err) {
+            console.error('Error processing role binding modal:', err);
+            return interaction.reply({
+                embeds: [
+                    createBaseEmbed('primary')
+                        .setTitle('Error')
+                        .setDescription('An error occurred while adding the role binding.')
+                        .setColor(0xff0000)
+                ],
+                ephemeral: true
+            });
+        }
+    }
+}
+
+
+// Add these new handler functions for verification
+
+async function handleVerifyStartButton(interaction: ButtonInteraction): Promise<void> {
+    // Create a modal for the user to enter their Roblox username
+    const modal = new ModalBuilder()
+        .setCustomId('verify_modal')
+        .setTitle('Verify with Roblox');
+
+    // Add the username input to the modal
+    const usernameInput = new TextInputBuilder()
+        .setCustomId('username')
+        .setLabel('Enter your Roblox username')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Your Roblox username')
+        .setRequired(true);
+
+    // Add the input to an action row
+    const firstActionRow = new ActionRowBuilder<TextInputBuilder>()
+        .addComponents(usernameInput);
+
+    // Add the action row to the modal
+    modal.addComponents(firstActionRow);
+
+    // Show the modal
+    await interaction.showModal(modal);
+}
+
+async function handleVerifyButton(interaction: ButtonInteraction): Promise<void> {
+    await interaction.deferUpdate();
+    const userId = interaction.customId.replace('verify_', '');
+
+    // Only the user who started verification can verify
+    if (userId !== interaction.user.id) {
+        void interaction.followUp({
+            content: 'This verification is for someone else.',
             ephemeral: true
         });
         return;
     }
 
-    await interaction.deferReply({ ephemeral: true });
+    const result = await checkVerification(userId);
 
-    // Use promotion service to check for promotions
-    const service = promotionService.getInstance();
-    await service.checkForPromotions();
+    if (result.success) {
+        const embed = createBaseEmbed('primary')
+            .setTitle('Verification Successful')
+            .setDescription(`Your Discord account has been successfully linked to your Roblox account.\n\n**Username:** ${result.robloxUsername}\n**User ID:** ${result.robloxId}`);
 
-    await interaction.editReply({
-        content: 'Promotion check completed. The promotion embed has been updated.'
+        // Update roles and nickname
+        const robloxUser = await robloxClient.getUser(Number(result.robloxId));
+        if (robloxUser && interaction.guild) {
+            // Fix the casting issue - ensure we have a proper GuildMember
+            if (interaction.member && 'roles' in interaction.member) {
+                const guildMember = interaction.member as GuildMember;
+                await updateUserRoles(interaction.guild, guildMember, robloxUser.id);
+                await updateNickname(guildMember, robloxUser);
+            }
+        }
+
+        void interaction.followUp({
+            embeds: [embed],
+            components: [],
+            ephemeral: true
+        });
+    } else {
+        void interaction.followUp({
+            content: result.message,
+            ephemeral: true
+        });
+    }
+}
+
+// Similarly for the handleCancelVerifyButton function:
+async function handleCancelVerifyButton(interaction: ButtonInteraction): Promise<void> {
+    await interaction.deferUpdate();
+    const userId = interaction.customId.replace('cancel_verify_', '');
+
+    // Only the user who started verification can cancel
+    if (userId !== interaction.user.id) {
+        // Use void to ignore the return value
+        void interaction.followUp({
+            content: 'This verification is for someone else.',
+            ephemeral: true
+        });
+        return;
+    }
+
+    // Remove from pending verifications
+    global.pendingVerifications.delete(userId);
+
+    // Use void to ignore the return value
+    void interaction.update({
+        content: 'Verification cancelled.',
+        embeds: [],
+        components: []
     });
+}
+
+// Replace the existing handleRequestPromotionButton function
+async function handleRequestPromotionButton(interaction: ButtonInteraction): Promise<void> {
+    try {
+        Logger.info(`Request promotion button clicked by ${interaction.user.tag}`, 'RequestPromotion');
+        await interaction.deferReply({ ephemeral: true });
+
+        const [_, robloxIdFromButton, originalDiscordUserId] = interaction.customId.split(':');
+        Logger.info(`Button data: robloxId=${robloxIdFromButton}, originalDiscordId=${originalDiscordUserId}`, 'RequestPromotion');
+
+        // Security Check
+        Logger.info(`Performing security check for ${interaction.user.id}`, 'RequestPromotion');
+        let clickerRobloxId: string | null = null;
+        try {
+            const linkedUser = await getLinkedRobloxUser(interaction.user.id);
+            Logger.info(`Linked user found: ${!!linkedUser}`, 'RequestPromotion');
+
+            if (linkedUser) {
+                clickerRobloxId = linkedUser.id.toString();
+                Logger.info(`Clicker's Roblox ID: ${clickerRobloxId}`, 'RequestPromotion');
+            }
+        } catch (e) {
+            Logger.error(`Error fetching linked user`, 'RequestPromotion', e);
+        }
+
+        Logger.info(`Security check: clickerRobloxId=${clickerRobloxId}, target=${robloxIdFromButton}, original=${originalDiscordUserId}`, 'RequestPromotion');
+
+        if (clickerRobloxId !== robloxIdFromButton && interaction.user.id !== originalDiscordUserId) {
+            // Check if admin
+            const clickerMember = interaction.guild?.members.cache.get(interaction.user.id);
+            const isAdmin = clickerMember?.roles.cache.some(role => config.permissions.admin?.includes(role.id));
+            Logger.info(`User is admin: ${isAdmin}`, 'RequestPromotion');
+
+            if (!clickerMember || !isAdmin) {
+                Logger.warn(`Security check failed for ${interaction.user.tag}`, 'RequestPromotion');
+                await interaction.editReply({
+                    content: 'You can only request a promotion check for your own linked Roblox account or if you are an admin and initiated the original command.',
+                });
+                return;
+            }
+        }
+
+        Logger.info(`Fetching Roblox user ${robloxIdFromButton}`, 'RequestPromotion');
+        const robloxUser = await robloxClient.getUser(Number(robloxIdFromButton));
+
+        if (!robloxUser) {
+            Logger.warn(`Roblox user ${robloxIdFromButton} not found`, 'RequestPromotion');
+            await interaction.editReply({
+                content: 'Could not find the Roblox user associated with this request.'
+            });
+            return;
+        }
+
+        Logger.info(`Fetching group member for ${robloxUser.name} (${robloxUser.id})`, 'RequestPromotion');
+        const robloxMember = await robloxGroup.getMember(robloxUser.id);
+
+        Logger.info(`Fetching user data for ${robloxUser.name}`, 'RequestPromotion');
+        const userData = await provider.findUser(robloxUser.id.toString());
+
+        if (!robloxMember || !userData) {
+            Logger.warn(`Failed to get member or user data: member=${!!robloxMember}, userData=${!!userData}`, 'RequestPromotion');
+            await interaction.editReply({
+                content: 'Could not retrieve necessary Roblox or user data.'
+            });
+            return;
+        }
+
+        Logger.info(`Fetching group roles`, 'RequestPromotion');
+        const groupRoles = await robloxGroup.getRoles();
+
+        Logger.info(`Checking eligibility for ${robloxUser.name}: XP=${userData.xp}, Current rank=${robloxMember.role.name} (${robloxMember.role.rank})`, 'RequestPromotion');
+        const highestEligibleRole = await findHighestEligibleRole(robloxMember, groupRoles, userData.xp);
+
+        if (highestEligibleRole) {
+            Logger.info(`User ${robloxUser.name} is eligible for rank ${highestEligibleRole.name} (${highestEligibleRole.rank})`, 'RequestPromotion');
+        } else {
+            Logger.info(`User ${robloxUser.name} is not eligible for promotion`, 'RequestPromotion');
+        }
+
+        if (highestEligibleRole && highestEligibleRole.rank > robloxMember.role.rank) {
+            Logger.info(`Initiating promotion check for eligible user ${robloxUser.name}`, 'RequestPromotion');
+            const service = promotionService.getInstance();
+            await service.checkForPromotions();
+
+            logSystemAction('User Promotion Request',
+                interaction.user.tag,
+                `User ${robloxUser.name} (${robloxUser.id}) requested a promotion check and was eligible. Promotion channel updated.`,
+                robloxUser,
+                `Eligible for: ${highestEligibleRole.name}`
+            );
+
+            await interaction.editReply({
+                content: 'Your promotion eligibility has been re-checked. The promotion channel will be updated shortly if there are changes.'
+            });
+        } else {
+            Logger.info(`User ${robloxUser.name} not eligible for promotion or already at correct rank`, 'RequestPromotion');
+
+            logSystemAction('User Promotion Request',
+                interaction.user.tag,
+                `User ${robloxUser.name} (${robloxUser.id}) requested a promotion check but was not eligible for a new rank.`,
+                robloxUser,
+                'Not eligible or already up-to-date.'
+            );
+
+            await interaction.editReply({
+                content: 'You are not currently eligible for a new promotion, or the promotion list is already up-to-date.'
+            });
+        }
+    } catch (error) {
+        Logger.error('Error handling request_promotion button:', 'RequestPromotion', error);
+        logSystemAction('User Promotion Request Error', interaction.user.tag, `Error processing promotion request for Roblox ID ${interaction.customId.split(':')[1]}.`, undefined, error.message);
+
+        await interaction.editReply({
+            content: 'An error occurred while processing your promotion request. Please try again later.'
+        });
+    }
+}
+
+// Improve the handleCheckPromotionsButton function:
+async function handleCheckPromotionsButton(interaction: ButtonInteraction): Promise<void> {
+    try {
+        Logger.info(`Check Promotions button clicked by ${interaction.user.tag}`, 'CheckPromotions');
+
+        // Check permissions
+        const member = interaction.guild?.members.cache.get(interaction.user.id);
+        Logger.info(`Member object retrieved: ${!!member}`, 'CheckPromotions');
+
+        if (!member) {
+            Logger.warn(`Member not found for ${interaction.user.id}`, 'CheckPromotions');
+            await interaction.reply({
+                content: 'You do not have permission to use this button.',
+                ephemeral: true
+            });
+            return;
+        }
+
+        // Check if admin roles are configured properly
+        Logger.info(`Admin roles configured: ${JSON.stringify(config.permissions.admin)}`, 'CheckPromotions');
+
+        // Check if user has admin roles
+        const hasPermission = member.roles.cache.some(role => config.permissions.admin?.includes(role.id));
+        Logger.info(`User has admin permission: ${hasPermission}`, 'CheckPromotions');
+
+        if (!hasPermission) {
+            await interaction.reply({
+                content: 'You do not have permission to use this button.',
+                ephemeral: true
+            });
+            return;
+        }
+
+        Logger.info(`Deferring reply for ${interaction.user.tag}`, 'CheckPromotions');
+        await interaction.deferReply({ ephemeral: true });
+
+        // Get promotion service
+        let service;
+        try {
+            Logger.info(`Getting promotion service instance`, 'CheckPromotions');
+            service = promotionService.getInstance();
+            Logger.info(`Service instance obtained: ${!!service}`, 'CheckPromotions');
+        } catch (initError) {
+            Logger.error(`Failed to get promotion service instance`, 'CheckPromotions', initError);
+            await interaction.editReply({
+                content: 'Failed to initialize promotion service. Check server logs.'
+            });
+            return;
+        }
+
+        try {
+            Logger.info(`Calling checkForPromotions`, 'CheckPromotions');
+            await service.checkForPromotions();
+            Logger.info(`checkForPromotions completed successfully`, 'CheckPromotions');
+
+            await interaction.editReply({
+                content: 'Promotion check completed. The promotion embed has been updated.'
+            });
+        } catch (serviceError) {
+            Logger.error(`Error in promotion service: ${serviceError.message}`, 'CheckPromotions', serviceError);
+            await interaction.editReply({
+                content: `Error: ${serviceError.message || 'Unknown error'}`
+            });
+        }
+    } catch (error) {
+        Logger.error(`Error handling check_promotions button`, 'CheckPromotions', error);
+        // Only reply if we haven't already
+        if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({
+                content: 'An error occurred while processing this button.',
+                ephemeral: true
+            });
+        } else if (interaction.deferred) {
+            await interaction.editReply({
+                content: 'An error occurred while checking promotions.'
+            });
+        }
+    }
 }
 
 // Moved these functions out of the handleButtonInteraction scope
@@ -454,7 +860,7 @@ async function handlePurgeMembersButton(interaction: ButtonInteraction): Promise
         );
 
         // Create results embed
-        const resultsEmbed = createBaseEmbed()
+        const resultsEmbed = createBaseEmbed('primary')
             .setTitle('Purge Operation Results')
             .setDescription(`Purge operation complete for ${membersToPurge.length} users.`)
             .addFields(

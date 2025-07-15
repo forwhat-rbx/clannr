@@ -1,5 +1,5 @@
 import { CommandContext } from '../../structures/addons/CommandAddons';
-import { Command } from '../../structures/Command';
+import Command from '../../structures/Command';
 import { robloxClient, robloxGroup } from '../../main';
 import { provider } from '../../database';
 import { createBaseEmbed } from '../../utils/embedUtils';
@@ -77,7 +77,7 @@ class ProfileCommand extends Command {
         const totalEvents = (userData.raids || 0) + (userData.scrims || 0) +
             (userData.defenses || 0) + (userData.trainings || 0);
 
-        const embed = createBaseEmbed()
+        const embed = createBaseEmbed('primary')
             .setAuthor({
                 name: robloxUser.name,
                 url: `https://www.roblox.com/users/${robloxUser.id}/profile`,

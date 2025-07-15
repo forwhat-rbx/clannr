@@ -1,7 +1,8 @@
 import { CommandContext } from '../../structures/addons/CommandAddons';
-import { Command } from '../../structures/Command';
+import Command from '../../structures/Command';
 import { ActionRowBuilder, CommandInteraction, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { config } from '../../config';
+import { Logger } from '../../utils/logger';
 
 class DMRoleCommand extends Command {
     constructor() {
@@ -84,19 +85,19 @@ class DMRoleCommand extends Command {
             // Show the modal
             if (ctx.type === 'interaction' && ctx.subject) {
                 try {
-                    console.log("About to show modal for role:", role.name);
+                    Logger.info(`About to show modal for role: ${role.name}`, 'DMRoleCommand');
                     const interaction = ctx.subject as CommandInteraction;
 
                     if (interaction.replied || interaction.deferred) {
-                        console.error("Interaction already replied or deferred");
+                        Logger.error("Interaction already replied or deferred", 'DMRoleCommand');
                         return ctx.reply({ content: 'Unable to show form - interaction already handled', ephemeral: true });
                     }
 
                     await interaction.showModal(modal);
-                    console.log("Modal shown successfully");
+                    Logger.info("Modal shown successfully", 'DMRoleCommand');
 
                 } catch (error) {
-                    console.error('Error showing modal:', error);
+                    Logger.error('Error showing modal:', 'DMRoleCommand', error);
                     await ctx.reply({
                         content: `Failed to show the DM form: ${error.message || "Unknown error"}`,
                         ephemeral: true
@@ -106,7 +107,7 @@ class DMRoleCommand extends Command {
                 await ctx.reply({ content: "This command can only be used with slash commands.", ephemeral: true });
             }
         } catch (error) {
-            console.error('Error in DMRole command:', error);
+            Logger.error('Error in DMRole command', 'DMRoleCommand', error);
             await ctx.reply({ content: 'An error occurred while processing the command.', ephemeral: true });
         }
     }

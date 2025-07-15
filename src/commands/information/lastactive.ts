@@ -1,6 +1,6 @@
 import { createBaseEmbed } from '../../utils/embedUtils';
 import { CommandContext } from '../../structures/addons/CommandAddons';
-import { Command } from '../../structures/Command';
+import Command from '../../structures/Command';
 import { config } from '../../config';
 import { provider } from '../../database';
 import { robloxClient, robloxGroup } from '../../main';
@@ -214,7 +214,7 @@ class LastActiveCommand extends Command {
             });
 
             // Create an embed with the results
-            const embed = createBaseEmbed()
+            const embed = createBaseEmbed('primary')
                 .setTitle(`Inactive Users (${days}+ days)`)
                 .setDescription(
                     inactiveUsers.length > 0

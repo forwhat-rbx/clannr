@@ -1,75 +1,152 @@
-import { Client, GatewayIntentBits } from 'discord.js';
-import { BotConfig, CommandExport } from './types';
-import { Command } from './Command';
+import { Client, ClientOptions, GatewayIntentBits, Routes, ApplicationCommandDataResolvable } from 'discord.js';
+import { readdirSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import path from 'path';
 import { config } from '../config';
-import { readdirSync, writeFileSync } from 'fs';
-import { discordClient } from '../main';
-import { qbotLaunchTextDisplay, welcomeText, startedText, securityText, getListeningText } from '../handlers/locale';
-import { getLogChannels } from '../handlers/handleLogging';
-require('dotenv').config();
+import Command from './Command';
+import { REST } from '@discordjs/rest';
+import { Logger } from '../utils/logger';
 
 class QbotClient extends Client {
-    config: BotConfig;
-    commands: any[];
+    public commands: Command[] = [];
+    public config = config;
 
-    constructor() {
-        super({
+    constructor(options?: ClientOptions) {
+        super(options || {
             intents: [
                 GatewayIntentBits.Guilds,
                 GatewayIntentBits.GuildMessages,
                 GatewayIntentBits.GuildMembers,
-                GatewayIntentBits.GuildMessageReactions,
                 GatewayIntentBits.MessageContent,
                 GatewayIntentBits.GuildPresences,
-                GatewayIntentBits.GuildVoiceStates,
+                GatewayIntentBits.GuildMessageReactions,
+                GatewayIntentBits.GuildVoiceStates
             ]
-        });
-        this.config = config;
-        this.on('ready', () => {
-            console.log(qbotLaunchTextDisplay);
-            console.log(welcomeText);
-            if(this.application.botPublic) return console.log(securityText);
-            console.log(startedText);
-            console.log(getListeningText(process.env.PORT || 3001));
-            this.loadCommands();
-            getLogChannels();
-
-            if(config.activity.enabled) {
-                this.user.setActivity(config.activity.value, {
-                    type: config.activity.type,
-                    url: config.activity.url,
-                });
-            }
-
-            if(config.status !== 'online') this.user.setStatus(config.status);
         });
     }
 
-    /**
-     * Load all commands into the commands object of QbotClient.
-     */
-    loadCommands() {
-        const rawModules = readdirSync('./src/commands');
-        const loadPromise = new Promise((resolve, reject) => {
-            let commands: Command[] = [];
-            rawModules.forEach(async (module, moduleIndex) => {
-                const rawCommands = readdirSync(`./src/commands/${module}`);
-                rawCommands.forEach(async (cmdName, cmdIndex) => {
-                    const { default: command }: CommandExport = await import(`../commands/${module}/${cmdName.replace('.ts', '')}`);
-                    commands.push(command);
-                    if(moduleIndex === rawModules.length - 1 && cmdIndex === rawCommands.length - 1) resolve(commands);
-                });
-            }); 
-        });
-        loadPromise.then(async (commands: Command[]) => {
-            const slashCommands = commands.map((cmd: any) => new cmd().generateAPICommand());
-            const currentCommands = require('../resources/commands.json');
-            if(JSON.stringify(currentCommands) !== JSON.stringify(slashCommands)) {
-                writeFileSync('./src/resources/commands.json', JSON.stringify(slashCommands), 'utf-8');
-                discordClient.application.commands.set(slashCommands);
+    async loadCommands() {
+        try {
+            const loadedCommands: Command[] = [];
+            const commandsDir = path.join(process.cwd(), 'src/commands');
+
+            Logger.info(`Looking for commands in: ${commandsDir}`, 'CommandLoader');
+
+            // Check if directory exists
+            if (!existsSync(commandsDir)) {
+                Logger.error(`Commands directory not found: ${commandsDir}`, 'CommandLoader');
+                return [];
             }
-            this.commands = commands;
-        });
+
+            const modules = readdirSync(commandsDir);
+            Logger.info(`Found ${modules.length} modules: ${modules.join(', ')}`, 'CommandLoader');
+
+            for (const module of modules) {
+                const moduleDir = path.join(commandsDir, module);
+                if (existsSync(moduleDir) && !moduleDir.endsWith('.ts')) {
+                    const commandFiles = readdirSync(moduleDir).filter(file => file.endsWith('.ts') && !file.endsWith('.test.ts'));
+
+                    Logger.info(`Found ${commandFiles.length} commands in module ${module}: ${commandFiles.join(', ')}`, 'CommandLoader');
+
+                    for (const file of commandFiles) {
+                        try {
+                            const commandPath = `../commands/${module}/${file.replace('.ts', '')}`;
+                            Logger.debug(`Loading command from path: ${commandPath}`, 'CommandLoader');
+
+                            // Clear cache to ensure fresh command is loaded
+                            delete require.cache[require.resolve(commandPath)];
+
+                            // Import command
+                            const { default: CommandClass } = await import(commandPath);
+
+                            if (CommandClass && typeof CommandClass === 'function') {
+                                // Create an instance of the command and store it
+                                const command = new CommandClass();
+                                Logger.debug(`Loaded command: ${command.trigger || 'Unknown'}`, 'CommandLoader');
+                                loadedCommands.push(command);
+                            } else {
+                                Logger.warn(`Command in ${file} does not export a valid default class`, 'CommandLoader');
+                            }
+                        } catch (error) {
+                            const errorMessage = error instanceof Error
+                                ? error.message
+                                : 'Unknown error';
+                            Logger.error(`Error loading command in ${file}: ${errorMessage}`, 'CommandLoader');
+                            console.error(`Failed to load command in ${file}:`, error);
+                        }
+                    }
+                }
+            }
+
+            this.commands = loadedCommands;
+            Logger.info(`Loaded ${loadedCommands.length} commands total`, 'CommandLoader');
+
+            // Registration happens separately after login
+            return loadedCommands;
+        } catch (error) {
+            Logger.error("Error loading commands:", 'CommandLoader', error);
+            return [];
+        }
+    }
+
+    async registerSlashCommands(guildId?: string) {
+        if (!this.application?.id) {
+            Logger.error("Cannot register commands - application ID not available", 'CommandLoader');
+            return false;
+        }
+
+        try {
+            // Filter out disabled commands
+            const enabledCommands = this.commands.filter(cmd => cmd.enabled !== false);
+            Logger.info(`Preparing to register ${enabledCommands.length} enabled commands`, 'CommandLoader');
+
+            const slashCommands = enabledCommands.map(cmd => {
+                try {
+                    const apiCommand = cmd.generateAPICommand();
+                    Logger.debug(`Generated API command for ${cmd.trigger}`, 'CommandLoader');
+                    return apiCommand;
+                } catch (err) {
+                    Logger.error(`Failed to generate API command for ${cmd.trigger}:`, 'CommandLoader', err);
+                    return null;
+                }
+            }).filter(cmd => cmd !== null) as ApplicationCommandDataResolvable[];
+
+            // Create resources directory if it doesn't exist
+            const resourcesDir = path.join(process.cwd(), 'src/resources');
+            if (!existsSync(resourcesDir)) {
+                mkdirSync(resourcesDir, { recursive: true });
+            }
+
+            // Save commands to file for reference
+            const commandsPath = path.join(resourcesDir, 'commands.json');
+            writeFileSync(commandsPath, JSON.stringify(slashCommands, null, 2), 'utf-8');
+
+            Logger.info(`Registering ${slashCommands.length} slash commands with Discord API...`, 'CommandLoader');
+
+            // Register commands with Discord API
+            const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+
+            if (guildId) {
+                // Register to a specific guild for testing (instant update)
+                await rest.put(
+                    Routes.applicationGuildCommands(this.application.id, guildId),
+                    { body: slashCommands }
+                );
+                Logger.info(`Successfully registered ${slashCommands.length} slash commands to guild ${guildId}`, 'CommandLoader');
+            } else {
+                // Register globally (can take up to an hour to propagate)
+                await rest.put(
+                    Routes.applicationCommands(this.application.id),
+                    { body: slashCommands }
+                );
+                Logger.info(`Successfully registered ${slashCommands.length} slash commands globally`, 'CommandLoader');
+            }
+
+            return true;
+        } catch (error) {
+            Logger.error("Error registering slash commands:", 'CommandLoader', error);
+            console.error(error); // Log the full error for debugging
+            return false;
+        }
     }
 }
 

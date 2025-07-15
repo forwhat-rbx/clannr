@@ -6,14 +6,15 @@ import { createBaseEmbed } from '../utils/embedUtils';
 import { findHighestEligibleRole, getRankName } from '../commands/ranking/xprankup';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 import { safeUpdateMember } from '../utils/robloxUtils';
-import { logSystemAction, logAction as legacyLogAction } from '../handlers/handleLogging'; // Import new and keep old if needed elsewhere
+import { logSystemAction, logAction as legacyLogAction } from '../handlers/handleLogging';
 import { PartialUser, User as RobloxUser } from 'bloxy/dist/structures';
+import { Logger } from '../utils/logger';
 
 
 export class promotionService {
-    private static instance: promotionService;
-    private pendingPromotions: Array<{ robloxId: string; name: string; currentRank: string; newRank: string; roleId: number }> = [];
-    private lastMessageId: string | null = null;
+    public static instance: promotionService;
+    public pendingPromotions: Array<{ robloxId: string; name: string; currentRank: string; newRank: string; roleId: number }> = [];
+    public lastMessageId: string | null = null;
 
     private constructor() { }
 
@@ -41,27 +42,56 @@ export class promotionService {
             const oldMessages = messagesToDelete.filter(msg => msg.createdTimestamp <= twoWeeksAgo);
 
             let purgedCount = 0;
-            if (recentMessages.size > 0) {
-                const deletedMessages = await channel.bulkDelete(recentMessages, true); // true to filter out messages older than 2 weeks if any slip through
-                purgedCount += deletedMessages.size;
-                logSystemAction('Channel Purge Success', actor, undefined, undefined, `Bulk deleted ${deletedMessages.size} recent messages from #${channel.name}.`);
-            }
+            let failedCount = 0;
 
-            for (const message of oldMessages.values()) {
+            // Handle bulk deletion for recent messages
+            if (recentMessages.size > 0) {
                 try {
-                    await message.delete();
-                    purgedCount++;
-                } catch (err) {
-                    logSystemAction('Channel Purge Error', actor, `Failed to delete old message ${message.id} from #${channel.name}.`, undefined, err.message);
+                    const deletedMessages = await channel.bulkDelete(recentMessages, true);
+                    purgedCount += deletedMessages.size;
+                    logSystemAction('Channel Purge Success', actor, undefined, undefined,
+                        `Bulk deleted ${deletedMessages.size} recent messages from #${channel.name}.`);
+                } catch (bulkError) {
+                    logSystemAction('Channel Purge Error', actor,
+                        `Failed to bulk delete recent messages from #${channel.name}.`, undefined, bulkError.message);
                 }
             }
-            if (purgedCount > 0 && oldMessages.size > 0 && recentMessages.size === 0) { // If only old messages were deleted
-                logSystemAction('Channel Purge Success', actor, undefined, undefined, `Individually deleted ${oldMessages.size} old messages from #${channel.name}. Total purged: ${purgedCount}`);
-            } else if (purgedCount > 0 && oldMessages.size > 0 && recentMessages.size > 0) {
-                // Logged by bulk and individual will be logged if any succeed
-                logSystemAction('Channel Purge Info', actor, undefined, undefined, `Additionally, individually deleted ${oldMessages.filter(m => !recentMessages.has(m.id)).size} old messages from #${channel.name}.`);
+
+            // Handle individual deletion for older messages
+            if (oldMessages.size > 0) {
+                logSystemAction('Channel Purge Info', actor, undefined, undefined,
+                    `Attempting to delete ${oldMessages.size} old messages individually from #${channel.name}.`);
+
+                // Delete older messages one by one with better error handling
+                for (const message of oldMessages.values()) {
+                    try {
+                        await message.delete();
+                        purgedCount++;
+                    } catch (err) {
+                        // Don't log every individual error, just count them
+                        failedCount++;
+
+                        // Only log serious errors, not "Unknown Message" errors
+                        if (err.message !== "Unknown Message") {
+                            logSystemAction('Channel Purge Error', actor,
+                                `Failed to delete message from #${channel.name}.`, undefined, err.message);
+                        }
+                    }
+                }
+
+                // Log a summary of individual deletions
+                if (failedCount > 0) {
+                    logSystemAction('Channel Purge Info', actor, undefined, undefined,
+                        `Deleted ${purgedCount - (recentMessages.size || 0)} old messages, ${failedCount} deletions failed (message may no longer exist).`);
+                } else if (purgedCount > recentMessages.size) {
+                    logSystemAction('Channel Purge Success', actor, undefined, undefined,
+                        `Successfully deleted ${purgedCount - recentMessages.size} old messages from #${channel.name}.`);
+                }
             }
 
+            // Log final summary
+            logSystemAction('Channel Purge Complete', actor, undefined, undefined,
+                `Total messages purged: ${purgedCount}, Failed: ${failedCount} from #${channel.name}.`);
 
         } catch (err) {
             logSystemAction('Channel Purge Error', actor, `Error purging promotion channel #${channel.name}.`, undefined, err.message);
@@ -113,25 +143,45 @@ export class promotionService {
 
     public async updatePromotionEmbed(): Promise<void> {
         const actor = "Promotion Service";
-        const channelId = '1370180938641702922';
+        const channelId = '1389399967478710272'; //promotion check
+
+        console.log(`[PROMOTION DEBUG] Using channel ID: ${channelId} for promotions`);
+        Logger.info(`Using channel ID: ${channelId} for promotions`, 'PromotionService');
+
+
+
         if (!channelId) {
+            console.error('[PROMOTION ERROR] No channel ID configured');
             logSystemAction('Embed Update Error', actor, undefined, undefined, 'Promotion channel ID not configured.');
             return;
         }
 
         let channel: TextChannel | null = null;
         try {
-            const fetchedChannel = await discordClient.channels.fetch(channelId);
-            if (fetchedChannel && fetchedChannel.isTextBased()) {
-                channel = fetchedChannel as TextChannel;
-            }
-        } catch (err) {
-            logSystemAction('Embed Update Error', actor, `Failed to fetch promotion channel ${channelId}.`, undefined, err.message);
-            return;
-        }
+            console.log(`[PROMOTION DEBUG] Fetching channel ${channelId}`);
+            // Add better error handling for channel fetching
+            const fetchedChannel = await discordClient.channels.fetch(channelId).catch(err => {
+                console.error(`[PROMOTION ERROR] Failed to fetch channel: ${err.message}`);
+                return null;
+            });
 
-        if (!channel) {
-            logSystemAction('Embed Update Error', actor, undefined, undefined, `Promotion channel ${channelId} not found or not a text channel.`);
+            if (!fetchedChannel) {
+                console.error(`[PROMOTION ERROR] Channel ${channelId} not found`);
+                logSystemAction('Embed Update Error', actor, undefined, undefined, `Failed to fetch channel ${channelId}`);
+                return;
+            }
+
+            if (!fetchedChannel.isTextBased()) {
+                console.error(`[PROMOTION ERROR] Channel ${channelId} is not a text channel`);
+                logSystemAction('Embed Update Error', actor, undefined, undefined, `Channel ${channelId} is not a text channel`);
+                return;
+            }
+
+            channel = fetchedChannel as TextChannel;
+            console.log(`[PROMOTION DEBUG] Successfully fetched channel #${channel.name}`);
+        } catch (err) {
+            console.error(`[PROMOTION ERROR] Error fetching channel: ${err.message}`);
+            logSystemAction('Embed Update Error', actor, `Failed to fetch promotion channel ${channelId}.`, undefined, err.message);
             return;
         }
 
@@ -174,7 +224,7 @@ export class promotionService {
     }
 
     private createPromotionEmbed(): EmbedBuilder {
-        const embed = createBaseEmbed() // Assuming this is defined elsewhere
+        const embed = createBaseEmbed('primary') // Assuming this is defined elsewhere
             .setTitle('Pending Promotions')
             .setDescription(
                 this.pendingPromotions.length > 0
@@ -202,8 +252,6 @@ export class promotionService {
             return 0;
         }
 
-        // For the start of a user-initiated multi-step action, legacyLogAction might be better if you want it in Discord.
-        legacyLogAction('Promotion Execution Start', staffActor, undefined, undefined, `Attempting to promote ${this.pendingPromotions.length} users.`);
         let successCount = 0;
         const initialPendingCount = this.pendingPromotions.length; // Store initial count
 
@@ -227,7 +275,6 @@ export class promotionService {
 
         this.lastMessageId = null; // Force new message after promotions attempt
 
-        legacyLogAction('Promotion Execution Finish', staffActor, undefined, undefined, `Executed ${successCount} of ${initialPendingCount} promotions. Pending list cleared.`);
         await this.updatePromotionEmbed(); // This will now show an empty list or new pending ones if any occurred during execution
         return successCount;
     }

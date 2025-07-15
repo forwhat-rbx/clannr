@@ -2,80 +2,110 @@ import { ActivityType } from 'discord.js';
 import { BotConfig } from './structures/types';
 
 export const config: BotConfig = {
-    groupId: 32651490,
-    slashCommands: true,
+    // ROBLOX GROUP CONFIGURATION
+    groupId: 35102492, // Replace with your Roblox group ID (found in group URL)
+
+    // COMMAND SETTINGS
+    slashCommands: true, // Enable Discord slash commands
     legacyCommands: {
-        enabled: true,
-        prefixes: ['-'],
+        enabled: true, // Enable traditional prefix commands
+        prefixes: ['-'], // Command prefixes (e.g., -rank, -promote)
     },
+
+    // USER PERMISSIONS (Discord User IDs)
+    // Add Discord user IDs to grant specific permissions
     permissions: {
-        all: ['1248472145676210237', '1252315853844779099', '1115184793659904020'], // (HICOM) (ENGINEER) (4W SERVER)
-        ranking: ['1225166398574301196', '1248472145676210237', '1252315853844779099'], //removexp, , promote (OFFICER) (HICOM) (ENGINEER)
-        users: ['1262408265724203068', '1225166398574301196', '1248472145676210237', '1252315853844779099'], // pender perms (CSM) (OFFICER) (HICOM) (ENGINEER) 
-        shout: [''],
-        join: ['1252321421623824496', '1225166398574301196'], //adxp (NCO) (OFFICER)
-        signal: [''],
-        admin: ['1248472145676210237', '1252315853844779099'], // (HICOM) (ENGINEER)
+        all: [''], // Full bot permissions - ADMIN ONLY
+        ranking: [''], // Can promote/demote users
+        shout: [''], // Can send group shouts
+        join: [''], // Can accept/decline join requests
+        signal: [''], // Can send signals/announcements
+        admin: [''], // Administrative functions
     },
+
+    // DISCORD CHANNEL IDS FOR LOGGING
+    // Replace with your Discord channel IDs where you want logs
     logChannels: {
-        actions: '1254463404136206407',
-        shout: '1254463404136206407',
-        rankup: '1254463404136206407',
+        actions: '', // Logs rank changes, warnings, kicks, etc.
+        shout: '', // Logs when group shouts are sent
+        rankup: '', // Logs automatic rank promotions from XP system
+        verification: '', // Logs user verification events
     },
-    api: true,
-    maximumRank: 255,
-    verificationChecks: false,
-    bloxlinkGuildId: '1225166398532223116',
-    firedRank: 1,
-    suspendedRank: 1,
-    recordManualActions: true,
+
+    // API AND VERIFICATION SETTINGS
+    api: true, // Enable API endpoints for external integrations
+    maximumRank: 255, // Highest rank the bot can promote to (Roblox rank number)
+    verificationChecks: false, // Enable additional verification requirements
+    bloxlinkGuildId: '', // Your Discord server ID (for Bloxlink integration)
+
+    // PUNISHMENT RANKS
+    firedRank: 1, // Roblox rank number for fired members
+    suspendedRank: 1, // Roblox rank number for suspended members
+    recordManualActions: true, // Log manual promotions/demotions done outside the bot
+
+    // MEMBER COUNT DISPLAY
     memberCount: {
-        enabled: true,
-        channelId: '1254463404136206407',
-        milestone: 1000,
-        onlyMilestones: false,
+        enabled: true, // Show member count in a Discord channel
+        channelId: '', // Discord channel ID to display count in
+        milestone: 1000, // Celebrate when reaching multiples of this number
+        onlyMilestones: false, // Only update on milestones vs. real-time updates
     },
+
+    // XP RANKING SYSTEM
+    // Users gain XP over time and automatically rank up
+    // Ranks are listed from lowest to highest
     xpSystem: {
-        enabled: true,
-        autoRankup: true,
+        enabled: true, // Enable automatic XP-based promotions
+        autoRankup: true, // Automatically promote when XP threshold is met
         roles: [
+            // Each entry: rank = Roblox rank number, xp = XP required to reach it
             {
-                rank: 3,
-                xp: 10,
+                rank: 5, // Roblox rank number
+                xp: 40, // XP required to reach this rank
             },
             {
-                rank: 4,
-                xp: 25,
-            },
-            {
-                rank: 5,
-                xp: 50,
-            },
-            {
-                rank: 6,
-                xp: 70,
-            },
-            {
-                rank: 7,
+                rank: 10,
                 xp: 100,
             },
             {
-                rank: 8,
+                rank: 15,
                 xp: 150,
             },
+            {
+                rank: 20,
+                xp: 300,
+            },
+            {
+                rank: 25,
+                xp: 500,
+            },
+            {
+                rank: 40,
+                xp: 1000,
+            },
+            // Add more ranks as needed - make sure XP values increase
         ],
     },
+
+    // ANTI-ABUSE PROTECTION
     antiAbuse: {
-        enabled: false,
-        clearDuration: 1 * 60,
-        threshold: 10,
-        demotionRank: 1,
+        enabled: false, // Prevent spam/abuse of ranking commands
+        clearDuration: 1 * 60, // Reset abuse counter after X seconds
+        threshold: 10, // Number of actions before triggering protection
+        demotionRank: 1, // Rank to demote abusers to
     },
+
+    // BOT DISCORD PRESENCE
     activity: {
-        enabled: true,
-        type: ActivityType.Playing,
-        value: 'Port Maersk',
+        enabled: true, // Show custom activity status
+        type: ActivityType.Playing, // Playing, Watching, Listening, Streaming
+        value: 'Typescript', // The text shown in bot's status
     },
-    status: 'dnd',
-    deleteWallURLs: false,
+    status: 'dnd', // Bot's online status: 'dnd', 'online', 'idle', 'invisible'
+
+    // MODERATION SETTINGS
+    deleteWallURLs: false, // Automatically delete URLs posted on group wall
+
+    // DEVELOPMENT SETTINGS
+    testGuildId: '1115179981866278933' // Discord server ID for testing new features
 };

@@ -1,6 +1,6 @@
 import { discordClient, robloxClient, robloxGroup } from '../../main';
 import { CommandContext } from '../../structures/addons/CommandAddons';
-import { Command } from '../../structures/Command';
+import Command from '../../structures/Command';
 import { User, PartialUser } from 'bloxy/dist/structures';
 import { getLinkedRobloxUser } from '../../handlers/accountLinks';
 import { config } from '../../config';
@@ -11,6 +11,7 @@ import {
     getUnexpectedErrorEmbed
 } from '../../handlers/locale';
 import { createBaseEmbed } from '../../utils/embedUtils';
+import { Logger } from '../../utils/logger';
 
 class ResetStatsCommand extends Command {
     constructor() {
@@ -63,7 +64,7 @@ class ResetStatsCommand extends Command {
                 trainings: 0
             });
 
-            const embed = createBaseEmbed()
+            const embed = createBaseEmbed('primary')
                 .setTitle('Stats Reset')
                 .setDescription(`Successfully reset all stats for **${robloxUser.name}**`)
                 .addFields(
@@ -85,7 +86,7 @@ class ResetStatsCommand extends Command {
 
             return ctx.reply({ embeds: [embed] });
         } catch (err) {
-            console.error(err);
+            Logger.error('Failed to reset user stats:', 'ResetStats', err);
             return ctx.reply({ embeds: [getUnexpectedErrorEmbed()] });
         }
     }

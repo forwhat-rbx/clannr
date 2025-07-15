@@ -1,6 +1,6 @@
 import { robloxGroup } from '../../main';
 import { CommandContext } from '../../structures/addons/CommandAddons';
-import { Command } from '../../structures/Command';
+import Command from '../../structures/Command';
 import { createBaseEmbed } from '../../utils/embedUtils';
 
 class RolesCommand extends Command {
@@ -30,7 +30,7 @@ class RolesCommand extends Command {
             .map(role => `**${role.name}** (${role.rank})`)
             .join('\n');
 
-        const embed = createBaseEmbed()
+        const embed = createBaseEmbed('primary')
             .setTitle('List of Group Roles')
             .setDescription(roleList);
 

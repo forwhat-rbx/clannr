@@ -1,5 +1,5 @@
 import { CommandContext } from '../../structures/addons/CommandAddons';
-import { Command } from '../../structures/Command';
+import Command from '../../structures/Command';
 import { createBaseEmbed } from '../../utils/embedUtils';
 import { config } from '../../config';
 import { robloxClient, robloxGroup } from '../../main';
@@ -103,7 +103,7 @@ class XPCheckRankupsCommand extends Command {
             canRankUpList.push(...results.filter(Boolean));
         });
 
-        const embed = createBaseEmbed()
+        const embed = createBaseEmbed('primary')
             .setTitle('Pending Promotions')
             .setDescription(
                 canRankUpList.length

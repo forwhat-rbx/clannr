@@ -170,7 +170,7 @@ const generateCompositeImage = async (
     }
 ) => {
     // Image URLs
-    const newBackgroundUrl = 'https://i.ibb.co/MxmMh5xp/VALK-BACK.png';
+    const newBackgroundUrl = 'https://i.ibb.co/B25pZzG2/NEW-VALK-BACK.png';
 
     // Canvas setup
     const width = 1000;

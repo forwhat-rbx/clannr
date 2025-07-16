@@ -9,8 +9,6 @@
 
 This project started life as [LengoLabs’ Qbot](https://docs.lengolabs.com) (MIT-licensed). All original copyright remains with LengoLabs; this fork is independently maintained. A big thank you to them for still having their documents open and readily available for use. I will be heavily relying on them to be able to show you how to install this bot for yourself.
 
-Clannr is a fast, modular Discord–Roblox rank management bot that’s simple to configure yet packed with powerful features. Manage your group’s roles and rank syncing effortlessly without any branding or fees.
-
 ## Installation
 
 You can follow the [environment setup](https://docs.lengolabs.com/docs/environment-setup) from the original creators of the bot.

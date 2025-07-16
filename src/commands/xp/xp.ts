@@ -244,7 +244,6 @@ export default class ManageXPCommand extends Command {
             const errorEmbed = createBaseEmbed('danger')
                 .setTitle('Error')
                 .setDescription('An unexpected error occurred while processing your XP request.')
-                .setColor('#FA5757');
 
             return ctx.reply({
                 embeds: [errorEmbed],

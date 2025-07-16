@@ -17,8 +17,8 @@ export const config: BotConfig = {
     permissions: {
         all: [''], // Full bot permissions - ADMIN ONLY
         ranking: [''], // Can promote/demote users
-        shout: [''], // Can send group shouts
-        join: [''], // Can accept/decline join requests
+        shout: [''], // Can send group shouts/
+        join: [''], // Can accept/decline join requests as well as add XP. If you want to change this, you need to change the permission in the file (src/commands/xp/xp.ts)
         signal: [''], // Can send signals/announcements
         admin: [''], // Administrative functions
     },

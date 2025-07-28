@@ -13,7 +13,7 @@ export const config: BotConfig = {
     },
 
     // USER PERMISSIONS (Discord User IDs)
-    // Add Discord user IDs to grant specific permissions
+    // Add Discord Role IDs to grant specific permissions
     permissions: {
         all: [''], // Full bot permissions - ADMIN ONLY
         ranking: [''], // Can promote/demote users

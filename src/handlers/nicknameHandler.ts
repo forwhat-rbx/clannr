@@ -72,73 +72,7 @@ export const setNicknameFormat = async (guildId: string, format: string): Promis
 };
 
 /**
- * Get or create rank prefix mappings for a guild
- */
-export const getRankPrefixMappings = async (guildId: string): Promise<Record<string, string>> => {
-    try {
-        const guildConfig = await prisma.guildConfig.findUnique({
-            where: { guildId }
-        });
-
-        if (guildConfig?.rankPrefixMappings) {
-            return JSON.parse(guildConfig.rankPrefixMappings);
-        }
-
-        // Return empty object if no custom mappings exist
-        return {};
-    } catch (err) {
-        console.error(`Error getting rank prefix mappings: ${err.message}`);
-        return {};
-    }
-};
-
-/**
- * Set rank prefix mappings for a guild
- */
-export const setRankPrefixMappings = async (guildId: string, mappings: Record<string, string>): Promise<void> => {
-    try {
-        await prisma.guildConfig.upsert({
-            where: { guildId },
-            update: { rankPrefixMappings: JSON.stringify(mappings) },
-            create: {
-                id: guildId,
-                guildId,
-                nicknameFormat: '[{rankNumber}] {robloxUsername}',
-                rankPrefixMappings: JSON.stringify(mappings)
-            }
-        });
-        console.log(`Updated rank prefix mappings for guild ${guildId}`);
-    } catch (err) {
-        console.error(`Error setting rank prefix mappings: ${err.message}`);
-        throw err;
-    }
-};
-
-/**
- * Generate a rank prefix 
- */
-const generateRankPrefix = async (rankName: string, rankNumber: number, guildId: string): Promise<string> => {
-    // Get custom mappings for this guild
-    const customMappings = await getRankPrefixMappings(guildId);
-
-    // Check for exact rank name match first
-    if (customMappings[rankName]) {
-        return customMappings[rankName];
-    }
-
-    // Check for rank number match (useful for consistent prefixes across rank changes)
-    const rankNumberKey = `rank_${rankNumber}`;
-    if (customMappings[rankNumberKey]) {
-        return customMappings[rankNumberKey];
-    }
-
-    // No custom mapping found - log and return empty string
-    console.warn(`No rank prefix mapping found for rank "${rankName}" (${rankNumber}) in guild ${guildId}. Consider setting up custom rank prefix mappings.`);
-    return '';
-};
-
-/**
- * Generate a rank abbreviation from rank name (fallback option)
+ * Generate a rank abbreviation from rank name
  */
 const generateRankAbbreviation = (rankName: string): string => {
     if (!rankName || rankName === "Guest") return "G";
@@ -210,32 +144,18 @@ export const updateNickname = async (member: GuildMember, robloxUser: User): Pro
         }
 
         // Generate dynamic values
-        let rankPrefix = '';
-        try {
-            rankPrefix = await generateRankPrefix(rankName, rankNumber, member.guild.id);
-        } catch (err) {
-            console.error(`Error generating rank prefix for ${rankName} (${rankNumber}):`, err);
-            rankPrefix = ''; // Continue with empty prefix
-        }
-
         const rankAbbr = generateRankAbbreviation(rankName);
 
-        // Format nickname with all available placeholders
+        // Format nickname with available placeholders
         let nickname = format
             .replace(/{robloxUsername}/g, robloxUser.name)
             .replace(/{robloxDisplayName}/g, robloxUser.displayName || robloxUser.name)
             .replace(/{rankName}/g, rankName)
             .replace(/{rankNumber}/g, rankNumber.toString())
-            .replace(/{rankPrefix}/g, rankPrefix)
             .replace(/{rankAbbr}/g, rankAbbr)
             .replace(/{rankAbbrv}/g, rankAbbr); // Alternative spelling
 
         console.log(`Formatted nickname: "${nickname}" for ${member.user.tag}`);
-
-        // Check if nickname format contains unsupported placeholders
-        if (nickname.includes('{rankPrefix}') && rankPrefix === '') {
-            console.warn(`Nickname format contains {rankPrefix} but no mapping exists for rank "${rankName}" in guild ${member.guild.name}. Consider setting up rank prefix mappings or using a different format.`);
-        }
 
         // Discord nickname limit
         if (nickname.length > 32) {

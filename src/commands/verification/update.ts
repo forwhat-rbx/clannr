@@ -1,7 +1,7 @@
 import { CommandContext } from '../../structures/addons/CommandAddons';
 import Command from '../../structures/Command';
 import { createBaseEmbed } from '../../utils/embedUtils';
-import { getLinkedRobloxUser } from '../../handlers/accountLinks';
+import { debugVerificationStatus, getLinkedRobloxUser, isUserVerified } from '../../handlers/accountLinks';
 import { updateUserRoles } from '../../handlers/roleBindHandler';
 import { updateNickname } from '../../handlers/nicknameHandler';
 import { discordClient, robloxClient, robloxGroup } from '../../main';
@@ -52,8 +52,20 @@ class UpdateCommand extends Command {
             );
 
             // Step 2: Check if target is verified
+            const isVerified = await isUserVerified(targetUser.id);
+            Logger.debug(`Verification check result for ${targetUser.id}: ${isVerified}`, 'UpdateCommand');
+
+            // Get the linked Roblox user
             const robloxUser = await getLinkedRobloxUser(targetUser.id);
+
+            // If not verified, run detailed diagnostics and show error
             if (!robloxUser) {
+                Logger.warn(`User ${targetUser.id} failed verification check or getLinkedRobloxUser returned null`, 'UpdateCommand');
+
+                // Run debug verification for additional info
+                const debugInfo = await debugVerificationStatus(targetUser.id);
+                Logger.debug(`Debug verification info for ${targetUser.id}: ${JSON.stringify(debugInfo)}`, 'UpdateCommand');
+
                 const username = targetUser.username || targetUser.tag || 'User';
                 return ctx.reply({
                     content: isSelf
@@ -92,7 +104,7 @@ class UpdateCommand extends Command {
             return ctx.reply({ embeds: [embed] });
 
         } catch (err) {
-            Logger.error(`Error in update command: ${err.message}`, 'UpdateCommand', err);
+            Logger.error(`Error in update command: ${err.message}`, 'UpdateCommand', err as Error);
             return ctx.reply({
                 embeds: [
                     createBaseEmbed('danger')
@@ -176,7 +188,7 @@ class UpdateCommand extends Command {
                     };
                 }
             } catch (err) {
-                Logger.error(`Failed to resolve target user: ${err.message}`, 'UpdateCommand', err);
+                Logger.error(`Failed to resolve target user: ${err.message}`, 'UpdateCommand', err as Error);
                 return {
                     success: false,
                     message: 'Could not find that user in this server.'

@@ -1,6 +1,7 @@
 import { CommandContext } from '../../structures/addons/CommandAddons';
 import Command from '../../structures/Command';
 import { createBaseEmbed } from '../../utils/embedUtils';
+import { Logger } from '../../utils/logger';
 
 class GetVCCommand extends Command {
     constructor() {
@@ -45,25 +46,33 @@ class GetVCCommand extends Command {
             const voiceChannel = member.voice.channel;
 
             // Log current channel data for debugging
-            console.log(`Channel: ${voiceChannel.name} | Members: ${voiceChannel.members.size}`);
+            Logger.info(`GetVC command used in channel: ${voiceChannel.name} | Members: ${voiceChannel.members.size}`, "GetVCCommand");
 
             // Convert members collection to array, remove bracketed prefixes, and sort
             const voiceMembers = [...voiceChannel.members.values()]
-                .map(m => m.displayName.replace(/\[.*?\]\s*/g, '').trim())
+                .map(m => {
+                    // Extract clean name without rank prefix
+                    const rawName = m.displayName || m.user.username;
+                    const cleanName = rawName.replace(/\[.*?\]\s*/g, '').trim();
+                    Logger.debug(`Processed name: "${rawName}" -> "${cleanName}"`, "GetVCCommand");
+                    return cleanName;
+                })
                 .sort();
 
-            console.log('Processed voice members:', voiceMembers);
+            Logger.debug(`Processed voice members: ${voiceMembers.join(', ')}`, "GetVCCommand");
 
             // Build comma-separated list with spaces after commas
             const memberList = voiceMembers.join(', ');
 
             // Prepare embed with proper code block
             const embed = createBaseEmbed('primary')
+                .setTitle(`Users in ${voiceChannel.name}`)
                 .setDescription(`\`\`\`\n${memberList}\n\`\`\``)
+                .setFooter({ text: `${voiceMembers.length} users in voice channel` });
 
             await ctx.reply({ embeds: [embed] });
         } catch (error) {
-            console.error('Error in getvc command:', error);
+            Logger.error('Error in getvc command:', "GetVCCommand", error as Error);
             await ctx.reply({
                 content: 'An error occurred while fetching voice channel members.',
                 ephemeral: true

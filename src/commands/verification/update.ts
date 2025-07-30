@@ -9,6 +9,15 @@ import { config } from '../../config';
 import { GuildMember, User } from 'discord.js';
 import { Logger } from '../../utils/logger';
 
+/**
+ * Helper function to safely stringify objects that might contain BigInt values
+ */
+const safeStringify = (obj: any): string => {
+    return JSON.stringify(obj, (_, value) =>
+        typeof value === 'bigint' ? value.toString() : value
+    );
+};
+
 class UpdateCommand extends Command {
     constructor() {
         super({
@@ -64,7 +73,8 @@ class UpdateCommand extends Command {
 
                 // Run debug verification for additional info
                 const debugInfo = await debugVerificationStatus(targetUser.id);
-                Logger.debug(`Debug verification info for ${targetUser.id}: ${JSON.stringify(debugInfo)}`, 'UpdateCommand');
+                // Use safeStringify instead of JSON.stringify to handle BigInt values
+                Logger.debug(`Debug verification info for ${targetUser.id}: ${safeStringify(debugInfo)}`, 'UpdateCommand');
 
                 const username = targetUser.username || targetUser.tag || 'User';
                 return ctx.reply({
@@ -75,6 +85,7 @@ class UpdateCommand extends Command {
                 });
             }
 
+            // Rest of the code remains unchanged
             Logger.info(
                 `Updating ${isSelf ? 'self' : (targetUser.tag || targetUser.username || 'user')} (Discord ID: ${targetUser.id}) - ` +
                 `Linked to Roblox user ${robloxUser.name} (ID: ${robloxUser.id})`,
@@ -116,9 +127,7 @@ class UpdateCommand extends Command {
         }
     }
 
-    /**
-     * Resolves the target user for the update command
-     */
+    // Rest of the class unchanged
     private async resolveTargetUser(ctx: CommandContext): Promise<{
         success: boolean;
         message?: string;
@@ -203,9 +212,6 @@ class UpdateCommand extends Command {
         };
     }
 
-    /**
-     * Builds the response embed with detailed changes
-     */
     private buildResponseEmbed(params: {
         targetUser: User;
         isSelf: boolean;

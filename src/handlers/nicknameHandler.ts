@@ -181,9 +181,12 @@ export const updateNickname = async (member: GuildMember, robloxUser: User): Pro
             .replace(/{robloxUsername}/g, robloxUser.name)
             .replace(/{robloxDisplayName}/g, robloxUser.displayName || robloxUser.name)
             .replace(/{rankName}/g, rankName)
-            .replace(/{rankPrefix}/g, rankPrefix); // Add the rank prefix replacement
+            .replace(/{rankPrefix}/g, rankPrefix);
 
-        console.log(`Formatted nickname: "${nickname}" for ${member.user.tag}`);
+        // Add debugging to see what's happening
+        console.log(`Format string: "${format}"`);
+        console.log(`Generated rankPrefix: "${rankPrefix}"`);
+        console.log(`After replacement: "${nickname}"`);
 
         // Discord nickname has 32 character limit
         if (nickname.length > 32) {

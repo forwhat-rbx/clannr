@@ -20,6 +20,7 @@ import { ActivityLogger } from './utils/activityLogger';
 import { Logger } from './utils/logger';
 import { directAuthenticate, directGetGroup, directGetGroupRoles } from './utils/directAuth';
 import { Routes, REST } from 'discord.js';
+import { DatabaseMonitor } from './utils/databaseMonitor';
 
 require('dotenv').config();
 
@@ -296,6 +297,21 @@ function setupDiscordEvents() {
 
     // Message handler for legacy commands
     discordClient.on('messageCreate', handleLegacyCommand);
+
+    // Add database monitoring on ready event
+    discordClient.on('ready', async () => {
+        Logger.info(`Logged in as ${discordClient.user.tag}!`, 'Startup');
+
+        // Check database integrity on startup
+        Logger.info('Running database integrity check...', 'DatabaseMonitor');
+        await DatabaseMonitor.checkDatabase();
+
+        // Set up daily backup
+        Logger.info('Setting up daily verification backup...', 'DatabaseMonitor');
+        setInterval(() => {
+            DatabaseMonitor.updateBackup();
+        }, 24 * 60 * 60 * 1000); // Run every 24 hours
+    });
 
     // Test logging
     ActivityLogger.testLogging();

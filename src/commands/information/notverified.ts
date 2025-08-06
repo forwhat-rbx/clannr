@@ -82,8 +82,10 @@ class NotVerifiedCommand extends Command {
 
                 // Check each member against the verified set
                 for (const member of members.values()) {
-                    // If they're not in the verified set, they're unverified
-                    if (!verifiedUserIds.has(member.id)) {
+                    // Use the more robust isUserVerified function now
+                    const isVerified = await isUserVerified(member.id);
+
+                    if (!isVerified) {
                         // Double-check with getLinkedRobloxUser for extra safety
                         const linked = await getLinkedRobloxUser(member.id).catch(() => null);
                         if (!linked) {
@@ -137,7 +139,7 @@ class NotVerifiedCommand extends Command {
                     embeds: [
                         createBaseEmbed('success')
                             .setTitle('Verification Check')
-                            .setDescription('All members are verified! 🎉')
+                            .setDescription('All members are verified!')
                     ]
                 });
             }
@@ -164,10 +166,6 @@ class NotVerifiedCommand extends Command {
             const mainEmbed = createBaseEmbed('primary')
                 .setTitle('Unverified Members')
                 .setDescription(`Found **${unverifiedMembers.length}** unverified members${filterRole ? ` with the role ${filterRole}` : ''}.`)
-                .addFields({
-                    name: 'What to do next',
-                    value: 'These users need to run `/verify` to link their Discord account to their Roblox account.'
-                });
 
             // If the list is small enough, add it to the main embed
             if (memberListItems.length <= 15) {

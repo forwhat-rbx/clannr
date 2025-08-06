@@ -9,6 +9,8 @@ import { findEligibleRole } from '../../handlers/handleXpRankup';
 import { User, PartialUser, GroupMember } from 'bloxy/dist/structures';
 import { config } from '../../config';
 import { createBaseEmbed } from '../../utils/embedUtils';
+import { prisma } from '../../database/prisma';
+import { Logger } from '../../utils/logger';
 
 export default class ManageXPCommand extends Command {
     constructor() {
@@ -101,20 +103,42 @@ export default class ManageXPCommand extends Command {
 
             for (const iden of usersArg) {
                 try {
-                    // 2) Resolve to Roblox user
+                    // 2) Resolve to Roblox user and check verification status
                     let robloxUser: User | PartialUser;
+                    let isVerified = false;
+
+                    // Handle Discord mentions
                     if (iden.startsWith('<@') && iden.endsWith('>')) {
                         const discordId = iden.replace(/[<@!>]/g, '');
                         const linked = await getLinkedRobloxUser(discordId);
                         if (!linked) throw new Error('Discord user not linked to Roblox');
                         robloxUser = linked;
-                    } else if (!isNaN(Number(iden))) {
+                        isVerified = true; // User is verified since getLinkedRobloxUser succeeded
+                    }
+                    // Handle Roblox ID
+                    else if (!isNaN(Number(iden))) {
                         robloxUser = await robloxClient.getUser(Number(iden));
-                    } else {
+
+                        // Check if this Roblox ID is linked to any Discord account
+                        isVerified = await isRobloxUserVerified(robloxUser.id);
+                        if (!isVerified) {
+                            throw new Error('User not verified with Discord - cannot modify XP');
+                        }
+                    }
+                    // Handle Roblox username
+                    else {
                         const found = await robloxClient.getUsersByUsernames([iden]);
                         if (!found.length) throw new Error('Username not found');
                         robloxUser = found[0];
+
+                        // Check if this Roblox user is linked to any Discord account
+                        isVerified = await isRobloxUserVerified(robloxUser.id);
+                        if (!isVerified) {
+                            throw new Error('User not verified with Discord - cannot modify XP');
+                        }
                     }
+
+                    Logger.info(`Processing XP for ${robloxUser.name} (ID: ${robloxUser.id}) - Verified: ${isVerified}`, "XPCommand");
 
                     // Ensure Roblox ID is consistently a string
                     const robloxIdString = robloxUser.id.toString();
@@ -135,7 +159,7 @@ export default class ManageXPCommand extends Command {
                             : Math.max(0, oldXP - amount);
 
                     // Debug log to trace XP changes
-                    console.log(`[XP DEBUG] User ${robloxUser.name} (${robloxIdString}): ${oldXP} → ${newXP} (${action === 'add' ? '+' : '-'}${amount})`);
+                    Logger.debug(`User ${robloxUser.name} (${robloxIdString}): ${oldXP} → ${newXP} (${action === 'add' ? '+' : '-'}${amount})`, "XPCommand");
 
                     // 5) Update database with atomic operation
                     const update: any = { xp: newXP, lastActivity: new Date() };
@@ -205,7 +229,7 @@ export default class ManageXPCommand extends Command {
                         throw new Error('XP update verification failed');
                     }
                 } catch (err: any) {
-                    console.error(`XP command error with user "${iden}":`, err);
+                    Logger.error(`XP command error with user "${iden}": ${err.message}`, "XPCommand", err);
                     failures.push(`**${iden}**: ${err.message}`);
                 }
             }
@@ -231,7 +255,7 @@ export default class ManageXPCommand extends Command {
                 ephemeral: successes.length === 0
             });
         } catch (err: any) {
-            console.error('Unhandled error in /xp:', err);
+            Logger.error('Unhandled error in /xp:', "XPCommand", err);
             logSystemAction(
                 'XP Command Error',
                 'XP Command',
@@ -251,5 +275,25 @@ export default class ManageXPCommand extends Command {
                 ephemeral: true
             });
         }
+    }
+}
+
+/**
+ * Check if a Roblox user ID is linked to any Discord account
+ */
+async function isRobloxUserVerified(robloxId: number): Promise<boolean> {
+    try {
+        // Query to check if this Roblox ID is linked to any Discord account
+        const safeRobloxId = robloxId.toString();
+        const result = await prisma.$queryRaw`
+            SELECT * FROM UserLink WHERE robloxId = ${safeRobloxId} LIMIT 1
+        `;
+
+        const isVerified = (result as any[]).length > 0;
+        Logger.debug(`Verification check for Roblox ID ${robloxId}: ${isVerified ? 'Verified' : 'Not verified'}`, "XPCommand");
+        return isVerified;
+    } catch (err) {
+        Logger.error(`Error checking if Roblox ID ${robloxId} is verified:`, "XPCommand", err as Error);
+        return false;
     }
 }

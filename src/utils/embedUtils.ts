@@ -5,8 +5,8 @@ const GLOBAL_FOOTER_TEXT = "Powered by Stryder Robotics";
 
 // Enhanced color system
 export const embedColors = {
-    normal: '#373737ff',   // Default
-    primary: '#373737ff',  // Same as normal for backward compatibility
+    normal: '#333333',   // Default
+    primary: '#333333',  // Same as normal for backward compatibility
     success: '#4CAF50',  // Green
     danger: '#992D22',   // Crimson red (not too bright)
     warning: '#FFA726',  // Orange

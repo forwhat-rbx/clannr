@@ -61,6 +61,24 @@ export const getLinkedRobloxUser = async (discordId: string): Promise<User | nul
 };
 
 /**
+ * Remove a link between Discord ID and Roblox ID
+ */
+export const removeUserLink = async (discordId: string) => {
+    try {
+        const safeDiscordId = String(discordId).trim();
+        Logger.info(`Removing link for Discord ID: ${safeDiscordId}`, "AccountLinks");
+
+        // Use raw query to avoid schema validation issues
+        const result = await prisma.$executeRaw`DELETE FROM UserLink WHERE discordId = ${safeDiscordId}`;
+        Logger.info(`Removed link for Discord ID: ${safeDiscordId}`, "AccountLinks");
+        return { success: true };
+    } catch (err) {
+        Logger.error(`Failed to remove user link:`, "AccountLinks", err as Error);
+        throw err;
+    }
+};
+
+/**
  * Check alternate sources for verification data
  * This helps recover from database inconsistencies
  */

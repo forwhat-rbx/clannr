@@ -1,11 +1,11 @@
 import { CommandContext } from '../../structures/addons/CommandAddons';
 import Command from '../../structures/Command';
-import { isUserVerified } from '../../handlers/accountLinks';
+import { isUserVerified, getLinkedRobloxUser } from '../../handlers/accountLinks';
 import { createBaseEmbed } from '../../utils/embedUtils';
 import { config } from '../../config';
-import { processInChunks, ProcessingOptions } from '../../utils/processingUtils';
 import { Collection, GuildMember, Role } from 'discord.js';
 import { Logger } from '../../utils/logger';
+import { prisma } from '../../database/prisma';
 
 class NotVerifiedCommand extends Command {
     constructor() {
@@ -57,30 +57,79 @@ class NotVerifiedCommand extends Command {
             // Arrays to store results
             const unverifiedMembers: GuildMember[] = [];
 
-            // Define processing options
-            const options: ProcessingOptions = {
-                totalItems: members.size,
-                chunkSize: 10, // Process 10 members at a time
-                initialMessage: "Checking verification status of members...",
-                progressInterval: 10, // Update progress every 10%
-                completionMessage: "Finished checking all members."
-            };
+            // Create progress message
+            const progressMessage = await ctx.channel.send("Checking verification status of members (0%)...");
 
-            // Process members in chunks to avoid overloading
-            await processInChunks<GuildMember>(
-                ctx,
-                Array.from(members.values()),
-                async (member) => {
-                    // Check if the user is verified
-                    const isVerified = await isUserVerified(member.id);
+            // Direct database check instead of using possibly broken isUserVerified
+            // This is more reliable as it directly checks the database
+            try {
+                // Get all verified Discord IDs from the database
+                const verifiedUsers = await prisma.$queryRaw`
+                    SELECT discordId FROM UserLink
+                `;
 
-                    // Add to unverified list if not verified
-                    if (!isVerified) {
+                // Convert to a Set for faster lookups
+                const verifiedUserIds = new Set(
+                    (verifiedUsers as any[]).map(user => user.discordId)
+                );
+
+                Logger.info(`Found ${verifiedUserIds.size} verified users in database`, 'NotVerified');
+
+                // Process members in batches
+                const totalMembers = members.size;
+                const batchSize = 20;
+                let processedCount = 0;
+
+                // Check each member against the verified set
+                for (const member of members.values()) {
+                    // If they're not in the verified set, they're unverified
+                    if (!verifiedUserIds.has(member.id)) {
+                        // Double-check with getLinkedRobloxUser for extra safety
+                        const linked = await getLinkedRobloxUser(member.id).catch(() => null);
+                        if (!linked) {
+                            unverifiedMembers.push(member);
+                        }
+                    }
+
+                    // Update progress periodically
+                    processedCount++;
+                    if (processedCount % batchSize === 0 || processedCount === totalMembers) {
+                        const percentage = Math.floor((processedCount / totalMembers) * 100);
+                        await progressMessage.edit(
+                            `Checking verification status of members (${percentage}%)... ` +
+                            `Found ${unverifiedMembers.length} unverified so far.`
+                        );
+                    }
+                }
+            } catch (dbError) {
+                Logger.error(`Database error in notverified command:`, 'NotVerified', dbError as Error);
+
+                // Fallback to the old method if database query fails
+                const totalMembers = members.size;
+                const batchSize = 20;
+                let processedCount = 0;
+
+                for (const member of members.values()) {
+                    // Check each member individually with the fallback method
+                    const linked = await getLinkedRobloxUser(member.id).catch(() => null);
+                    if (!linked) {
                         unverifiedMembers.push(member);
                     }
-                },
-                options
-            );
+
+                    // Update progress periodically
+                    processedCount++;
+                    if (processedCount % batchSize === 0 || processedCount === totalMembers) {
+                        const percentage = Math.floor((processedCount / totalMembers) * 100);
+                        await progressMessage.edit(
+                            `Checking verification status of members (${percentage}%)... ` +
+                            `Found ${unverifiedMembers.length} unverified so far.`
+                        );
+                    }
+                }
+            }
+
+            // Update complete
+            await progressMessage.edit("Finished checking all members.");
 
             // Prepare the response
             if (unverifiedMembers.length === 0) {
@@ -117,7 +166,7 @@ class NotVerifiedCommand extends Command {
                 .setDescription(`Found **${unverifiedMembers.length}** unverified members${filterRole ? ` with the role ${filterRole}` : ''}.`)
                 .addFields({
                     name: 'What to do next',
-                    value: 'Use `/verify` to link your Discord account to your Roblox account.'
+                    value: 'These users need to run `/verify` to link their Discord account to their Roblox account.'
                 });
 
             // If the list is small enough, add it to the main embed
@@ -155,7 +204,7 @@ class NotVerifiedCommand extends Command {
                 embeds: [
                     createBaseEmbed('danger')
                         .setTitle('Error')
-                        .setDescription('An error occurred while checking member verification status.')
+                        .setDescription(`An error occurred while checking member verification status: ${err.message}`)
                 ],
                 ephemeral: true
             });

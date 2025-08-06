@@ -11,7 +11,7 @@ class CheckDBCommand extends Command {
     constructor() {
         super({
             trigger: 'checkdb',
-            description: 'Check database health and fix verification issues',
+            description: 'Check database health',
             type: 'ChatInput',
             module: 'admin',
             args: [

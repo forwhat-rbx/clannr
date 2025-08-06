@@ -28,12 +28,19 @@ const loadBackupVerifications = () => {
             Logger.info(`Loaded ${Object.keys(backups).length} backup verifications`, "AccountLinks");
         }
     } catch (err) {
-        Logger.error(`Failed to load backup verifications: ${err.message}`, "AccountLinks", err as Error);
+        // Fix: Properly handle error object by ensuring it's an Error type
+        const error = err instanceof Error ? err : new Error(String(err));
+        Logger.error(`Failed to load backup verifications: ${error.message}`, "AccountLinks", error);
     }
 };
 
-// Call this on startup
-loadBackupVerifications();
+// Call this on startup, but with better error handling
+try {
+    loadBackupVerifications();
+} catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    Logger.warn(`Could not load verification backups: ${error.message}`, "AccountLinks");
+}
 
 /**
  * Save verification to backup file
@@ -48,7 +55,9 @@ const saveVerificationBackup = () => {
         fs.writeFileSync(BACKUP_FILE, JSON.stringify(backups, null, 2));
         Logger.info(`Saved ${verificationCache.size} verifications to backup file`, "AccountLinks");
     } catch (err) {
-        Logger.error(`Failed to save backup verifications: ${err.message}`, "AccountLinks", err as Error);
+        // Fix: Properly handle error object
+        const error = err instanceof Error ? err : new Error(String(err));
+        Logger.error(`Failed to save backup verifications: ${error.message}`, "AccountLinks", error);
     }
 };
 
@@ -75,7 +84,9 @@ export const isUserVerified = async (discordId: string): Promise<boolean> => {
                 return true;
             }
         } catch (dbErr) {
-            Logger.error(`Database error checking verification: ${dbErr.message}`, "AccountLinks", dbErr as Error);
+            // Fix: Properly handle error object
+            const error = dbErr instanceof Error ? dbErr : new Error(String(dbErr));
+            Logger.error(`Database error checking verification: ${error.message}`, "AccountLinks", error);
         }
 
         // If not in database, check memory cache as fallback
@@ -88,7 +99,8 @@ export const isUserVerified = async (discordId: string): Promise<boolean> => {
                 await createUserLink(safeDiscordId, robloxId);
                 Logger.info(`Restored missing verification record in database for ${safeDiscordId}`, "AccountLinks");
             } catch (e) {
-                Logger.warn(`Could not restore verification record: ${e.message}`, "AccountLinks");
+                const error = e instanceof Error ? e : new Error(String(e));
+                Logger.warn(`Could not restore verification record: ${error.message}`, "AccountLinks");
             }
 
             return true;
@@ -97,7 +109,9 @@ export const isUserVerified = async (discordId: string): Promise<boolean> => {
         Logger.info(`Verification status for Discord ID ${safeDiscordId}: false`, "AccountLinks");
         return false;
     } catch (err) {
-        Logger.error(`Failed to check verification status: ${err.message}`, "AccountLinks", err as Error);
+        // Fix: Properly handle error object
+        const error = err instanceof Error ? err : new Error(String(err));
+        Logger.error(`Failed to check verification status: ${error.message}`, "AccountLinks", error);
 
         // Default to assuming verified if error - prevents random unverification issues
         return true;
@@ -137,11 +151,15 @@ export const getLinkedRobloxUser = async (discordId: string): Promise<User | nul
                         return robloxUser;
                     }
                 } catch (robloxErr) {
-                    Logger.error(`Failed to fetch Roblox user with ID ${robloxId}:`, "AccountLinks", robloxErr as Error);
+                    // Fix: Properly handle error object
+                    const error = robloxErr instanceof Error ? robloxErr : new Error(String(robloxErr));
+                    Logger.error(`Failed to fetch Roblox user with ID ${robloxId}:`, "AccountLinks", error);
                 }
             }
         } catch (dbErr) {
-            Logger.error(`Database error fetching link: ${dbErr.message}`, "AccountLinks", dbErr as Error);
+            // Fix: Properly handle error object
+            const error = dbErr instanceof Error ? dbErr : new Error(String(dbErr));
+            Logger.error(`Database error fetching link: ${error.message}`, "AccountLinks", error);
         }
 
         // If database fails, check memory cache as fallback
@@ -154,7 +172,8 @@ export const getLinkedRobloxUser = async (discordId: string): Promise<User | nul
                 await createUserLink(safeDiscordId, String(robloxId));
                 Logger.info(`Recreated missing verification record in database for ${discordId}`, "AccountLinks");
             } catch (e) {
-                Logger.warn(`Could not recreate verification record: ${e.message}`, "AccountLinks");
+                const error = e instanceof Error ? e : new Error(String(e));
+                Logger.warn(`Could not recreate verification record: ${error.message}`, "AccountLinks");
             }
 
             try {
@@ -164,14 +183,18 @@ export const getLinkedRobloxUser = async (discordId: string): Promise<User | nul
                     return robloxUser;
                 }
             } catch (robloxErr) {
-                Logger.error(`Failed to fetch Roblox user from cache with ID ${robloxId}:`, "AccountLinks", robloxErr as Error);
+                // Fix: Properly handle error object
+                const error = robloxErr instanceof Error ? robloxErr : new Error(String(robloxErr));
+                Logger.error(`Failed to fetch Roblox user from cache with ID ${robloxId}:`, "AccountLinks", error);
             }
         }
 
         Logger.info(`No Roblox account linked to Discord ID: ${discordId}`, "AccountLinks");
         return null;
     } catch (err) {
-        Logger.error(`Failed to get linked Roblox user for Discord ID ${discordId}:`, "AccountLinks", err as Error);
+        // Fix: Properly handle error object
+        const error = err instanceof Error ? err : new Error(String(err));
+        Logger.error(`Failed to get linked Roblox user for Discord ID ${discordId}:`, "AccountLinks", error);
         return null;
     }
 };
@@ -204,30 +227,52 @@ export const createUserLink = async (discordId: string, robloxId: string) => {
             Logger.info(`Creating new link for Discord ID: ${safeDiscordId}`, "AccountLinks");
 
             try {
-                await prisma.$executeRaw`
-                    INSERT INTO UserLink (discordId, robloxId, verifiedAt)
-                    VALUES (${safeDiscordId}, ${safeRobloxId}, datetime('now'))
-                `;
-            } catch (verifiedAtErr) {
-                Logger.warn(`Failed to create link with verifiedAt, trying without:`, "AccountLinks", verifiedAtErr as Error);
+                // First try using Prisma's typed approach
+                await prisma.userLink.create({
+                    data: {
+                        discordId: safeDiscordId,
+                        robloxId: safeRobloxId,
+                        verifiedAt: new Date()
+                    }
+                });
+                Logger.info(`Link created with verifiedAt timestamp using Prisma client`, "AccountLinks");
+            } catch (prismaErr) {
+                // If Prisma fails, fall back to raw SQL
+                Logger.warn(`Failed to create link with Prisma, trying raw SQL:`, "AccountLinks");
 
-                // If fails, try without verifiedAt (older schema)
-                await prisma.$executeRaw`
-                    INSERT INTO UserLink (discordId, robloxId)
-                    VALUES (${safeDiscordId}, ${safeRobloxId})
-                `;
+                try {
+                    await prisma.$executeRaw`
+                        INSERT INTO UserLink (discordId, robloxId, verifiedAt)
+                        VALUES (${safeDiscordId}, ${safeRobloxId}, datetime('now'))
+                    `;
+                    Logger.info(`Link created with verifiedAt timestamp using raw SQL`, "AccountLinks");
+                } catch (verifiedAtErr) {
+                    // Fix: Properly handle error object
+                    const error = verifiedAtErr instanceof Error ? verifiedAtErr : new Error(String(verifiedAtErr));
+                    Logger.warn(`Failed to create link with verifiedAt, trying without:`, "AccountLinks", error);
 
-                Logger.info(`Link created without verifiedAt timestamp`, "AccountLinks");
+                    // If fails, try without verifiedAt (older schema)
+                    await prisma.$executeRaw`
+                        INSERT INTO UserLink (discordId, robloxId)
+                        VALUES (${safeDiscordId}, ${safeRobloxId})
+                    `;
+
+                    Logger.info(`Link created without verifiedAt timestamp`, "AccountLinks");
+                }
             }
         } catch (insertErr) {
-            Logger.error(`Failed to create database link: ${insertErr.message}`, "AccountLinks", insertErr as Error);
-            throw insertErr;
+            // Fix: Properly handle error object
+            const error = insertErr instanceof Error ? insertErr : new Error(String(insertErr));
+            Logger.error(`Failed to create database link: ${error.message}`, "AccountLinks", error);
+            throw error;
         }
 
         return { success: true };
     } catch (err) {
-        Logger.error(`Failed to create user link:`, "AccountLinks", err as Error);
-        throw err;
+        // Fix: Properly handle error object
+        const error = err instanceof Error ? err : new Error(String(err));
+        Logger.error(`Failed to create user link:`, "AccountLinks", error);
+        throw error;
     }
 };
 
@@ -245,19 +290,30 @@ export const removeUserLink = async (discordId: string) => {
         // Save updated backup file
         saveVerificationBackup();
 
-        // Remove from database
+        // Remove from database - try with Prisma client first
         try {
-            await prisma.$executeRaw`DELETE FROM UserLink WHERE discordId = ${safeDiscordId}`;
-        } catch (dbErr) {
-            Logger.error(`Failed to remove link from database: ${dbErr.message}`, "AccountLinks", dbErr as Error);
-            // Continue since we've already removed from cache
+            await prisma.userLink.delete({
+                where: { discordId: safeDiscordId }
+            });
+        } catch (prismaErr) {
+            // If Prisma client fails, try raw SQL
+            try {
+                await prisma.$executeRaw`DELETE FROM UserLink WHERE discordId = ${safeDiscordId}`;
+            } catch (dbErr) {
+                // Fix: Properly handle error object
+                const error = dbErr instanceof Error ? dbErr : new Error(String(dbErr));
+                Logger.error(`Failed to remove link from database: ${error.message}`, "AccountLinks", error);
+                // Continue since we've already removed from cache
+            }
         }
 
         Logger.info(`Removed link for Discord ID: ${safeDiscordId}`, "AccountLinks");
         return { success: true };
     } catch (err) {
-        Logger.error(`Failed to remove user link:`, "AccountLinks", err as Error);
-        throw err;
+        // Fix: Properly handle error object
+        const error = err instanceof Error ? err : new Error(String(err));
+        Logger.error(`Failed to remove user link:`, "AccountLinks", error);
+        throw error;
     }
 };
 
@@ -286,7 +342,8 @@ export const debugVerificationStatus = async (discordId: string) => {
                 ? { found: true, data: (result as any[])[0] }
                 : { found: false };
         } catch (dbErr) {
-            debugInfo.databaseCheck = { error: dbErr.message };
+            const error = dbErr instanceof Error ? dbErr : new Error(String(dbErr));
+            debugInfo.databaseCheck = { error: error.message };
         }
 
         // Check memory cache
@@ -295,11 +352,29 @@ export const debugVerificationStatus = async (discordId: string) => {
             data: verificationCache.get(safeDiscordId)
         };
 
+        // Check backup file
+        try {
+            if (fs.existsSync(BACKUP_FILE)) {
+                const data = fs.readFileSync(BACKUP_FILE, 'utf8');
+                const backups = JSON.parse(data);
+                debugInfo.backupFileCheck = {
+                    found: safeDiscordId in backups,
+                    data: backups[safeDiscordId]
+                };
+            } else {
+                debugInfo.backupFileCheck = { found: false, reason: "Backup file does not exist" };
+            }
+        } catch (fileErr) {
+            const error = fileErr instanceof Error ? fileErr : new Error(String(fileErr));
+            debugInfo.backupFileCheck = { error: error.message };
+        }
+
         // Check function results
         try {
             debugInfo.isUserVerifiedResult = await isUserVerified(safeDiscordId);
         } catch (e) {
-            debugInfo.isUserVerifiedResult = { error: e.message };
+            const error = e instanceof Error ? e : new Error(String(e));
+            debugInfo.isUserVerifiedResult = { error: error.message };
         }
 
         try {
@@ -308,11 +383,13 @@ export const debugVerificationStatus = async (discordId: string) => {
                 ? { found: true, id: linkedUser.id, name: linkedUser.name }
                 : { found: false };
         } catch (e) {
-            debugInfo.getLinkedRobloxUserResult = { error: e.message };
+            const error = e instanceof Error ? e : new Error(String(e));
+            debugInfo.getLinkedRobloxUserResult = { error: error.message };
         }
 
         return debugInfo;
     } catch (err) {
-        return { error: err.message, stack: err.stack };
+        const error = err instanceof Error ? err : new Error(String(err));
+        return { error: error.message, stack: error.stack };
     }
 };

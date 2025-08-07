@@ -112,6 +112,50 @@ async function registerSlashCommands() {
         // Log the commands for debugging
         Logger.debug(`Prepared ${commands.length} commands for registration`, 'Discord');
 
+        // Validate and fix command descriptions
+        commands.forEach((cmd, index) => {
+            // Fix command description if needed
+            if (!cmd.description || cmd.description.length < 1) {
+                cmd.description = "No description provided";
+                Logger.warn(`Fixed empty description for command: ${cmd.name}`, 'Discord');
+            } else if (cmd.description.length > 100) {
+                cmd.description = cmd.description.substring(0, 97) + "...";
+                Logger.warn(`Truncated long description for command: ${cmd.name}`, 'Discord');
+            }
+
+            // Fix option descriptions if needed
+            if (cmd.options) {
+                cmd.options.forEach((option, optIndex) => {
+                    if (!option.description || option.description.length < 1) {
+                        option.description = "No description provided";
+                        Logger.warn(`Fixed empty description for ${cmd.name}.${option.name}`, 'Discord');
+                    } else if (option.description.length > 100) {
+                        option.description = option.description.substring(0, 97) + "...";
+                        Logger.warn(`Truncated long description for ${cmd.name}.${option.name}`, 'Discord');
+                    }
+
+                    // Type check for subcommands and subcommand groups (type 1 and 2)
+                    if ((option.type === 1 || option.type === 2) && 'options' in option) {
+                        const subCommandOption = option as any; // Cast to any to access options safely
+                        if (subCommandOption.options) {
+                            subCommandOption.options.forEach((subOption, subOptIndex) => {
+                                if (!subOption.description || subOption.description.length < 1) {
+                                    subOption.description = "No description provided";
+                                    Logger.warn(`Fixed empty description for ${cmd.name}.${option.name}.${subOption.name}`, 'Discord');
+                                } else if (subOption.description.length > 100) {
+                                    subOption.description = subOption.description.substring(0, 97) + "...";
+                                    Logger.warn(`Truncated long description for ${cmd.name}.${option.name}.${subOption.name}`, 'Discord');
+                                }
+                            });
+                        }
+                    }
+                });
+            }
+        });
+
+        // Log validation summary
+        Logger.info(`Validated ${commands.length} commands for registration`, 'Discord');
+
         const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
         // First try guild-specific registration
@@ -129,6 +173,11 @@ async function registerSlashCommands() {
                 }
             } catch (guildError) {
                 Logger.error(`Failed to register commands to test guild: ${guildError.message}`, 'Discord');
+
+                // Log more detailed error information
+                if (guildError.code === 50035) { // Invalid Form Body
+                    Logger.error(`Form validation error details: ${JSON.stringify(guildError.errors)}`, 'Discord');
+                }
             }
         }
 
@@ -142,6 +191,11 @@ async function registerSlashCommands() {
             Logger.info(`Registered ${commands.length} commands globally`, 'Discord');
         } catch (globalError) {
             Logger.error(`Failed to register global commands: ${globalError.message}`, 'Discord');
+
+            // Log more detailed error information
+            if (globalError.code === 50035) { // Invalid Form Body
+                Logger.error(`Form validation error details: ${JSON.stringify(globalError.errors)}`, 'Discord');
+            }
         }
     } catch (error) {
         Logger.error(`Failed to register slash commands: ${error.message}`, 'Discord', error);

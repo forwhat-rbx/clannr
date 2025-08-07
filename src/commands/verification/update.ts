@@ -148,7 +148,7 @@ class UpdateCommand extends Command {
             if (!isAdmin) {
                 return {
                     success: false,
-                    message: 'You need admin permissions to update other users.'
+                    message: 'You need admin permissions to update other users. If you are trying to update yourself, please do not specify a username.'
                 };
             }
 

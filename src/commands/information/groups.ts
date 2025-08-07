@@ -217,10 +217,8 @@ class GroupsCommand extends Command {
                 // Update current page based on button clicked
                 if (interaction.customId === 'previous') {
                     currentPage = Math.max(currentPage - 1, 1);
-                    Logger.debug(`User ${interaction.user.tag} navigated to page ${currentPage}`, 'GroupsCommand');
                 } else if (interaction.customId === 'next') {
                     currentPage = Math.min(currentPage + 1, totalPages);
-                    Logger.debug(`User ${interaction.user.tag} navigated to page ${currentPage}`, 'GroupsCommand');
                 }
 
                 // Generate new embed for current page
@@ -269,7 +267,6 @@ class GroupsCommand extends Command {
         collector.on('end', async () => {
             try {
                 await message.edit({ components: [] }).catch(() => { });
-                Logger.debug(`Pagination ended for ${username}'s groups`, 'GroupsCommand');
             } catch (error) {
                 Logger.error(`Failed to remove pagination buttons`, 'GroupsCommand', error);
             }

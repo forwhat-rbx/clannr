@@ -54,12 +54,9 @@ class GetVCCommand extends Command {
                     // Extract clean name without rank prefix
                     const rawName = m.displayName || m.user.username;
                     const cleanName = rawName.replace(/\[.*?\]\s*/g, '').trim();
-                    Logger.debug(`Processed name: "${rawName}" -> "${cleanName}"`, "GetVCCommand");
                     return cleanName;
                 })
                 .sort();
-
-            Logger.debug(`Processed voice members: ${voiceMembers.join(', ')}`, "GetVCCommand");
 
             // Build comma-separated list with spaces after commas
             const memberList = voiceMembers.join(', ');

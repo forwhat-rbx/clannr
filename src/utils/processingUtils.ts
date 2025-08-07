@@ -57,54 +57,51 @@ async function sendUpdate(
     }
 }
 
-export async function processInChunks<T>(
-    interaction: CommandInteraction | ModalSubmitInteraction | ButtonInteraction | CommandContext,
+export async function processInChunks<T, R>(
+    ctx: CommandContext,
     items: T[],
-    processFunction: (item: T, index: number) => Promise<any>,
+    processorFn: (item: T, index: number) => Promise<R>,
     options: ProcessingOptions
-): Promise<any[]> {
-    const results: any[] = [];
+): Promise<R[]> {
     const { totalItems, chunkSize, initialMessage, progressInterval, completionMessage } = options;
+    const results: R[] = [];
 
-    // Extract the interaction if it's wrapped in a CommandContext
-    const actualInteraction =
-        'subject' in interaction && interaction.subject ?
-            interaction.subject :
-            interaction;
-
-    // Check if the interaction is already replied or deferred
-    const isInteractionReplied =
-        ('replied' in actualInteraction && actualInteraction.replied) ||
-        ('deferred' in actualInteraction && actualInteraction.deferred);
-
-    // Send initial message if needed
-    if (!isInteractionReplied && initialMessage) {
-        await sendUpdate(interaction, initialMessage);
-    }
+    // Send initial status message
+    const statusMessage = await ctx.reply({ content: initialMessage });
 
     // Process in chunks
-    for (let i = 0; i < items.length; i += chunkSize) {
-        const chunk = items.slice(i, i + chunkSize);
+    let processedCount = 0;
+    let lastProgressUpdate = 0;
 
-        // Process all items in the chunk in parallel
-        const chunkPromises = chunk.map((item, chunkIndex) =>
-            processFunction(item, i + chunkIndex)
-        );
+    for (let i = 0; i < items.length; i++) {
+        const result = await processorFn(items[i], i);
+        if (result !== null) {
+            results.push(result);
+        }
 
-        const chunkResults = await Promise.all(chunkPromises);
-        results.push(...chunkResults);
+        processedCount++;
+        const progressPercentage = Math.floor((processedCount / totalItems) * 100);
 
-        // Send progress update if needed
-        const progress = Math.floor((i + chunk.length) / totalItems * 100);
-        if (progressInterval && progress % progressInterval === 0 && progress < 100) {
-            await sendUpdate(interaction, `Processing... ${progress}% complete (${i + chunk.length}/${totalItems})`);
+        // Only update progress at defined intervals to avoid rate limits
+        if (progressPercentage >= lastProgressUpdate + progressInterval || processedCount === totalItems) {
+            lastProgressUpdate = Math.floor(progressPercentage / progressInterval) * progressInterval;
+
+            // Edit the existing message instead of sending a new one
+            await statusMessage.edit({
+                content: `${initialMessage} (${processedCount}/${totalItems}, ${progressPercentage}% complete)`
+            }).catch(err => console.error('Failed to update progress message:', err));
+
+            // Small delay to avoid rate limits
+            await new Promise(r => setTimeout(r, 500));
         }
     }
 
-    // Send completion message
+    // Update with completion message if not immediately followed by results
     if (completionMessage) {
-        await sendUpdate(interaction, completionMessage);
+        await statusMessage.edit({
+            content: completionMessage
+        }).catch(err => console.error('Failed to update completion message:', err));
     }
 
-    return results.filter(r => r !== null);
+    return results;
 }

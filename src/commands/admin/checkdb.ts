@@ -23,7 +23,6 @@ class CheckDBCommand extends Command {
                     choices: [
                         { name: 'Check Health', value: 'check' },
                         { name: 'Backup Verifications', value: 'backup' },
-                        { name: 'Restore Verifications', value: 'restore' },
                         { name: 'Fix Schema', value: 'fixschema' }
                     ]
                 }
@@ -42,19 +41,27 @@ class CheckDBCommand extends Command {
         try {
             await ctx.defer();
             const action = ctx.args['action'] as string;
+            Logger.info(`Running checkdb command with action: ${action}`, 'CheckDB');
 
             if (action === 'check') {
-                return this.checkHealth(ctx);
+                await this.checkHealth(ctx);
             } else if (action === 'backup') {
-                return this.backupVerifications(ctx);
-            } else if (action === 'restore') {
-                return this.restoreVerifications(ctx);
+                await this.backupVerifications(ctx);
             } else if (action === 'fixschema') {
-                return this.fixSchema(ctx);
+                await this.fixSchema(ctx);
+            } else {
+                await ctx.reply({
+                    embeds: [
+                        createBaseEmbed('danger')
+                            .setTitle('Invalid Action')
+                            .setDescription('Unknown action specified.')
+                    ],
+                    ephemeral: true
+                });
             }
         } catch (err) {
             Logger.error('Error in checkdb command:', 'CheckDB', err as Error);
-            return ctx.reply({
+            await ctx.reply({
                 embeds: [
                     createBaseEmbed('danger')
                         .setTitle('Error')
@@ -66,6 +73,7 @@ class CheckDBCommand extends Command {
     }
 
     async checkHealth(ctx: CommandContext) {
+        Logger.info('Running database health check', 'CheckDB');
         // Check for SQLite database issues
         const statusReport = {
             databaseExists: false,
@@ -80,6 +88,7 @@ class CheckDBCommand extends Command {
             // Check if database file exists
             const dbPath = path.join(process.cwd(), 'qbotdata.db');
             statusReport.databaseExists = fs.existsSync(dbPath);
+            Logger.info(`Database exists: ${statusReport.databaseExists}`, 'CheckDB');
 
             if (!statusReport.databaseExists) {
                 statusReport.issuesFound.push('Database file not found!');
@@ -100,30 +109,37 @@ class CheckDBCommand extends Command {
                     }
                 } catch (schemaErr) {
                     statusReport.issuesFound.push(`Schema validation error: ${schemaErr.message}`);
+                    Logger.error('Schema validation error:', 'CheckDB', schemaErr as Error);
                 }
 
                 // Get table counts
                 try {
                     const tables = await prisma.$queryRaw`SELECT name FROM sqlite_master WHERE type='table'`;
                     statusReport.tableCount = (tables as any[]).length;
+                    Logger.info(`Found ${statusReport.tableCount} tables`, 'CheckDB');
                 } catch (tableErr) {
                     statusReport.issuesFound.push(`Failed to count tables: ${tableErr.message}`);
+                    Logger.error('Failed to count tables:', 'CheckDB', tableErr as Error);
                 }
 
                 // Count user records
                 try {
                     const userCount = await prisma.$queryRaw`SELECT COUNT(*) as count FROM User`;
                     statusReport.userCount = (userCount as any[])[0].count;
+                    Logger.info(`Found ${statusReport.userCount} users`, 'CheckDB');
                 } catch (userErr) {
                     statusReport.issuesFound.push(`Failed to count users: ${userErr.message}`);
+                    Logger.error('Failed to count users:', 'CheckDB', userErr as Error);
                 }
 
                 // Count verification links
                 try {
                     const verificationCount = await prisma.$queryRaw`SELECT COUNT(*) as count FROM UserLink`;
                     statusReport.verificationCount = (verificationCount as any[])[0].count;
+                    Logger.info(`Found ${statusReport.verificationCount} verification links`, 'CheckDB');
                 } catch (verErr) {
                     statusReport.issuesFound.push(`Failed to count verifications: ${verErr.message}`);
+                    Logger.error('Failed to count verifications:', 'CheckDB', verErr as Error);
                 }
             }
 
@@ -150,16 +166,20 @@ class CheckDBCommand extends Command {
                 });
             }
 
-            return ctx.reply({ embeds: [reportEmbed] });
+            Logger.info('Sending database health report to Discord', 'CheckDB');
+            await ctx.reply({ embeds: [reportEmbed] });
         } catch (err) {
+            Logger.error('Error in checkHealth:', 'CheckDB', err as Error);
             throw err;
         }
     }
 
     async backupVerifications(ctx: CommandContext) {
+        Logger.info('Starting verification backup', 'CheckDB');
         try {
             // Get all verification links
             const verificationLinks = await prisma.userLink.findMany();
+            Logger.info(`Found ${verificationLinks.length} verification links to back up`, 'CheckDB');
 
             // Create backup object
             const backup = {};
@@ -171,7 +191,8 @@ class CheckDBCommand extends Command {
             const backupPath = path.join(process.cwd(), 'verification_backup.json');
             fs.writeFileSync(backupPath, JSON.stringify(backup, null, 2));
 
-            return ctx.reply({
+            Logger.info(`Saved backup to ${backupPath}`, 'CheckDB');
+            await ctx.reply({
                 embeds: [
                     createBaseEmbed('success')
                         .setTitle('Backup Complete')
@@ -179,81 +200,13 @@ class CheckDBCommand extends Command {
                 ]
             });
         } catch (err) {
-            throw err;
-        }
-    }
-
-    async restoreVerifications(ctx: CommandContext) {
-        try {
-            // Check if backup file exists
-            const backupPath = path.join(process.cwd(), 'verification_backup.json');
-            if (!fs.existsSync(backupPath)) {
-                return ctx.reply({
-                    embeds: [
-                        createBaseEmbed('danger')
-                            .setTitle('Restore Failed')
-                            .setDescription('No backup file found! Run `/checkdb action:backup` first.')
-                    ]
-                });
-            }
-
-            // Read backup file
-            const backupData = JSON.parse(fs.readFileSync(backupPath, 'utf8'));
-            const entries = Object.entries(backupData);
-
-            // Start restoration
-            const progressMessage = await ctx.channel.send(`Restoring 0/${entries.length} verification links...`);
-
-            let restoredCount = 0;
-            let errorCount = 0;
-
-            for (let i = 0; i < entries.length; i++) {
-                const [discordId, robloxId] = entries[i];
-
-                try {
-                    // Check if link already exists
-                    const existingLink = await prisma.userLink.findUnique({
-                        where: { discordId }
-                    });
-
-                    if (!existingLink) {
-                        // Create new link
-                        await prisma.userLink.create({
-                            data: {
-                                discordId,
-                                robloxId: String(robloxId),
-                                verifiedAt: new Date()
-                            }
-                        });
-                        restoredCount++;
-                    }
-
-                    // Update progress every 10 records
-                    if (i % 10 === 0 || i === entries.length - 1) {
-                        await progressMessage.edit(
-                            `Restoring ${i + 1}/${entries.length} verification links... ` +
-                            `(${restoredCount} restored, ${errorCount} errors)`
-                        );
-                    }
-                } catch (err) {
-                    errorCount++;
-                    Logger.error(`Failed to restore link for ${discordId}:`, 'CheckDB', err as Error);
-                }
-            }
-
-            return ctx.reply({
-                embeds: [
-                    createBaseEmbed('success')
-                        .setTitle('Restore Complete')
-                        .setDescription(`Restored ${restoredCount} verification links (${errorCount} errors)`)
-                ]
-            });
-        } catch (err) {
+            Logger.error('Error in backupVerifications:', 'CheckDB', err as Error);
             throw err;
         }
     }
 
     async fixSchema(ctx: CommandContext) {
+        Logger.info('Starting schema fix', 'CheckDB');
         try {
             // Try to fix UserLink table if needed
             try {
@@ -263,7 +216,10 @@ class CheckDBCommand extends Command {
                     WHERE type='table' AND name='UserLink'
                 `;
 
-                if ((tables as any[]).length === 0) {
+                const tableExists = (tables as any[]).length > 0;
+                Logger.info(`UserLink table exists: ${tableExists}`, 'CheckDB');
+
+                if (!tableExists) {
                     // Create UserLink table
                     await prisma.$executeRaw`
                         CREATE TABLE UserLink (
@@ -272,10 +228,12 @@ class CheckDBCommand extends Command {
                             verifiedAt DATETIME DEFAULT CURRENT_TIMESTAMP
                         )
                     `;
+                    Logger.info('Created UserLink table', 'CheckDB');
                 } else {
                     // Check if verifiedAt column exists
                     const columns = await prisma.$queryRaw`PRAGMA table_info(UserLink)`;
                     const hasVerifiedAt = (columns as any[]).some(col => col.name === 'verifiedAt');
+                    Logger.info(`verifiedAt column exists: ${hasVerifiedAt}`, 'CheckDB');
 
                     if (!hasVerifiedAt) {
                         // Add verifiedAt column
@@ -283,13 +241,16 @@ class CheckDBCommand extends Command {
                             ALTER TABLE UserLink 
                             ADD COLUMN verifiedAt DATETIME DEFAULT CURRENT_TIMESTAMP
                         `;
+                        Logger.info('Added verifiedAt column to UserLink table', 'CheckDB');
                     }
                 }
             } catch (schemaErr) {
+                Logger.error('Failed to fix schema:', 'CheckDB', schemaErr as Error);
                 throw new Error(`Failed to fix schema: ${schemaErr.message}`);
             }
 
-            return ctx.reply({
+            Logger.info('Schema fix completed successfully', 'CheckDB');
+            await ctx.reply({
                 embeds: [
                     createBaseEmbed('success')
                         .setTitle('Schema Fixed')
@@ -297,6 +258,7 @@ class CheckDBCommand extends Command {
                 ]
             });
         } catch (err) {
+            Logger.error('Error in fixSchema:', 'CheckDB', err as Error);
             throw err;
         }
     }

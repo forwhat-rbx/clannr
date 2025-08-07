@@ -73,8 +73,12 @@ async function initializeDiscord() {
     await discordClient.login(process.env.DISCORD_TOKEN);
     Logger.info('Successfully logged in to Discord', 'Discord');
 
-    // Register slash commands with Discord API
-    await registerSlashCommands();
+    // Only register commands when specifically requested
+    if (process.argv.includes('--register-commands')) {
+        await registerSlashCommands();
+    } else {
+        Logger.info('Skipping command registration. Use --register-commands flag to register commands.', 'Discord');
+    }
 
     // Initialize log channels
     await initializeLogChannels();

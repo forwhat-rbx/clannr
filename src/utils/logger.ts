@@ -1,6 +1,12 @@
-import { consoleMagenta, consoleGreen, consoleYellow, consoleRed, consoleClear } from '../handlers/locale';
 import * as fs from 'fs';
 import * as path from 'path';
+
+// Define console colors directly to avoid circular dependencies
+const consoleMagenta = '\x1b[35m';
+const consoleGreen = '\x1b[32m';
+const consoleYellow = '\x1b[33m';
+const consoleRed = '\x1b[31m';
+const consoleClear = '\x1b[0m';
 
 // Define log levels with their respective colors
 export enum LogLevel {
@@ -123,32 +129,50 @@ export function configure(options: Partial<LoggerConfig>): void {
     config = { ...config, ...options };
 }
 
-/**
- * Main logger functions
- */
+// Create Logger object immediately to avoid circular dependencies
 export const Logger = {
     debug: (message: string, context?: string, error?: Error) => {
-        logToConsole(LogLevel.DEBUG, message, context, error);
-        writeToFile(LogLevel.DEBUG, message, context, error);
+        try {
+            logToConsole(LogLevel.DEBUG, message, context, error);
+            writeToFile(LogLevel.DEBUG, message, context, error);
+        } catch (err) {
+            console.log(`DEBUG [${context || ''}] ${message}`, error || '');
+        }
     },
 
     info: (message: string, context?: string, error?: Error) => {
-        logToConsole(LogLevel.INFO, message, context, error);
-        writeToFile(LogLevel.INFO, message, context, error);
+        try {
+            logToConsole(LogLevel.INFO, message, context, error);
+            writeToFile(LogLevel.INFO, message, context, error);
+        } catch (err) {
+            console.log(`INFO [${context || ''}] ${message}`, error || '');
+        }
     },
 
     warn: (message: string, context?: string, error?: Error) => {
-        logToConsole(LogLevel.WARN, message, context, error);
-        writeToFile(LogLevel.WARN, message, context, error);
+        try {
+            logToConsole(LogLevel.WARN, message, context, error);
+            writeToFile(LogLevel.WARN, message, context, error);
+        } catch (err) {
+            console.warn(`WARN [${context || ''}] ${message}`, error || '');
+        }
     },
 
     error: (message: string, context?: string, error?: Error) => {
-        logToConsole(LogLevel.ERROR, message, context, error);
-        writeToFile(LogLevel.ERROR, message, context, error);
+        try {
+            logToConsole(LogLevel.ERROR, message, context, error);
+            writeToFile(LogLevel.ERROR, message, context, error);
+        } catch (err) {
+            console.error(`ERROR [${context || ''}] ${message}`, error || '');
+        }
     },
 
     fatal: (message: string, context?: string, error?: Error) => {
-        logToConsole(LogLevel.FATAL, message, context, error);
-        writeToFile(LogLevel.FATAL, message, context, error);
+        try {
+            logToConsole(LogLevel.FATAL, message, context, error);
+            writeToFile(LogLevel.FATAL, message, context, error);
+        } catch (err) {
+            console.error(`FATAL [${context || ''}] ${message}`, error || '');
+        }
     }
 };

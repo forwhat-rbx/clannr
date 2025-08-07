@@ -13,7 +13,6 @@ import { Logger } from '../utils/logger';
 
 const handleInteraction = async (payload: Interaction<CacheType>) => {
     // Log only the interaction type for minimal output
-    Logger.debug('Interaction received:', 'Interaction');
 
     if (payload instanceof CommandInteraction) {
         const interaction = payload as CommandInteraction;

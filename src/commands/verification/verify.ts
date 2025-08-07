@@ -221,6 +221,35 @@ export async function checkVerification(userId: string) {
                 await createUserLink(userId, robloxIdString);
                 console.log(`[VERIFY DEBUG] UserLink created in database`);
 
+                try {
+                    // Find the member in the guild
+                    const guilds = discordClient.guilds.cache.values();
+                    for (const guild of guilds) {
+                        try {
+                            const member = await guild.members.fetch(userId).catch(() => null);
+                            if (member) {
+                                // Look for either the specific role ID or a role named "Verified"
+                                const verifiedRole = guild.roles.cache.get('1403118979584757832') ||
+                                    guild.roles.cache.find(role => role.name === 'Verified');
+
+                                if (verifiedRole) {
+                                    await member.roles.add(verifiedRole, 'Automatic role assignment upon verification');
+                                    console.log(`[VERIFY DEBUG] Added Verified role to user ${userId} in guild ${guild.name}`);
+                                }
+                            }
+                        } catch (guildErr) {
+                            console.error(`[VERIFY DEBUG] Error processing guild ${guild.id}: ${guildErr.message}`);
+                            // Continue with other guilds if one fails
+                        }
+                    }
+                } catch (roleErr) {
+                    console.error(`[VERIFY DEBUG] Error adding Verified role: ${roleErr.message}`);
+                    // Don't block verification if role assignment fails
+                }
+
+                // Remove from pending verification
+                global.pendingVerifications.delete(userId);
+
                 // Initialize user in the XP database if they don't exist
                 const existingUser = await provider.findUser(robloxIdString);
                 if (!existingUser) {

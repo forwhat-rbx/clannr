@@ -16,7 +16,7 @@ class RoleBindsCommand extends Command {
             args: [
                 {
                     trigger: 'action',
-                    description: 'Action to perform',
+                    description: 'Configure role bindings',
                     type: 'String',
                     required: true,
                     choices: [

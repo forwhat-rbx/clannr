@@ -386,19 +386,14 @@ async function handleDiscordInteraction(interaction) {
 
     try {
         if (interaction.isCommand()) {
-            Logger.debug(`Command interaction: ${interaction.commandName}`, 'Interaction');
             await handleInteraction(interaction);
         } else if (interaction.isButton()) {
-            Logger.debug(`Button interaction: ${interaction.customId}`, 'Interaction');
             await handleButtonInteraction(interaction);
         } else if (interaction.isModalSubmit()) {
-            Logger.debug(`Modal interaction: ${interaction.customId}`, 'Interaction');
             await handleModalSubmit(interaction);
         } else if (interaction.isAutocomplete()) {
-            Logger.debug(`Autocomplete interaction for: ${interaction.commandName}`, 'Interaction');
             await handleInteraction(interaction);
         } else if (interaction.isRoleSelectMenu() || interaction.isStringSelectMenu()) {
-            Logger.debug(`Select menu interaction: ${interaction.customId}`, 'Interaction');
             const { handleComponentInteraction } = require('./handlers/componentInteractionHandler');
             await handleComponentInteraction(interaction);
         }

@@ -40,12 +40,8 @@ if (!global.pendingVerifications) {
 export async function handleButtonInteraction(interaction: ButtonInteraction): Promise<void> {
     const customId = interaction.customId;
 
-    // Add debug logging to track all button interactions
-    Logger.info(`Button interaction received: ${customId} from user ${interaction.user.tag}`, 'ButtonHandler');
-
     // Skip handling pagination buttons - let the collectors handle these
     if (customId === 'previous' || customId === 'next') {
-        Logger.debug(`Skipping global handling for pagination button: ${customId}`, 'ButtonHandler');
         return; // Don't handle these buttons globally - let the collectors handle them
     }
 
@@ -54,7 +50,6 @@ export async function handleButtonInteraction(interaction: ButtonInteraction): P
         if (customId === 'binds_add_roles_selection' ||
             customId.startsWith('binds_select_roles:') ||
             customId.startsWith('binds_select_remove_roles_multi')) {
-            Logger.debug(`Skipping button handler for role binding interaction: ${customId}`, 'ButtonHandler');
             return;
         }
 

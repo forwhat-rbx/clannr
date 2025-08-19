@@ -9,7 +9,7 @@ export interface ProcessingOptions {
     completionMessage: string;
 }
 
-// Update the type to include ButtonInteraction
+// Update the type to include all interaction types
 export type InteractionOrContext = CommandContext | ButtonInteraction | ModalSubmitInteraction | CommandInteraction;
 
 async function sendUpdate(
@@ -57,8 +57,11 @@ async function sendUpdate(
     }
 }
 
+/**
+ * Process items in chunks with progress updates
+ */
 export async function processInChunks<T, R>(
-    ctx: CommandContext,
+    interaction: InteractionOrContext,
     items: T[],
     processorFn: (item: T, index: number) => Promise<R>,
     options: ProcessingOptions
@@ -66,8 +69,26 @@ export async function processInChunks<T, R>(
     const { totalItems, chunkSize, initialMessage, progressInterval, completionMessage } = options;
     const results: R[] = [];
 
-    // Send initial status message
-    const statusMessage = await ctx.reply({ content: initialMessage });
+    // Send initial status message based on interaction type - fix type narrowing
+    let statusMessage;
+
+    // Handle CommandContext
+    if ('subject' in interaction && 'reply' in interaction) {
+        statusMessage = await interaction.reply({ content: initialMessage, fetchReply: true });
+    }
+    // Handle deferred CommandInteraction/ButtonInteraction/ModalSubmitInteraction
+    else if (isInteractionWithEditReply(interaction) && 'deferred' in interaction && interaction.deferred) {
+        statusMessage = await interaction.editReply({ content: initialMessage });
+    }
+    // Handle ButtonInteraction with update
+    else if (isButtonInteraction(interaction)) {
+        statusMessage = await interaction.update({ content: initialMessage, fetchReply: true });
+    }
+    // Fallback
+    else {
+        console.error('No appropriate method found to send/update message');
+        return results;
+    }
 
     // Process in chunks
     let processedCount = 0;
@@ -86,22 +107,47 @@ export async function processInChunks<T, R>(
         if (progressPercentage >= lastProgressUpdate + progressInterval || processedCount === totalItems) {
             lastProgressUpdate = Math.floor(progressPercentage / progressInterval) * progressInterval;
 
-            // Edit the existing message instead of sending a new one
-            await statusMessage.edit({
-                content: `${initialMessage} (${processedCount}/${totalItems}, ${progressPercentage}% complete)`
-            }).catch(err => console.error('Failed to update progress message:', err));
+            try {
+                // Edit the existing message
+                if (statusMessage && 'edit' in statusMessage) {
+                    await statusMessage.edit({
+                        content: `${initialMessage} (${processedCount}/${totalItems}, ${progressPercentage}% complete)`
+                    });
+                } else if (isInteractionWithEditReply(interaction)) {
+                    await interaction.editReply({
+                        content: `${initialMessage} (${processedCount}/${totalItems}, ${progressPercentage}% complete)`
+                    });
+                }
+            } catch (err) {
+                console.error('Failed to update progress message:', err);
+            }
 
             // Small delay to avoid rate limits
             await new Promise(r => setTimeout(r, 500));
         }
     }
 
-    // Update with completion message if not immediately followed by results
+    // Update with completion message
     if (completionMessage) {
-        await statusMessage.edit({
-            content: completionMessage
-        }).catch(err => console.error('Failed to update completion message:', err));
+        try {
+            if (statusMessage && 'edit' in statusMessage) {
+                await statusMessage.edit({ content: completionMessage });
+            } else if (isInteractionWithEditReply(interaction)) {
+                await interaction.editReply({ content: completionMessage });
+            }
+        } catch (err) {
+            console.error('Failed to update completion message:', err);
+        }
     }
 
     return results;
+}
+
+// Type guard functions to help TypeScript narrow types correctly
+function isInteractionWithEditReply(interaction: InteractionOrContext): interaction is CommandInteraction | ButtonInteraction | ModalSubmitInteraction {
+    return 'editReply' in interaction;
+}
+
+function isButtonInteraction(interaction: InteractionOrContext): interaction is ButtonInteraction {
+    return 'update' in interaction;
 }

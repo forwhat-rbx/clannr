@@ -97,8 +97,10 @@ class CompareGroupsCommand extends Command {
                 return ctx.reply({ content: `No members found with the role ${discordRole.name}.` });
             }
 
-            // Status update
-            await ctx.reply({ content: `Found ${discordMembers.length} members with role ${discordRole.name}. Checking Roblox accounts...` });
+            // Create initial status message
+            const statusMessage = await ctx.reply({
+                content: `Found ${discordMembers.length} members with role ${discordRole.name}. Starting Roblox account checks...`
+            });
 
             // Collection for members who are in the group
             const matchedMembers: Array<{ id: number, username: string, role1: string, role2: string }> = [];
@@ -107,13 +109,14 @@ class CompareGroupsCommand extends Command {
             const options: ProcessingOptions = {
                 totalItems: discordMembers.length,
                 chunkSize: 3, // Process 3 users at a time (Bloxlink has stricter rate limits)
-                initialMessage: `Checking ${discordMembers.length} Discord members for linked Roblox accounts in group ${groupName}...`,
+                initialMessage: `Checking Discord members for linked Roblox accounts in group ${groupName}...`,
                 progressInterval: 10, // Update progress every 10%
-                completionMessage: "Finished checking all members."
+                completionMessage: `Finished checking all ${discordMembers.length} members. Preparing results...`
             };
 
-            await processInChunks(
-                ctx,
+            // Custom process function that updates a single message
+            const processResults = await this.processWithSingleMessage(
+                statusMessage,
                 discordMembers,
                 async (member, index) => {
                     try {
@@ -211,7 +214,15 @@ class CompareGroupsCommand extends Command {
                 }, 10 * 60 * 1000);
             }
 
-            // Send results
+            // Delete the status message
+            try {
+                await statusMessage.delete();
+            } catch (err) {
+                console.error('Failed to delete status message:', err);
+                // Continue anyway if deletion fails
+            }
+
+            // Send final results
             return ctx.reply({
                 content: null,
                 embeds: [embed],
@@ -222,6 +233,58 @@ class CompareGroupsCommand extends Command {
             console.error('CompareGroups command error:', err);
             return ctx.reply({ content: 'An error occurred while comparing groups.' });
         }
+    }
+
+    /**
+     * Custom implementation to process items in chunks with a single status message
+     */
+    private async processWithSingleMessage<T, R>(
+        statusMessage: any,
+        items: T[],
+        processorFn: (item: T, index: number) => Promise<R>,
+        options: ProcessingOptions
+    ): Promise<R[]> {
+        const { totalItems, chunkSize, initialMessage, progressInterval, completionMessage } = options;
+        const results: R[] = [];
+
+        // Update the status message with initial message
+        await statusMessage.edit({ content: initialMessage });
+
+        // Process in chunks
+        let processedCount = 0;
+        let lastProgressUpdate = 0;
+
+        for (let i = 0; i < items.length; i++) {
+            const result = await processorFn(items[i], i);
+            if (result !== null) {
+                results.push(result);
+            }
+
+            processedCount++;
+            const progressPercentage = Math.floor((processedCount / totalItems) * 100);
+
+            // Only update progress at defined intervals to avoid rate limits
+            if (progressPercentage >= lastProgressUpdate + progressInterval || processedCount === totalItems) {
+                lastProgressUpdate = Math.floor(progressPercentage / progressInterval) * progressInterval;
+
+                // Edit the existing message instead of sending a new one
+                await statusMessage.edit({
+                    content: `${initialMessage} (${processedCount}/${totalItems}, ${progressPercentage}% complete)`
+                }).catch(err => console.error('Failed to update progress message:', err));
+
+                // Small delay to avoid rate limits
+                await new Promise(r => setTimeout(r, 500));
+            }
+        }
+
+        // Update with completion message
+        if (completionMessage) {
+            await statusMessage.edit({
+                content: completionMessage
+            }).catch(err => console.error('Failed to update completion message:', err));
+        }
+
+        return results;
     }
 
     private createResultEmbed(discordRoleName: string, groupName: string, matchedMembers: Array<{ id: number, username: string, role1: string, role2: string }>): EmbedBuilder {

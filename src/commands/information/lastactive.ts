@@ -138,7 +138,7 @@ class LastActiveCommand extends Command {
             // Find inactive users with chunked processing
             const inactiveUsers: any[] = [];
 
-            await processInChunks<any>(
+            await processInChunks<DatabaseUser, any | null>(
                 ctx,
                 potentiallyInactiveUsers,
                 async (user) => {
@@ -199,7 +199,9 @@ class LastActiveCommand extends Command {
                 {
                     totalItems: potentiallyInactiveUsers.length,
                     chunkSize: 20,
-                    progressInterval: 10
+                    progressInterval: 10,
+                    initialMessage: "Checking inactive users...",
+                    completionMessage: "Finished checking all users."
                 } as ProcessingOptions
             ).then(results => {
                 inactiveUsers.push(...results.filter(Boolean));

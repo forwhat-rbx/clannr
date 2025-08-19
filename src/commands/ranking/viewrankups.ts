@@ -74,7 +74,7 @@ class XPCheckRankupsCommand extends Command {
         };
 
         // Process in batches of 5 with delays between each user
-        await processInChunks<any>(
+        await processInChunks<UserData, string | null>(
             ctx,
             allUsers as UserData[], // Cast to UserData array
             async (userData, index) => {
